@@ -2,24 +2,27 @@
 
 ## Overview
 
-| Layer | Tool / Service |
-|-------|---------------|
-| Language | Python 3.11+ |
-| IDE | Cursor (with built-in AI) |
-| Broker | Alpaca (paper + live) |
-| AI / Sentiment | Claude AI (Anthropic) |
-| Market Data | Yahoo Finance via yfinance |
-| News Data | NewsAPI |
-| Scheduling | APScheduler |
-| Backend API | FastAPI + Uvicorn |
-| Database ORM | SQLAlchemy |
-| Environment | python-dotenv |
+
+| Layer          | Tool / Service             |
+| -------------- | -------------------------- |
+| Language       | Python 3.11+               |
+| IDE            | Cursor (with built-in AI)  |
+| Broker         | Alpaca (paper + live)      |
+| AI / Sentiment | Claude AI (Anthropic)      |
+| Market Data    | Yahoo Finance via yfinance |
+| News Data      | NewsAPI                    |
+| Scheduling     | APScheduler                |
+| Backend API    | FastAPI + Uvicorn          |
+| Database ORM   | SQLAlchemy                 |
+| Environment    | python-dotenv              |
+
 
 ---
 
 ## External Services & APIs
 
 ### Alpaca
+
 - Role: Brokerage — places and manages all orders
 - Used for: bracket orders, portfolio value, open positions, daily P&L
 - Paper trading URL: `https://paper-api.alpaca.markets`
@@ -28,6 +31,7 @@
 - Library: `alpaca-trade-api`
 
 ### Claude AI (Anthropic)
+
 - Role: News sentiment analysis — reads headlines and rates them bullish / bearish / neutral
 - Model used: `claude-sonnet-4-5`
 - Called once per candidate stock per nightly run
@@ -35,12 +39,14 @@
 - Library: `anthropic`
 
 ### NewsAPI
+
 - Role: Fetches recent headlines for each candidate stock
 - Used for: supplying raw text to Claude for sentiment analysis
 - Free tier: 100 requests/day (sufficient for paper trading)
 - Library: `newsapi-python`
 
 ### Yahoo Finance
+
 - Role: Historical price data (OHLCV)
 - Used for: RSI, SMA, VWAP, ATR calculations
 - Cost: Free, no API key required
@@ -51,33 +57,45 @@
 ## Python Libraries
 
 ### Data & Analysis
-| Library | Purpose |
-|---------|---------|
-| `pandas` | DataFrame manipulation for price data |
-| `numpy` | Numerical calculations |
-| `yfinance` | Downloads historical OHLCV price data |
-| `ta` | Technical indicators — RSI, SMA, VWAP, ATR |
+
+
+| Library    | Purpose                                    |
+| ---------- | ------------------------------------------ |
+| `pandas`   | DataFrame manipulation for price data      |
+| `numpy`    | Numerical calculations                     |
+| `yfinance` | Downloads historical OHLCV price data      |
+| `ta`       | Technical indicators — RSI, SMA, VWAP, ATR |
+
 
 ### API Clients
-| Library | Purpose |
-|---------|---------|
+
+
+| Library            | Purpose                   |
+| ------------------ | ------------------------- |
 | `alpaca-trade-api` | Alpaca broker integration |
-| `anthropic` | Claude AI API client |
-| `newsapi-python` | NewsAPI client |
-| `requests` | General HTTP requests |
+| `anthropic`        | Claude AI API client      |
+| `newsapi-python`   | NewsAPI client            |
+| `requests`         | General HTTP requests     |
+
 
 ### Backend & Scheduling
-| Library | Purpose |
-|---------|---------|
-| `fastapi` | REST API for the dashboard |
-| `uvicorn` | ASGI server to run FastAPI |
-| `sqlalchemy` | ORM for trade log persistence |
+
+
+| Library       | Purpose                                 |
+| ------------- | --------------------------------------- |
+| `fastapi`     | REST API for the dashboard              |
+| `uvicorn`     | ASGI server to run FastAPI              |
+| `sqlalchemy`  | ORM for trade log persistence           |
 | `apscheduler` | Schedules nightly bot runs (cron-style) |
 
+
 ### Utilities
-| Library | Purpose |
-|---------|---------|
+
+
+| Library         | Purpose                             |
+| --------------- | ----------------------------------- |
 | `python-dotenv` | Loads API keys from the `.env` file |
+
 
 ---
 
@@ -121,13 +139,16 @@ trading-bot/
 
 ## Key Configuration Variables (`.env`)
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `ALPACA_BASE_URL` | paper URL | Switch to live URL when ready |
-| `MAX_POSITION_SIZE_PCT` | 0.08 | Max 8% of portfolio per trade |
-| `MAX_OPEN_POSITIONS` | 5 | Hard limit on concurrent positions |
-| `MAX_DAILY_LOSS_PCT` | 0.03 | Bot stops if daily loss hits 3% |
-| `MAX_DRAWDOWN_PCT` | 0.08 | Kill switch fires at 8% drawdown from peak |
-| `KELLY_FRACTION` | 0.25 | Quarter-Kelly position sizing |
-| `MIN_EDGE_PCT` | 0.04 | Minimum 4% edge required to trade |
-| `MAX_HOLD_DAYS` | 5 | Maximum days to hold any position |
+
+| Variable                | Default   | Purpose                                    |
+| ----------------------- | --------- | ------------------------------------------ |
+| `ALPACA_BASE_URL`       | paper URL | Switch to live URL when ready              |
+| `MAX_POSITION_SIZE_PCT` | 0.08      | Max 8% of portfolio per trade              |
+| `MAX_OPEN_POSITIONS`    | 5         | Hard limit on concurrent positions         |
+| `MAX_DAILY_LOSS_PCT`    | 0.03      | Bot stops if daily loss hits 3%            |
+| `MAX_DRAWDOWN_PCT`      | 0.08      | Kill switch fires at 8% drawdown from peak |
+| `KELLY_FRACTION`        | 0.25      | Quarter-Kelly position sizing              |
+| `MIN_EDGE_PCT`          | 0.04      | Minimum 4% edge required to trade          |
+| `MAX_HOLD_DAYS`         | 5         | Maximum days to hold any position          |
+
+
