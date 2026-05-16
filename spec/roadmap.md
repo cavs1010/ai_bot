@@ -1,5 +1,14 @@
 # Roadmap
 
+## Development Standards
+
+Every function and module must follow the rules in `.agent_rules/README.md`:
+- Type hints, docstring, `None` return on failure, `[module]` print style
+- Terminal test via `python backend/<module>.py`
+- Companion Jupyter notebook: `<module>_playground.ipynb` in the same folder
+
+---
+
 ## Phase 0 — Prerequisites (Before Writing Any Code)
 
 Everything the bot needs to function must be in place before Step 1.
@@ -34,7 +43,8 @@ Everything the bot needs to function must be in place before Step 1.
 
 **Goal:** Give the bot its eyes — working access to price data and news.
 
-- [ ] Build `get_stock_data(ticker)` — downloads 60 days of OHLCV data via yfinance
+- [x] Build `get_stock_data(ticker, period, interval)` — downloads OHLCV data via yfinance (default: 60d daily)
+- [x] Create `backend/data_fetcher_playground.ipynb` — notebook for manual exploration and verification
 - [ ] Build `get_news_headlines(ticker, company_name)` — fetches up to 10 recent headlines via NewsAPI
 - [ ] Test: run the file directly and confirm Apple price data and headlines print to terminal
 
@@ -52,6 +62,7 @@ Everything the bot needs to function must be in place before Step 1.
 - [ ] Build `calculate_momentum_score(df)` — scores each stock 0–3 using RSI, VWAP, SMA20 vs SMA50
 - [ ] Build `run_scan()` — iterates the universe, returns candidates scoring 2 or higher
 - [ ] Test: run the scanner and confirm stocks are scored and filtered correctly
+- [ ] Create `backend/01_scanner/momentum_scanner_playground.ipynb`
 
 **Exit criteria:** Scanner runs across all 20 stocks and returns a ranked candidate list.
 
@@ -66,6 +77,7 @@ Everything the bot needs to function must be in place before Step 1.
 - [ ] Build `analyze_sentiment(ticker, company_name)` — fetches headlines and sends them to Claude
 - [ ] Parse Claude's JSON response: `sentiment` (bullish/bearish/neutral), `confidence` (0–1), `reasoning`
 - [ ] Test: run for one ticker and confirm Claude returns a structured sentiment result
+- [ ] Create `backend/02_signals/sentiment_analyzer_playground.ipynb`
 
 **Exit criteria:** Claude returns a valid sentiment object with confidence score and one-line reasoning.
 
@@ -82,6 +94,7 @@ Everything the bot needs to function must be in place before Step 1.
 - [ ] Apply EV formula: `EV = p × b − (1 − p)`, where `b = 2.0` (2:1 reward-to-risk)
 - [ ] Return BUY if edge ≥ 4% and sentiment is not bearish; otherwise SKIP with reason
 - [ ] Test: run against a mock candidate and confirm the output structure
+- [ ] Create `backend/02_signals/signal_generator_playground.ipynb`
 
 **Exit criteria:** Signal generator returns a valid BUY or SKIP decision with all fields populated.
 
@@ -102,6 +115,7 @@ Everything the bot needs to function must be in place before Step 1.
   - [ ] Drawdown kill switch not triggered
   - [ ] Reward-to-risk ratio ≥ 2:1
 - [ ] Test: run against a mock signal and confirm approved trades include correct share count and stops
+- [ ] Create `backend/03_risk/risk_gate_playground.ipynb`
 
 **Exit criteria:** Risk gate correctly approves valid trades and rejects trades that fail any single check.
 
@@ -118,6 +132,7 @@ Everything the bot needs to function must be in place before Step 1.
 - [ ] Build `get_portfolio_value()`, `get_open_positions()`, `get_daily_pnl()` — live account state
 - [ ] Build `place_bracket_order(trade_details)` — submits a bracket order to Alpaca
 - [ ] Test: run the file and confirm it connects to your paper account and prints portfolio value (no orders placed at this stage)
+- [ ] Create `backend/04_execution/alpaca_executor_playground.ipynb`
 
 **Exit criteria:** Portfolio value prints correctly. Alpaca connection confirmed.
 
@@ -134,6 +149,7 @@ Everything the bot needs to function must be in place before Step 1.
 - [ ] Build `calculate_brier_score()` — measures how calibrated the win probability estimates are
 - [ ] Build `get_performance_summary()` — prints win rate, trade count, and Brier score to terminal
 - [ ] Test: log a mock trade and confirm it appears correctly in both log files
+- [ ] Create `backend/05_learning/trade_logger_playground.ipynb`
 
 **Weekly review ritual (not code):**
 - Every Sunday, export the trade log
