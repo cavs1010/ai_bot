@@ -236,14 +236,14 @@ In Cursor, create a new file called exactly: .env (note the dot at the start). P
 
 The data layer is the bot's eyes. Before it can make any decisions it needs to see stock prices and read the news. This step gets those two feeds working.
 
-## Create: backend/data_fetcher.py
+## Create: backend/00_data/data_fetcher.py
 
-In Cursor, create this file at backend/data_fetcher.py and paste in the code below:
+In Cursor, create this file at backend/00_data/data_fetcher.py and paste in the code below:
 
-**FILE: backend/data_fetcher.py**
+**FILE: backend/00_data/data_fetcher.py**
 
 ```python
-# backend/data_fetcher.py
+# backend/00_data/data_fetcher.py
 # The bot's eyes — fetches stock prices and news headlines
 import os
 import yfinance as yf
@@ -263,7 +263,7 @@ Now test it works by running this in the terminal:
 **TERMINAL — RUN THIS TEST**
 
 ```python
-python backend/data_fetcher.py
+python backend/00_data/data_fetcher.py
 ```
 
 You should see 60 rows of Apple price data and some recent news headlines printed in your terminal. If you see errors, paste them into Cursor's AI panel and ask: 'Fix this error for me.'
@@ -289,8 +289,9 @@ The scanner is the first filter. Every night it looks at 500 stocks and cuts the
 # Scans stocks and scores them by momentum strength
 import pandas as pd
 import ta
-from backend.data_fetcher
-import get_stock_data
+import sys
+sys.path.insert(0, 'backend/00_data')
+from data_fetcher import get_stock_data
 # The stocks we scan each night
 # Start with 20 well-known S&P 500 stocks, expand later STOCK_UNIVERSE = [ 'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'META', 'TSLA', 'JPM', 'V', 'UNH', 'JNJ', 'WMT', 'PG', 'MA', 'HD', 'BAC', 'DIS', 'ADBE', 'CRM', 'NFLX' ]
 def calculate_momentum_score(df): """ Takes price data, returns a score
@@ -326,8 +327,11 @@ import json
 import anthropic
 from dotenv
 import load_dotenv
-from backend.data_fetcher
-import get_news_headlines load_dotenv() client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+import sys
+sys.path.insert(0, 'backend/00_data')
+from data_fetcher import get_news_headlines
+load_dotenv()
+client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
 def analyze_sentiment(ticker, company_name): """ Gets news headlines for a stock and asks Claude to rate the sentiment. Returns a dict with: sentiment: 'bullish', 'bearish', or 'neutral' confidence: float 0.0 to 1.0 reasoning: one sentence
 from Claude """ headlines = get_news_headlines(ticker, company_name) if not headlines: return {'sentiment': 'neutral', 'confidence': 0.0, 'reasoning': 'No news found'} headlines_text = '\n'.join([f'- {h}' for h in headlines]) prompt = f"""You are a financial news analyst. Analyse these recent headlines for {company_name} ({ticker}). Headlines: {headlines_text} Respond with ONLY a JSON object, no other text: {{ "sentiment": "bullish" or "bearish" or "neutral", "confidence": number between 0.0 and 1.0, "reasoning": "one sentence explanation" }} Be conservative. Only say bullish if genuinely positive. Only say bearish if clearly negative.""" try: message = client.messages.create( model='claude-sonnet-4-5', max_tokens=200, messages=[{'role': 'user', 'content': prompt}] ) return json.loads(message.content[0].text) except Exception as e: print(f'Sentiment failed for {ticker}: {e}') return {'sentiment': 'neutral', 'confidence': 0.0, 'reasoning': f'Error: {e}'}
 if __name__ == '__main__': result = analyze_sentiment('AAPL', 'Apple') print(f"Sentiment: {result['sentiment']}") print(f"Confidence: {result['confidence']}") print(f"Reasoning: {result['reasoning']}")
@@ -627,7 +631,7 @@ When something goes wrong — and something will go wrong — here is how to han
 | --- | --- |
 | Activate the virtual environment (Mac/Linux) | source venv/bin/activate |
 | Activate the virtual environment (Windows) | venv\Scripts\activate |
-| Test the data fetcher | python backend/data_fetcher.py |
+| Test the data fetcher | python backend/00_data/data_fetcher.py |
 | Run the scanner only | python backend/scanner/momentum_scanner.py |
 | Run the full bot now (test) | python backend/bot.py --now |
 | Start the scheduled bot | python backend/bot.py |
@@ -650,7 +654,7 @@ When something goes wrong — and something will go wrong — here is how to han
 | **File** | **What It Does** |
 | --- | --- |
 | .env | Your secret keys — never share this file |
-| backend/data_fetcher.py | Gets stock prices and news headlines |
+| backend/00_data/data_fetcher.py | Gets stock prices and news headlines |
 | backend/scanner/momentum_scanner.py | Filters 500 stocks to top candidates nightly |
 | backend/signals/sentiment_analyzer.py | Claude reads news and rates sentiment |
 | backend/signals/signal_generator.py | Combines signals, applies EV formula |

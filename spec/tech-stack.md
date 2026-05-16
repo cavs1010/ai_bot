@@ -97,18 +97,19 @@ pip install python-dotenv ta newsapi-python
 trading-bot/
 ├── .env                          # API keys — never commit this
 ├── backend/
-│   ├── data_fetcher.py           # Fetches price data and news headlines
+│   ├── 00_data/
+│   │   └── data_fetcher.py       # Fetches price data and news headlines
 │   ├── bot.py                    # Main entry point — runs the full pipeline
-│   ├── scanner/
+│   ├── 01_scanner/
 │   │   └── momentum_scanner.py   # Filters stocks by RSI, VWAP, SMA
-│   ├── signals/
+│   ├── 02_signals/
 │   │   ├── sentiment_analyzer.py # Claude reads news and scores sentiment
 │   │   └── signal_generator.py   # Combines signals, applies EV formula
-│   ├── risk/
+│   ├── 03_risk/
 │   │   └── risk_gate.py          # Validates every trade before execution
-│   ├── execution/
+│   ├── 04_execution/
 │   │   └── alpaca_executor.py    # Places bracket orders via Alpaca
-│   └── learning/
+│   └── 05_learning/
 │       └── trade_logger.py       # Logs trades, calculates Brier score
 ├── data/                         # Stored price history
 └── logs/

@@ -1,4 +1,4 @@
-# backend/data_fetcher.py
+# backend/00_data/data_fetcher.py
 # The bot's eyes — fetches price data and news for each stock.
 # Every other module imports from here.
 import pandas as pd

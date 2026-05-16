@@ -77,7 +77,7 @@ Before marking a function done, verify all three:
 
 | Check | Command | Expected |
 |-------|---------|----------|
-| Happy path | `python backend/<module>.py` | Correct output prints, no errors |
+| Happy path | `python backend/<layer_folder>/<module>.py` | Correct output prints, no errors |
 | Failure path | Call with an invalid input | Warning prints, `None` returned, no crash |
 | Import check | `from backend.<module> import <function>` | No import errors |
 
@@ -93,9 +93,10 @@ Every module gets a companion notebook for exploration and manual verification.
 Example:
 ```
 backend/
-├── data_fetcher.py
-├── data_fetcher_playground.ipynb   ← companion notebook
-├── scanner/
+├── 00_data/
+│   ├── data_fetcher.py
+│   └── data_fetcher_playground.ipynb   ← companion notebook
+├── 01_scanner/
 │   ├── momentum_scanner.py
 │   └── momentum_scanner_playground.ipynb
 ```
@@ -113,7 +114,7 @@ backend/
 **Import pattern** (when Jupyter is launched from project root):
 ```python
 import sys
-sys.path.insert(0, 'backend')
+sys.path.insert(0, 'backend/00_data')
 from data_fetcher import get_stock_data
 ```
 
@@ -136,7 +137,7 @@ Use the module's short name in brackets: `[data]`, `[scanner]`, `[sentiment]`, `
 A function is done when:
 
 - [ ] Code written and follows structure rules above
-- [ ] `python backend/<module>.py` runs without errors
+- [ ] `python backend/<layer_folder>/<module>.py` runs without errors
 - [ ] Failure path tested (bad input → `None`, no crash)
 - [ ] Companion Jupyter notebook created and cells execute correctly
 - [ ] Roadmap item checked off in `spec/roadmap.md`

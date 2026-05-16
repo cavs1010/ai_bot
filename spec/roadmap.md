@@ -4,7 +4,7 @@
 
 Every function and module must follow the rules in `.agent_rules/README.md`:
 - Type hints, docstring, `None` return on failure, `[module]` print style
-- Terminal test via `python backend/<module>.py`
+- Terminal test via `python backend/<layer_folder>/<module>.py` (e.g. `backend/00_data/data_fetcher.py`)
 - Companion Jupyter notebook: `<module>_playground.ipynb` in the same folder
 
 ---
@@ -39,12 +39,12 @@ Everything the bot needs to function must be in place before Step 1.
 
 ## Phase 2 — Data Layer
 
-**File:** `backend/data_fetcher.py`
+**File:** `backend/00_data/data_fetcher.py`
 
 **Goal:** Give the bot its eyes — working access to price data and news.
 
 - [x] Build `get_stock_data(ticker, period, interval)` — downloads OHLCV data via yfinance (default: 60d daily)
-- [x] Create `backend/data_fetcher_playground.ipynb` — notebook for manual exploration and verification
+- [x] Create `backend/00_data/data_fetcher_playground.ipynb` — notebook for manual exploration and verification
 - [ ] Build `get_news_headlines(ticker, company_name)` — fetches up to 10 recent headlines via NewsAPI
 - [ ] Test: run the file directly and confirm Apple price data and headlines print to terminal
 
