@@ -1,6 +1,14 @@
-# Roadmap
+# 🗺️ Iteration 1 — Roadmap
 
-## Development Standards
+**Status:** 🔄 active
+
+First full lap of the project (Phase 0 → Phase 11). Work **only** from this file for the current iteration.
+
+- 💡 Ideas for iteration 2 → [iteration-02-ideas.md](iteration-02-ideas.md) (one-line bullets only)
+- ⏳ Do not create `iteration-02-roadmap.md` until iteration 1 is complete
+- 📌 Index → [master.md](master.md)
+
+## 🛠️ Development Standards
 
 Every function and module must follow the rules in `.agent_rules/README.md`:
 - Type hints, docstring, `None` return on failure, `[module]` print style
@@ -9,7 +17,7 @@ Every function and module must follow the rules in `.agent_rules/README.md`:
 
 ---
 
-## Phase 0 — Prerequisites (Before Writing Any Code)
+## Phase 0 — 🔑 Prerequisites (Before Writing Any Code)
 
 Everything the bot needs to function must be in place before Step 1.
 
@@ -18,13 +26,12 @@ Everything the bot needs to function must be in place before Step 1.
 - [ ] Create Alpaca account + generate paper API keys — alpaca.markets (Free)
 - [ ] Create Anthropic account + add credit + generate API key — console.anthropic.com (~$10)
 - [ ] Create NewsAPI account + get free API key — newsapi.org (Free)
-1839  <!-- Note: Tiingo (tiingo.com) may be a better news source for financial data — evaluate before Phase 4 -->
 
 **Exit criteria:** All five API keys saved locally. Cursor and Python confirmed working in terminal.
 
 ---
 
-## Phase 1 — Project Setup
+## Phase 1 — 📦 Project Setup
 
 **Goal:** Create the folder structure, virtual environment, install all libraries, and store API keys safely.
 
@@ -38,7 +45,7 @@ Everything the bot needs to function must be in place before Step 1.
 
 ---
 
-## Phase 2 — Data Layer
+## Phase 2 — 📊 Data Layer
 
 **File:** `backend/00_data/data_fetcher.py`
 
@@ -47,37 +54,36 @@ Everything the bot needs to function must be in place before Step 1.
 - [x] Build `get_stock_data(ticker, period, interval)` — downloads OHLCV data via yfinance (default: 60d daily)
 - [x] Create `backend/00_data/data_fetcher_playground.ipynb` — notebook for manual exploration and verification
 - [x] Build `get_news_headlines(ticker, days_back, max_results)` — fetches headlines + descriptions via NewsAPI
-  <!-- Note: Tiingo (tiingo.com) may be a better alternative — richer financial news, dedicated stock news endpoint. Evaluate before Phase 4 if NewsAPI quality proves insufficient. -->
 - [x] Test: run the file directly and confirm Apple price data and headlines print to terminal
 
 **Exit criteria:** 60 rows of price data and at least 1 news headline returned for a test ticker.
 
 ---
 
-## Phase 3 — Stock Scanner (Two-Tier)
+## Phase 3 — 🔍 Stock Scanner (Two-Tier)
 
 **Files:** `backend/01_scanner/universe_filter.py`, `backend/01_scanner/momentum_scanner.py`
 
 **Goal:** Two-step scan — weekly S&P 500 → watchlist (~60–80), then nightly watchlist → top 10–15 momentum candidates.
 
 **Tier 1 — Universe filter (weekly)**
-- [ ] Build `universe_filter.py` — queries TradingView screener for the full S&P 500
-- [ ] Apply objective filters (volume, price band, ATR %, earnings window, dynamic price ceiling via Alpaca portfolio value)
-- [ ] Write output to `data/watchlist.json`
-- [ ] Test: run the filter and confirm a watchlist of ~60–80 tickers is saved
-- [ ] Create `backend/01_scanner/universe_filter_playground.ipynb`
+- [x] Build `universe_filter.py` — queries TradingView screener (market cap > $100B + US filters)
+- [x] Apply objective filters (volume, price band, ATR %, earnings window via Finnhub, dynamic price ceiling via Alpaca portfolio value)
+- [x] Write output to `data/watchlist.csv`
+- [x] Test: run the filter and confirm a watchlist of ~60–80 tickers is saved
+- [x] Create `backend/01_scanner/universe_filter_playground.ipynb`
 
 **Tier 2 — Momentum scan (nightly)**
 - [ ] Build `calculate_momentum_score()` — scores each stock 0–3 using RSI, SMA20, SMA50
-- [ ] Build `run_scan()` — reads `watchlist.json`, returns top 10–15 candidates scoring 2 or higher
+- [ ] Build `run_scan()` — reads `watchlist.csv`, returns top 10–15 candidates scoring 2 or higher
 - [ ] Test: run the scanner against an existing watchlist and confirm ranked output
 - [ ] Create `backend/01_scanner/momentum_scanner_playground.ipynb`
 
-**Exit criteria:** Universe filter produces a valid `watchlist.json`. Momentum scanner returns a ranked shortlist from that watchlist.
+**Exit criteria:** Universe filter produces a valid `watchlist.csv`. Momentum scanner returns a ranked shortlist from that watchlist.
 
 ---
 
-## Phase 4 — Claude AI Sentiment Analyzer
+## Phase 4 — 🧠 Claude AI Sentiment Analyzer
 
 **File:** `backend/02_signals/sentiment_analyzer.py`
 
@@ -92,7 +98,7 @@ Everything the bot needs to function must be in place before Step 1.
 
 ---
 
-## Phase 5 — Signal Generator
+## Phase 5 — 📈 Signal Generator
 
 **File:** `backend/02_signals/signal_generator.py`
 
@@ -109,7 +115,7 @@ Everything the bot needs to function must be in place before Step 1.
 
 ---
 
-## Phase 6 — Risk Gate
+## Phase 6 — 🛡️ Risk Gate
 
 **File:** `backend/03_risk/risk_gate.py`
 
@@ -128,11 +134,11 @@ Everything the bot needs to function must be in place before Step 1.
 
 **Exit criteria:** Risk gate correctly approves valid trades and rejects trades that fail any single check.
 
-**Important:** Never modify the risk gate to allow trades that fail its checks. The whole point is that it is non-negotiable.
+**⚠️ Important:** Never modify the risk gate to allow trades that fail its checks. The whole point is that it is non-negotiable.
 
 ---
 
-## Phase 7 — Execution Layer
+## Phase 7 — ⚡ Execution Layer
 
 **File:** `backend/04_execution/alpaca_executor.py`
 
@@ -147,7 +153,7 @@ Everything the bot needs to function must be in place before Step 1.
 
 ---
 
-## Phase 8 — Learning Loop
+## Phase 8 — 📝 Learning Loop
 
 **File:** `backend/05_learning/trade_logger.py`
 
@@ -170,7 +176,7 @@ Everything the bot needs to function must be in place before Step 1.
 
 ---
 
-## Phase 9 — Full Pipeline Integration
+## Phase 9 — 🔗 Full Pipeline Integration
 
 **File:** `backend/bot.py`
 
@@ -186,7 +192,7 @@ Everything the bot needs to function must be in place before Step 1.
 
 ---
 
-## Phase 10 — Paper Trading (Minimum 8 Weeks)
+## Phase 10 — 📋 Paper Trading (Minimum 8 Weeks)
 
 **Goal:** Prove the strategy works before any real money is involved.
 
@@ -207,7 +213,7 @@ Everything the bot needs to function must be in place before Step 1.
 
 ---
 
-## Phase 11 — Live Trading (Phased)
+## Phase 11 — 💰 Live Trading (Phased)
 
 **Goal:** Deploy real capital incrementally, gated by continued performance.
 
@@ -228,4 +234,4 @@ ALPACA_BASE_URL=https://api.alpaca.markets
 | Live 3 | $5,000 | 3 months live, all six criteria still met |
 | Scale up | Review with Claude first | Same criteria, minimum 6 months extended timeframe |
 
-**Do not skip stages. Do not scale on emotion. One good month is not a sample size.**
+**⚠️ Do not skip stages. Do not scale on emotion. One good month is not a sample size.**

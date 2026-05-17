@@ -1,0 +1,19 @@
+---
+description: Spec and iteration workflow — master, roadmaps, ideas files, emoji format
+globs: spec/**/*
+alwaysApply: true
+---
+
+# Spec & iteration development
+
+Read and follow [`.agent_rules/spec-development.md`](../../.agent_rules/spec-development.md) exactly.
+
+Before planning or coding:
+
+1. Read [`spec/master.md`](../../spec/master.md) → **Current iteration**
+2. Read the active `spec/iteration-NN-roadmap.md`
+3. Do **not** implement `iteration-XX-ideas.md` unless capturing a new idea
+
+When editing `spec/`: use the emoji conventions and file templates in `spec-development.md`. Keep ideas as one-line bullets; do not create a future iteration roadmap until the current iteration is done.
+
+**Stable spec** (`mission.md`, `tech-stack.md`): follow §6–§8 in `spec-development.md` — rare changes only; no task checkboxes; deferrals go to ideas files.

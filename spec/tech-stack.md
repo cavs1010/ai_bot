@@ -1,7 +1,11 @@
-# Tech Stack
+# 🧰 Tech Stack
 
-## Overview
+> **Stable spec** — update when tools, libraries, paths, or `.env` variables change.  
+> 📌 Index → [master.md](master.md) · Rules for edits → [`.agent_rules/spec-development.md`](../.agent_rules/spec-development.md)
 
+---
+
+## 📋 Overview
 
 | Layer          | Tool / Service             |
 | -------------- | -------------------------- |
@@ -12,61 +16,67 @@
 | Market Data    | Yahoo Finance via yfinance |
 | Stock Universe | TradingView Screener       |
 | News Data      | NewsAPI                    |
+| Earnings Data  | Finnhub                    |
 | Scheduling     | APScheduler                |
 | Backend API    | FastAPI + Uvicorn          |
 | Database ORM   | SQLAlchemy                 |
 | Environment    | python-dotenv              |
 
+---
+
+## 🌐 External Services & APIs
+
+### 🏦 Alpaca
+
+- **Role:** Brokerage — places and manages all orders
+- **Used for:** bracket orders, portfolio value, open positions, daily P&L
+- **Paper trading URL:** `https://paper-api.alpaca.markets`
+- **Live trading URL:** `https://api.alpaca.markets`
+- **Cost:** Free account; no commission on trades
+- **Library:** `alpaca-trade-api`
+
+### 🧠 Claude AI (Anthropic)
+
+- **Role:** News sentiment analysis — reads headlines and rates them bullish / bearish / neutral
+- **Model used:** `claude-sonnet-4-6`
+- **Called once** per candidate stock per nightly run
+- **Cost:** ~$1–2 per day during paper trading
+- **Library:** `anthropic`
+
+### 📰 NewsAPI
+
+- **Role:** Fetches recent headlines for each candidate stock
+- **Used for:** supplying raw text to Claude for sentiment analysis
+- **Free tier:** 100 requests/day (sufficient for paper trading)
+- **Library:** `newsapi-python`
+- **Alternatives under review:** see [iteration-02-ideas.md](iteration-02-ideas.md) (do not add long evaluation notes here)
+
+### 📅 Finnhub
+
+- **Role:** Earnings calendar — filters stocks with earnings in the next 5 days from the weekly universe filter
+- **Used for:** `get_earnings_tickers()` in `universe_filter.py` — one call per week covering a date range
+- **Free tier:** 60 API calls/minute, no credit card required — finnhub.io
+- **Library:** `requests` (no dedicated library needed)
+
+### 📊 Yahoo Finance
+
+- **Role:** Historical price data (OHLCV)
+- **Used for:** RSI, SMA, VWAP, ATR calculations in the nightly momentum scanner
+- **Cost:** Free, no API key required
+- **Library:** `yfinance`
+
+### 🔍 TradingView Screener
+
+- **Role:** Tier 1 universe filter — scans the S&P 500 with server-side indicator calculations
+- **Used for:** weekly watchlist generation (volume, price band, ATR %, dynamic price ceiling)
+- **Schedule:** Sunday night (before the nightly trading week)
+- **Library:** `tradingview-screener`
 
 ---
 
-## External Services & APIs
+## 🐍 Python Libraries
 
-### Alpaca
-
-- Role: Brokerage — places and manages all orders
-- Used for: bracket orders, portfolio value, open positions, daily P&L
-- Paper trading URL: `https://paper-api.alpaca.markets`
-- Live trading URL: `https://api.alpaca.markets`
-- Cost: Free account; no commission on trades
-- Library: `alpaca-trade-api`
-
-### Claude AI (Anthropic)
-
-- Role: News sentiment analysis — reads headlines and rates them bullish / bearish / neutral
-- Model used: `claude-sonnet-4-6`
-- Called once per candidate stock per nightly run
-- Cost: ~$1–2 per day during paper trading
-- Library: `anthropic`
-
-### NewsAPI
-
-- Role: Fetches recent headlines for each candidate stock
-- Used for: supplying raw text to Claude for sentiment analysis
-- Free tier: 100 requests/day (sufficient for paper trading)
-- Library: `newsapi-python`
-- **Note:** Tiingo (tiingo.com) is a potential replacement — it offers a dedicated financial news endpoint with better stock-specific coverage. Evaluate before Phase 4 if headline quality is insufficient for sentiment analysis.
-
-### Yahoo Finance
-
-- Role: Historical price data (OHLCV)
-- Used for: RSI, SMA, VWAP, ATR calculations; earnings-date checks for the universe filter
-- Cost: Free, no API key required
-- Library: `yfinance`
-
-### TradingView Screener
-
-- Role: Tier 1 universe filter — scans the S&P 500 with server-side indicator calculations
-- Used for: weekly watchlist generation (volume, price band, ATR %, dynamic price ceiling)
-- Schedule: Sunday night (before the nightly trading week)
-- Library: `tradingview-screener`
-
----
-
-## Python Libraries
-
-### Data & Analysis
-
+### 📊 Data & Analysis
 
 | Library    | Purpose                                    |
 | ---------- | ------------------------------------------ |
@@ -76,9 +86,7 @@
 | `ta`       | Technical indicators — RSI, SMA, VWAP, ATR |
 | `tradingview-screener` | Tier 1 S&P 500 universe filter (server-side metrics) |
 
-
-### API Clients
-
+### 🔌 API Clients
 
 | Library            | Purpose                   |
 | ------------------ | ------------------------- |
@@ -87,9 +95,7 @@
 | `newsapi-python`   | NewsAPI client            |
 | `requests`         | General HTTP requests     |
 
-
-### Backend & Scheduling
-
+### 🖥️ Backend & Scheduling
 
 | Library       | Purpose                                 |
 | ------------- | --------------------------------------- |
@@ -98,18 +104,15 @@
 | `sqlalchemy`  | ORM for trade log persistence           |
 | `apscheduler` | Schedules weekly watchlist refresh + nightly bot runs |
 
-
-### Utilities
-
+### 🧩 Utilities
 
 | Library         | Purpose                             |
 | --------------- | ----------------------------------- |
 | `python-dotenv` | Loads API keys from the `.env` file |
 
-
 ---
 
-## Install Command
+## 📥 Install Command
 
 ```bash
 pip install alpaca-trade-api yfinance pandas numpy requests
@@ -119,7 +122,7 @@ pip install python-dotenv ta newsapi-python tradingview-screener
 
 ---
 
-## Project File Structure
+## 📁 Project File Structure
 
 ```
 trading-bot/
@@ -141,7 +144,7 @@ trading-bot/
 │   └── 05_learning/
 │       └── trade_logger.py       # Logs trades, calculates Brier score
 ├── data/
-│   └── watchlist.json            # Tier 1 output — refreshed weekly
+│   └── watchlist.csv             # Tier 1 output — refreshed weekly
 └── logs/
     ├── trade_log.json            # Every trade ever made
     └── failure_log.md            # Human-readable loss diary
@@ -149,8 +152,7 @@ trading-bot/
 
 ---
 
-## Key Configuration Variables (`.env`)
-
+## 🔐 Key Configuration Variables (`.env`)
 
 | Variable                | Default   | Purpose                                    |
 | ----------------------- | --------- | ------------------------------------------ |
@@ -162,5 +164,3 @@ trading-bot/
 | `KELLY_FRACTION`        | 0.25      | Quarter-Kelly position sizing              |
 | `MIN_EDGE_PCT`          | 0.04      | Minimum 4% edge required to trade          |
 | `MAX_HOLD_DAYS`         | 5         | Maximum days to hold any position          |
-
-

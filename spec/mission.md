@@ -1,6 +1,11 @@
-# Mission
+# 🎯 Mission
 
-## What We Are Building
+> **Stable spec** — changes rarely. Update only when strategy, rules, or success criteria change.  
+> 📌 Index → [master.md](master.md) · Rules for edits → [`.agent_rules/spec-development.md`](../.agent_rules/spec-development.md)
+
+---
+
+## 🏗️ What We Are Building
 
 An autonomous stock trading bot that runs overnight while you sleep, scans hundreds of US stocks, identifies high-probability trading opportunities, and places and manages trades automatically through a brokerage account — without requiring any manual intervention.
 
@@ -8,7 +13,7 @@ You wake up each morning, open a browser dashboard, and review what the bot did.
 
 ---
 
-## Why It Exists
+## 💡 Why It Exists
 
 Traditional retail trading fails for two consistent reasons: emotion and inconsistency. Traders override systems during drawdowns, chase recent winners, and abandon strategies before they have time to prove themselves.
 
@@ -18,24 +23,24 @@ The second reason is leverage of time. US markets are open while you are asleep 
 
 ---
 
-## How It Works
+## ⚙️ How It Works
 
 The bot runs a six-stage pipeline every night:
 
 | Stage | Name | What It Does |
 |-------|------|--------------|
-| 1 | Scan | **Weekly:** filters the S&P 500 to a 60–80 stock watchlist (liquidity, price, volatility, earnings). **Nightly:** ranks that watchlist to 10–15 momentum candidates |
-| 2 | Research | Claude AI reads recent news for each candidate |
-| 3 | Predict | Calculates win probability and expected value using the EV formula |
-| 4 | Risk Gate | Applies Kelly sizing, exposure limits, and drawdown checks |
-| 5 | Execute | Places bracket orders (buy + stop-loss + take-profit) via Alpaca |
-| 6 | Compound | Logs every trade and calculates prediction accuracy (Brier score) |
+| 1 | 🔍 Scan | **Weekly:** filters the S&P 500 to a 60–80 stock watchlist (liquidity, price, volatility, earnings). **Nightly:** ranks that watchlist to 10–15 momentum candidates |
+| 2 | 🧠 Research | Claude AI reads recent news for each candidate |
+| 3 | 📈 Predict | Calculates win probability and expected value using the EV formula |
+| 4 | 🛡️ Risk Gate | Applies Kelly sizing, exposure limits, and drawdown checks |
+| 5 | ⚡ Execute | Places bracket orders (buy + stop-loss + take-profit) via Alpaca |
+| 6 | 📝 Compound | Logs every trade and calculates prediction accuracy (Brier score) |
 
 A trade only reaches execution when two independent signals agree: momentum (the stock is trending with volume) and sentiment (Claude's reading of the news is positive). If either signal is absent or contradictory, the bot does nothing.
 
 ---
 
-## How We Learn From Errors
+## 📖 How We Learn From Errors
 
 The bot logs every trade — wins and losses — to a structured trade log and a human-readable failure log. Once a week, you export that log and review it with Claude. This is a deliberate, manual process:
 
@@ -48,7 +53,7 @@ The weekly review asks: what did the losing trades have in common? Was sentiment
 
 ---
 
-## The Decision Rules (Non-Negotiable)
+## ⚠️ The Decision Rules (Non-Negotiable)
 
 | Rule | Value | Purpose |
 |------|-------|---------|
@@ -62,7 +67,7 @@ The weekly review asks: what did the losing trades have in common? Was sentiment
 
 ---
 
-## Success Criteria
+## 🏁 Success Criteria
 
 The bot is considered ready for live money when it meets **all six** of the following over a minimum of 100 paper trades:
 
@@ -77,7 +82,7 @@ No single criterion is sufficient. All six must be met simultaneously before liv
 
 ---
 
-## Long-Term Vision
+## 🔭 Long-Term Vision
 
 The goal is not to beat the market on day one. The goal is to build a disciplined, evidence-based system that can be verified, iterated on, and scaled incrementally. Performance data drives every decision — not intuition, not headlines, not a good week.
 

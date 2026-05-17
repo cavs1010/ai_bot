@@ -3,6 +3,8 @@
 These rules apply every time a new function or module is built in this project.
 They exist to keep every file consistent, readable, and testable as the codebase grows.
 
+**Before planning or coding:** read [`spec/master.md`](../spec/master.md) and the active iteration roadmap. Follow [`spec-development.md`](./spec-development.md) when editing anything under `spec/`.
+
 Reference: follow [`karpathy_rules.md`](./karpathy_rules.md) before writing any code.
 
 ---
@@ -140,4 +142,4 @@ A function is done when:
 - [ ] `python backend/<layer_folder>/<module>.py` runs without errors
 - [ ] Failure path tested (bad input → `None`, no crash)
 - [ ] Companion Jupyter notebook created and cells execute correctly
-- [ ] Roadmap item checked off in `spec/roadmap.md`
+- [ ] Roadmap item checked off in the active `spec/iteration-NN-roadmap.md` (see `spec/master.md` + [`spec-development.md`](./spec-development.md))
