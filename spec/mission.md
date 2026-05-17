@@ -24,7 +24,7 @@ The bot runs a six-stage pipeline every night:
 
 | Stage | Name | What It Does |
 |-------|------|--------------|
-| 1 | Scan | Filters ~500 US stocks to 10–20 momentum candidates |
+| 1 | Scan | **Weekly:** filters the S&P 500 to a 60–80 stock watchlist (liquidity, price, volatility, earnings). **Nightly:** ranks that watchlist to 10–15 momentum candidates |
 | 2 | Research | Claude AI reads recent news for each candidate |
 | 3 | Predict | Calculates win probability and expected value using the EV formula |
 | 4 | Risk Gate | Applies Kelly sizing, exposure limits, and drawdown checks |

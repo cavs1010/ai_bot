@@ -54,19 +54,26 @@ Everything the bot needs to function must be in place before Step 1.
 
 ---
 
-## Phase 3 — Momentum Scanner
+## Phase 3 — Stock Scanner (Two-Tier)
 
-**File:** `backend/01_scanner/momentum_scanner.py`
+**Files:** `backend/01_scanner/universe_filter.py`, `backend/01_scanner/momentum_scanner.py`
 
-**Goal:** Filter ~500 stocks to the 10–20 best momentum candidates each night.
+**Goal:** Two-step scan — weekly S&P 500 → watchlist (~60–80), then nightly watchlist → top 10–15 momentum candidates.
 
-- [ ] Define the stock universe (start with 20 well-known S&P 500 names)
-- [ ] Build `calculate_momentum_score(df)` — scores each stock 0–3 using RSI, VWAP, SMA20 vs SMA50
-- [ ] Build `run_scan()` — iterates the universe, returns candidates scoring 2 or higher
-- [ ] Test: run the scanner and confirm stocks are scored and filtered correctly
+**Tier 1 — Universe filter (weekly)**
+- [ ] Build `universe_filter.py` — queries TradingView screener for the full S&P 500
+- [ ] Apply objective filters (volume, price band, ATR %, earnings window, dynamic price ceiling via Alpaca portfolio value)
+- [ ] Write output to `data/watchlist.json`
+- [ ] Test: run the filter and confirm a watchlist of ~60–80 tickers is saved
+- [ ] Create `backend/01_scanner/universe_filter_playground.ipynb`
+
+**Tier 2 — Momentum scan (nightly)**
+- [ ] Build `calculate_momentum_score()` — scores each stock 0–3 using RSI, SMA20, SMA50
+- [ ] Build `run_scan()` — reads `watchlist.json`, returns top 10–15 candidates scoring 2 or higher
+- [ ] Test: run the scanner against an existing watchlist and confirm ranked output
 - [ ] Create `backend/01_scanner/momentum_scanner_playground.ipynb`
 
-**Exit criteria:** Scanner runs across all 20 stocks and returns a ranked candidate list.
+**Exit criteria:** Universe filter produces a valid `watchlist.json`. Momentum scanner returns a ranked shortlist from that watchlist.
 
 ---
 
@@ -171,8 +178,8 @@ Everything the bot needs to function must be in place before Step 1.
 
 - [ ] Import all modules and define the `run_bot()` function
 - [ ] Implement the six-stage pipeline in sequence: Scan → Research → Predict → Risk Gate → Execute → Log
-- [ ] Add the `--now` flag for immediate test runs (bypasses scheduler)
-- [ ] Configure APScheduler to run at 11:00pm AEST (13:00 UTC) nightly
+- [ ] Add `--now` for immediate test runs and `--update-watchlist` for manual Tier 1 runs
+- [ ] Configure APScheduler: weekly universe filter (Sunday) + nightly bot run (Mon–Fri, 11:00 PM AEST)
 - [ ] Test with `python backend/bot.py --now` — confirm all six stages run without errors
 
 **Exit criteria:** Full pipeline runs end-to-end in test mode. Paper orders placed and logged correctly.

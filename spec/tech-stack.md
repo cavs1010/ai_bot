@@ -10,6 +10,7 @@
 | Broker         | Alpaca (paper + live)      |
 | AI / Sentiment | Claude AI (Anthropic)      |
 | Market Data    | Yahoo Finance via yfinance |
+| Stock Universe | TradingView Screener       |
 | News Data      | NewsAPI                    |
 | Scheduling     | APScheduler                |
 | Backend API    | FastAPI + Uvicorn          |
@@ -49,9 +50,16 @@
 ### Yahoo Finance
 
 - Role: Historical price data (OHLCV)
-- Used for: RSI, SMA, VWAP, ATR calculations
+- Used for: RSI, SMA, VWAP, ATR calculations; earnings-date checks for the universe filter
 - Cost: Free, no API key required
 - Library: `yfinance`
+
+### TradingView Screener
+
+- Role: Tier 1 universe filter — scans the S&P 500 with server-side indicator calculations
+- Used for: weekly watchlist generation (volume, price band, ATR %, dynamic price ceiling)
+- Schedule: Sunday night (before the nightly trading week)
+- Library: `tradingview-screener`
 
 ---
 
@@ -66,6 +74,7 @@
 | `numpy`    | Numerical calculations                     |
 | `yfinance` | Downloads historical OHLCV price data      |
 | `ta`       | Technical indicators — RSI, SMA, VWAP, ATR |
+| `tradingview-screener` | Tier 1 S&P 500 universe filter (server-side metrics) |
 
 
 ### API Clients
@@ -87,7 +96,7 @@
 | `fastapi`     | REST API for the dashboard              |
 | `uvicorn`     | ASGI server to run FastAPI              |
 | `sqlalchemy`  | ORM for trade log persistence           |
-| `apscheduler` | Schedules nightly bot runs (cron-style) |
+| `apscheduler` | Schedules weekly watchlist refresh + nightly bot runs |
 
 
 ### Utilities
@@ -105,7 +114,7 @@
 ```bash
 pip install alpaca-trade-api yfinance pandas numpy requests
 pip install anthropic fastapi uvicorn sqlalchemy apscheduler
-pip install python-dotenv ta newsapi-python
+pip install python-dotenv ta newsapi-python tradingview-screener
 ```
 
 ---
@@ -120,7 +129,8 @@ trading-bot/
 │   │   └── data_fetcher.py       # Fetches price data and news headlines
 │   ├── bot.py                    # Main entry point — runs the full pipeline
 │   ├── 01_scanner/
-│   │   └── momentum_scanner.py   # Filters stocks by RSI, VWAP, SMA
+│   │   ├── universe_filter.py    # Tier 1: weekly S&P 500 → watchlist (~60–80)
+│   │   └── momentum_scanner.py   # Tier 2: nightly watchlist → top 10–15
 │   ├── 02_signals/
 │   │   ├── sentiment_analyzer.py # Claude reads news and scores sentiment
 │   │   └── signal_generator.py   # Combines signals, applies EV formula
@@ -130,7 +140,8 @@ trading-bot/
 │   │   └── alpaca_executor.py    # Places bracket orders via Alpaca
 │   └── 05_learning/
 │       └── trade_logger.py       # Logs trades, calculates Brier score
-├── data/                         # Stored price history
+├── data/
+│   └── watchlist.json            # Tier 1 output — refreshed weekly
 └── logs/
     ├── trade_log.json            # Every trade ever made
     └── failure_log.md            # Human-readable loss diary
