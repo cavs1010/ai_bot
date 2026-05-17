@@ -33,7 +33,7 @@
 ### Claude AI (Anthropic)
 
 - Role: News sentiment analysis — reads headlines and rates them bullish / bearish / neutral
-- Model used: `claude-sonnet-4-5`
+- Model used: `claude-sonnet-4-6`
 - Called once per candidate stock per nightly run
 - Cost: ~$1–2 per day during paper trading
 - Library: `anthropic`
@@ -44,6 +44,7 @@
 - Used for: supplying raw text to Claude for sentiment analysis
 - Free tier: 100 requests/day (sufficient for paper trading)
 - Library: `newsapi-python`
+- **Note:** Tiingo (tiingo.com) is a potential replacement — it offers a dedicated financial news endpoint with better stock-specific coverage. Evaluate before Phase 4 if headline quality is insufficient for sentiment analysis.
 
 ### Yahoo Finance
 

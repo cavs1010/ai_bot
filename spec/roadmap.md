@@ -18,6 +18,7 @@ Everything the bot needs to function must be in place before Step 1.
 - [ ] Create Alpaca account + generate paper API keys — alpaca.markets (Free)
 - [ ] Create Anthropic account + add credit + generate API key — console.anthropic.com (~$10)
 - [ ] Create NewsAPI account + get free API key — newsapi.org (Free)
+1839  <!-- Note: Tiingo (tiingo.com) may be a better news source for financial data — evaluate before Phase 4 -->
 
 **Exit criteria:** All five API keys saved locally. Cursor and Python confirmed working in terminal.
 
@@ -45,8 +46,9 @@ Everything the bot needs to function must be in place before Step 1.
 
 - [x] Build `get_stock_data(ticker, period, interval)` — downloads OHLCV data via yfinance (default: 60d daily)
 - [x] Create `backend/00_data/data_fetcher_playground.ipynb` — notebook for manual exploration and verification
-- [ ] Build `get_news_headlines(ticker, company_name)` — fetches up to 10 recent headlines via NewsAPI
-- [ ] Test: run the file directly and confirm Apple price data and headlines print to terminal
+- [x] Build `get_news_headlines(ticker, days_back, max_results)` — fetches headlines + descriptions via NewsAPI
+  <!-- Note: Tiingo (tiingo.com) may be a better alternative — richer financial news, dedicated stock news endpoint. Evaluate before Phase 4 if NewsAPI quality proves insufficient. -->
+- [x] Test: run the file directly and confirm Apple price data and headlines print to terminal
 
 **Exit criteria:** 60 rows of price data and at least 1 news headline returned for a test ticker.
 
