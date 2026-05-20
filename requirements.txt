@@ -1,0 +1,30 @@
+# ai_bot — Python dependencies
+# Install: pip install -r requirements.txt  (inside an activated venv)
+
+# Data & analysis
+pandas==2.3.3
+numpy==2.4.5
+yfinance==0.2.58
+ta==0.11.0
+tradingview-screener==3.2.0
+mplfinance==0.12.10b0
+
+# API clients
+alpaca-trade-api==3.2.0
+anthropic==0.102.0
+newsapi-python==0.2.7
+requests==2.34.2
+
+# Backend & scheduling
+fastapi==0.136.1
+uvicorn==0.47.0
+SQLAlchemy==2.0.49
+APScheduler==3.11.2
+
+# Utilities
+python-dotenv==1.2.2
+
+# Jupyter (playground notebooks)
+jupyterlab==4.5.7
+notebook==7.5.6
+ipykernel==7.2.0

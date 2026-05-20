@@ -115,10 +115,12 @@
 ## 📥 Install Command
 
 ```bash
-pip install alpaca-trade-api yfinance pandas numpy requests
-pip install anthropic fastapi uvicorn sqlalchemy apscheduler
-pip install python-dotenv ta newsapi-python tradingview-screener
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 ```
+
+All dependencies (including Jupyter) are pinned in [`requirements.txt`](../requirements.txt) at the project root.
 
 ---
 
