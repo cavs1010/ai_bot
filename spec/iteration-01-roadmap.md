@@ -38,7 +38,7 @@ Everything the bot needs to function must be in place before Step 1.
 - [x] Create project folder and subdirectory structure (`backend/`, `data/`, `logs/`)
 - [x] Create and activate a Python virtual environment
 - [x] Install all required libraries (`pip install ...`)
-- [ ] Create `.env` file with all API keys and risk parameters
+- [x] Create `.env` file with all API keys and risk parameters
 - [x] Create `.gitignore` to ensure `.env` is never committed
 
 **Exit criteria:** `(venv)` visible in terminal. All libraries installed without errors. `.env` populated.
@@ -74,10 +74,10 @@ Everything the bot needs to function must be in place before Step 1.
 - [x] Create `backend/01_scanner/universe_filter_playground.ipynb`
 
 **Tier 2 — Momentum scan (nightly)**
-- [ ] Build `calculate_momentum_score()` — scores each stock 0–3 using RSI, SMA20, SMA50
-- [ ] Build `run_scan()` — reads `watchlist.csv`, returns top 10–15 candidates scoring 2 or higher
+- [x] Build `calculate_momentum_score()` — scores each stock 0–3 using RSI, SMA20, SMA50
+- [x] Build `run_scan()` — reads `watchlist.csv`, returns top 10–15 candidates scoring 2 or higher; accepts `min_score` parameter (default 2)
 - [ ] Test: run the scanner against an existing watchlist and confirm ranked output
-- [ ] Create `backend/01_scanner/momentum_scanner_playground.ipynb`
+- [x] Create `backend/01_scanner/momentum_scanner_playground.ipynb`
 
 **Exit criteria:** Universe filter produces a valid `watchlist.csv`. Momentum scanner returns a ranked shortlist from that watchlist.
 
