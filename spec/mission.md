@@ -25,18 +25,17 @@ The second reason is leverage of time. US markets are open while you are asleep 
 
 ## ⚙️ How It Works
 
-The bot runs a six-stage pipeline every night:
+The bot runs a five-stage pipeline every night:
 
 | Stage | Name | What It Does |
 |-------|------|--------------|
 | 1 | 🔍 Scan | **Weekly:** filters the S&P 500 to a 60–80 stock watchlist (liquidity, price, volatility, earnings). **Nightly:** ranks that watchlist to 10–15 momentum candidates |
-| 2 | 🧠 Research | Claude AI reads recent news for each candidate |
-| 3 | 📈 Predict | Calculates win probability and expected value using the EV formula |
-| 4 | 🛡️ Risk Gate | Applies Kelly sizing, exposure limits, and drawdown checks |
-| 5 | ⚡ Execute | Places bracket orders (buy + stop-loss + take-profit) via Alpaca |
-| 6 | 📝 Compound | Logs every trade and calculates prediction accuracy (Brier score) |
+| 2 | 🧠 Assess | Each candidate passes through a sequential intelligence layer — hard threat checks, news analysis, market context, and expected-value scoring. Only candidates that clear every step proceed |
+| 3 | 🛡️ Risk Gate | Applies Kelly sizing, exposure limits, and drawdown checks |
+| 4 | ⚡ Execute | Places bracket orders (buy + stop-loss + take-profit) via Alpaca |
+| 5 | 📝 Compound | Logs every trade, gate decision, and prediction accuracy (Brier score) |
 
-A trade only reaches execution when two independent signals agree: momentum (the stock is trending with volume) and sentiment (Claude's reading of the news is positive). If either signal is absent or contradictory, the bot does nothing.
+A trade only reaches execution when technical momentum and the intelligence assessment agree. The stock must be trending with volume, pass all threat and news checks, and show sufficient expected edge. If any layer fails, the bot does nothing.
 
 ---
 

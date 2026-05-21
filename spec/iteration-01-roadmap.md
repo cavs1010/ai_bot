@@ -2,7 +2,7 @@
 
 **Status:** 🔄 active
 
-First full lap of the project (Phase 0 → Phase 11). Work **only** from this file for the current iteration.
+First full lap of the project (Phase 0 → Phase 10). Work **only** from this file for the current iteration.
 
 - 💡 Ideas for iteration 2 → [iteration-02-ideas.md](iteration-02-ideas.md) (one-line bullets only)
 - ⏳ Do not create `iteration-02-roadmap.md` until iteration 1 is complete
@@ -25,9 +25,10 @@ Everything the bot needs to function must be in place before Step 1.
 - [x] Install Python 3.11+
 - [ ] Create Alpaca account + generate paper API keys — alpaca.markets (Free)
 - [ ] Create Anthropic account + add credit + generate API key — console.anthropic.com (~$10)
-- [ ] Create NewsAPI account + get free API key — newsapi.org (Free)
+- [ ] Create Finnhub account + get free API key — finnhub.io (Free; used by Gate 1 + universe filter)
+- [ ] Create NewsAPI account + get free API key — newsapi.org (Free; fallback only after Alpaca News upgrade)
 
-**Exit criteria:** All five API keys saved locally. Cursor and Python confirmed working in terminal.
+**Exit criteria:** All API keys saved locally. Cursor and Python confirmed working in terminal.
 
 ---
 
@@ -76,50 +77,511 @@ Everything the bot needs to function must be in place before Step 1.
 **Tier 2 — Momentum scan (nightly)**
 - [x] Build `calculate_momentum_score()` — scores each stock 0–3 using RSI, SMA20, SMA50
 - [x] Build `run_scan()` — reads `watchlist.csv`, returns top 10–15 candidates scoring 2 or higher; accepts `min_score` parameter (default 2)
-- [ ] Test: run the scanner against an existing watchlist and confirm ranked output
+- [x] Test: run the scanner against an existing watchlist and confirm ranked output
 - [x] Create `backend/01_scanner/momentum_scanner_playground.ipynb`
 
 **Exit criteria:** Universe filter produces a valid `watchlist.csv`. Momentum scanner returns a ranked shortlist from that watchlist.
 
----
-
-## Phase 4 — 🧠 Claude AI Sentiment Analyzer
-
-**File:** `backend/02_signals/sentiment_analyzer.py`
-
-**Goal:** Add a second independent signal — AI reads the news so you don't have to.
-
-- [ ] Build `analyze_sentiment(ticker, company_name)` — fetches headlines and sends them to Claude
-- [ ] Parse Claude's JSON response: `sentiment` (bullish/bearish/neutral), `confidence` (0–1), `reasoning`
-- [ ] Test: run for one ticker and confirm Claude returns a structured sentiment result
-- [ ] Create `backend/02_signals/sentiment_analyzer_playground.ipynb`
-
-**Exit criteria:** Claude returns a valid sentiment object with confidence score and one-line reasoning.
+**→ Next:** Each momentum candidate passes into the Intelligence Layer (Phase 4) before reaching the risk gate.
 
 ---
 
-## Phase 5 — 📈 Signal Generator
+## Phase 4 — 🧠 Intelligence Layer (5-Gate System)
 
-**File:** `backend/02_signals/signal_generator.py`
+**Root folder:** `backend/02_intelligence/`
 
-**Goal:** Combine momentum and sentiment into a final BUY or SKIP decision using the EV formula.
+**Goal:** Each momentum candidate passes through five gates in order. The pipeline stops at the first failure.
 
-- [ ] Build `generate_signal(candidate)` — maps momentum score to win probability
-- [ ] Adjust win probability based on sentiment direction and confidence
-- [ ] Apply EV formula: `EV = p × b − (1 − p)`, where `b = 2.0` (2:1 reward-to-risk)
-- [ ] Return BUY if edge ≥ 4% and sentiment is not bearish; otherwise SKIP with reason
-- [ ] Test: run against a mock candidate and confirm the output structure
-- [ ] Create `backend/02_signals/signal_generator_playground.ipynb`
+**Organisation rule:**
+- **`gate*/gate.py`** — decision logic only (prompts, pass/block rules, parsers). One folder per gate.
+- **`helpers/`** — shared data fetchers and pure functions, grouped by domain. If two or more gates need the same function, it lives here — never duplicated inside a gate folder.
+- **`constants.py`** — thresholds and maps used across multiple gates.
 
-**Exit criteria:** Signal generator returns a valid BUY or SKIP decision with all fields populated.
+**Reference docs:** `spec/info_source/6. Trading_Bot_Intelligence_Layer_v2.md`, `spec/info_source/7. Trading_Bot_Intelligence_Layer_Install_Guide.md`
+
+**Build order:** Shared helpers (as needed) → Gate 1 → Gate 2 → Gate 3 → Gate 4 → Gate 5 → Pipeline → End-to-end test
+
+### Folder layout
+
+```
+backend/02_intelligence/
+├── __init__.py
+├── constants.py                     # SECTOR_ETF_MAP, block thresholds, SOURCE_RELIABILITY tiers
+├── helpers/                         # shared — gates import from here
+│   ├── __init__.py
+│   ├── market.py                    # VIX, SPY, sector ETF snapshots        → Gate 1, Gate 4
+│   ├── calendars.py                 # macro events, per-ticker earnings     → Gate 1, Gate 4
+│   ├── premarket.py                 # pre-market gap                        → Gate 1
+│   ├── filings.py                   # SEC EDGAR 8-K                         → Gate 1
+│   ├── portfolio.py                 # daily loss limit check                → Gate 1
+│   ├── news.py                      # fetch, classify, format headlines     → Gate 2, Gate 3, Pipeline
+│   ├── market_context.py            # bundles market + macro for prompts    → Gate 4
+│   ├── sentiment_rules.py           # apply_pass_rules (pure logic)         → Gate 3
+│   └── trade_levels.py              # stop/target/EV context builders       → Gate 5
+├── pipeline/
+│   ├── run_pipeline.py
+│   └── run_pipeline_playground.ipynb
+├── gate1_hard_threat/
+│   ├── gate.py                      # imports helpers/market, calendars, premarket, filings, portfolio
+│   └── gate1_playground.ipynb
+├── gate2_news_threat/
+│   ├── gate.py                      # imports helpers/news
+│   └── gate2_playground.ipynb
+├── gate3_sentiment/
+│   ├── gate.py                      # imports helpers/news, helpers/sentiment_rules
+│   └── gate3_playground.ipynb
+├── gate4_contradiction/
+│   ├── gate.py                      # imports helpers/market_context
+│   └── gate4_playground.ipynb
+└── gate5_signal/
+    ├── gate.py                      # imports helpers/trade_levels
+    └── gate5_playground.ipynb
+```
+
+### Shared helpers — full specification
+
+Each helper returns `None` on failure. Gates decide how to handle missing data (skip check vs block).
+
+#### `constants.py` (maps — not functions)
+
+| Constant | Input (lookup key) | Process | Output | Used by |
+|----------|-------------------|---------|--------|---------|
+| `SECTOR_ETF_MAP` | sector name, e.g. `"Technology"` | Static map GICS sector → ETF ticker | `"XLK"` | `get_sector_etf_snapshot`, Gate 1, Gate 4 |
+| `BLOCK_THRESHOLDS` | threshold name, e.g. `"vix_max"` | Static numeric limits for Gate 1 rules | `28`, `0.02`, etc. | Gate 1 `run()` |
+| `SOURCE_RELIABILITY_TIERS` | source name pattern | Static map publisher → tier | pattern list per tier | `classify_source`, Gates 2, 3 |
 
 ---
 
-## Phase 6 — 🛡️ Risk Gate
+#### `helpers/market.py`
+
+| Function | Input | Process | Output | Connects to |
+|----------|-------|---------|--------|-------------|
+| `get_vix_snapshot()` | — | Fetch `^VIX` via yfinance (today + prior close). Compute absolute level and intraday % change. | `{level: float, change_pct_today: float, prior_close: float}` \| `None` | → Gate 1 `run()` (block rules); → `get_market_context()` (Gate 4 prompt) |
+| `get_spy_snapshot()` | — | Fetch `SPY` via yfinance. Compute today's % change vs prior close. | `{price: float, change_pct_today: float, prior_close: float}` \| `None` | → Gate 1 `run()`; → `get_market_context()` |
+| `get_sector_etf_snapshot(sector)` | `sector: str` | Look up ETF in `SECTOR_ETF_MAP`. Fetch ETF price via yfinance. Compute today's % change. | `{etf_ticker: str, change_pct_today: float, prior_close: float}` \| `None` | → Gate 1 `run()` (uses candidate's sector); → `get_market_context()` |
+
+---
+
+#### `helpers/calendars.py`
+
+| Function | Input | Process | Output | Connects to |
+|----------|-------|---------|--------|-------------|
+| `get_upcoming_macro_events(hours_ahead=24)` | `hours_ahead: int` | Call Finnhub economic calendar. Filter US high-impact events matching `MACRO_EVENT_KEYWORDS` (FOMC, CPI, NFP…) within window. | `[{event, country, time, impact}]` \| `None` | → Gate 1 `run()` (block if any in window); → `get_hours_to_next_macro_event()` |
+| `get_ticker_earnings_window(ticker, days_ahead=1)` | `ticker: str`, `days_ahead: int` | Call Finnhub earnings calendar for this ticker. Check if report date is today or tomorrow. | `{reports_today: bool, reports_tomorrow: bool, report_date, hour}` \| `None` | → Gate 1 `run()` only |
+| `get_hours_to_next_macro_event()` | — | Call `get_upcoming_macro_events()`. Return hours until the nearest high-impact US event. | `float` (hours) \| `None` | → `get_market_context()` → Gate 4 prompt |
+
+---
+
+#### `helpers/premarket.py`
+
+| Function | Input | Process | Output | Connects to |
+|----------|-------|---------|--------|-------------|
+| `get_premarket_gap(ticker)` | `ticker: str` | Fetch prior close (yfinance or Alpaca). Fetch latest pre-market price (Alpaca). Compute signed gap %. | `{gap_pct: float, prior_close: float, current_price: float, direction: 'up'\|'down'\|'flat'}` \| `None` | → Gate 1 `run()` only |
+
+---
+
+#### `helpers/filings.py`
+
+| Function | Input | Process | Output | Connects to |
+|----------|-------|---------|--------|-------------|
+| `get_recent_8k_filings(ticker, days_back=1)` | `ticker: str`, `days_back: int` | Parse SEC EDGAR RSS feed (feedparser). Filter entries for ticker + form type 8-K within date window. | `[{form_type, filed_at, title, url}]` \| `None` | → Gate 1 `run()` (block if filing today) |
+
+---
+
+#### `helpers/portfolio.py`
+
+| Function | Input | Process | Output | Connects to |
+|----------|-------|---------|--------|-------------|
+| `check_daily_loss_limit(portfolio_value, daily_pnl, limit_pct=0.03)` | `portfolio_value: float`, `daily_pnl: float`, `limit_pct: float` | Compute `loss_pct = daily_pnl / portfolio_value`. Compare against limit. No external API. | `{breached: bool, loss_pct: float}` | → Gate 1 `run()` only (receives values from pipeline / Alpaca) |
+
+---
+
+#### `helpers/news.py`
+
+| Function | Input | Process | Output | Connects to |
+|----------|-------|---------|--------|-------------|
+| `classify_source(source_name)` | `source_name: str` | Match source name against `SOURCE_RELIABILITY_TIERS`. | `'HIGH'` \| `'MEDIUM'` \| `'LOW'` \| `'DANGEROUS'` | → called inside `fetch_headlines()`; tags used by Gates 2, 3 prompts |
+| `fetch_headlines(ticker, days_back=2, max_results=5)` | `ticker: str`, optional window/limit | 1) Alpaca News API. 2) If sparse, merge Finnhub company news. 3) If still empty, NewsAPI fallback. Run `classify_source()` on each item. | `[{headline, source, reliability, url, published_at}]` \| `None` | → Pipeline calls once; result passed to Gate 2 `run()` and Gate 3 `run()` |
+| `format_headlines_for_claude(headlines)` | `headlines: list[dict]` | Format each item as `{headline} [Source: X] [Reliability: Y]`. Join into multi-line string. No API. | `str` | → Gate 2 `run()` (Claude prompt); → Gate 3 `run()` (Claude prompt) |
+
+---
+
+#### `helpers/market_context.py`
+
+| Function | Input | Process | Output | Connects to |
+|----------|-------|---------|--------|-------------|
+| `get_market_context(sector)` | `sector: str` | Compose: `get_vix_snapshot()` + `get_spy_snapshot()` + `get_sector_etf_snapshot(sector)` + `get_hours_to_next_macro_event()`. Does not duplicate fetch logic. | `{vix: dict, spy: dict, sector: dict, hours_to_next_macro: float}` \| `None` | → Gate 4 `run()` (feeds Claude contradiction prompt alongside candidate + gate3_result) |
+
+---
+
+#### `helpers/sentiment_rules.py`
+
+| Function | Input | Process | Output | Connects to |
+|----------|-------|---------|--------|-------------|
+| `apply_pass_rules(direction, confidence, source_reliability)` | Claude parsed fields: `direction`, `confidence` (0–10), `source_reliability` | Apply static rules: BEARISH → block; NEUTRAL + conf < 6 → block; NEUTRAL + conf ≥ 6 → caution (−25% size); BULLISH + LOW source → caution; BULLISH + MEDIUM/HIGH → pass. No API. | `{passed: bool, caution: bool, size_reduction_pct: int}` | → Gate 3 `run()` (after Claude response parsed); caution flag → Gate 5 / risk gate downstream |
+
+---
+
+#### `helpers/trade_levels.py`
+
+| Function | Input | Process | Output | Connects to |
+|----------|-------|---------|--------|-------------|
+| `build_trade_levels(candidate)` | `candidate: dict` with `price`, `atr` | Compute stop = entry − (1.5 × ATR), target = entry + (2 × stop distance), reward:risk ratio. Pure math. | `{entry, atr, stop, target, stop_pct, target_pct, reward_risk}` | → Gate 5 `run()` (Claude prompt + output dict) |
+| `build_gate_summary(gate_results)` | `gate_results: dict` with gate1–4 outputs | Format each prior gate result into readable summary string for Claude. No API. | `str` | → Gate 5 `run()` (Claude prompt) |
+
+---
+
+### Data flow between gates
+
+```
+momentum candidate + portfolio state
+        │
+        ▼
+┌─ Gate 1 run() ──► helpers: market, calendars, premarket, filings, portfolio
+│       │ passed?
+│       ▼
+│   fetch_headlines()  ◄── helpers/news (called by Pipeline, not Gate 2)
+│       │
+├─ Gate 2 run(headlines) ──► helpers/news.format ──► Claude threat check
+│       │ passed?
+│       ▼
+├─ Gate 3 run(same headlines) ──► helpers/news.format + sentiment_rules ──► Claude sentiment
+│       │ passed?
+│       ▼
+├─ Gate 4 run(candidate, gate3_result) ──► helpers/market_context ──► Claude contradiction
+│       │ passed? (not FLAG_FOR_REVIEW)
+│       ▼
+└─ Gate 5 run(candidate, all gate_results) ──► helpers/trade_levels ──► Claude EV ──► BUY | SKIP
+```
+
+**Convention:** Build a helper module **before** the first gate that needs it. Gates never call external APIs directly.
+
+---
+
+### 4.1 — Gate 1: Hard Threat Screen
+
+**Folder:** `backend/02_intelligence/gate1_hard_threat/`  
+**Claude:** No — rules only, zero API cost  
+**Runs:** First — before any Claude call
+
+#### Gate function: `run(ticker, sector, portfolio_value, daily_pnl)`
+
+| | |
+|---|---|
+| **Input** | `ticker` and `sector` from momentum candidate; `portfolio_value` and `daily_pnl` from pipeline (Alpaca account state) |
+| **Process** | 1) Call each helper listed below → populate `checks` dict. 2) Evaluate block rules in order using `BLOCK_THRESHOLDS` (first match wins). 3) No Claude call. |
+| **Output** | `{passed: bool, block_reason: str\|None, checks: dict}` — full raw values in `checks` for audit |
+| **Connects from** | Pipeline / momentum scanner (candidate fields); Alpaca executor (portfolio state) |
+| **Connects to** | If `passed` → Pipeline continues to `fetch_headlines()` then Gate 2. If blocked → Pipeline stops, `final_decision = BLOCKED_G1` |
+
+#### Helpers consumed by this gate
+
+| Helper | Role in this gate |
+|--------|-------------------|
+| `get_vix_snapshot()` | Populate `checks`; block if level > 28 or change ≥ 20% |
+| `get_spy_snapshot()` | Populate `checks`; block if down ≥ 2% |
+| `get_sector_etf_snapshot(sector)` | Populate `checks`; block if sector ETF down ≥ 2% |
+| `get_premarket_gap(ticker)` | Populate `checks`; block on gap down ≥ 2% or gap up ≥ 4% |
+| `get_upcoming_macro_events(24)` | Populate `checks`; block if FOMC/CPI/NFP within 24 h |
+| `get_ticker_earnings_window(ticker)` | Populate `checks`; block if reports today/tomorrow |
+| `get_recent_8k_filings(ticker)` | Populate `checks`; block if 8-K filed today |
+| `check_daily_loss_limit(...)` | Populate `checks`; block if daily loss ≥ 3% |
+
+> Full Input / Process / Output for each helper → see **Shared helpers — full specification** above.
+
+#### Install (build helpers before `gate.py`)
+
+| Package | Why | Helper file |
+|---------|-----|-------------|
+| `yfinance` | VIX, SPY, sector ETF price data | `helpers/market.py` |
+| `alpaca-py` | Pre-market gap check | `helpers/premarket.py` |
+| `feedparser` | SEC EDGAR 8-K RSS feed | `helpers/filings.py` |
+| `finnhub-python` | Economic + earnings calendars | `helpers/calendars.py` |
+
+**`.env` keys:** `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `FINNHUB_API_KEY`
+
+#### Tasks
+
+- [ ] Create `constants.py` + `helpers/` folder with `__init__.py`
+- [ ] Build `helpers/market.py`, `helpers/calendars.py`, `helpers/premarket.py`, `helpers/filings.py`, `helpers/portfolio.py`
+- [ ] Build `run()` in `gate1_hard_threat/gate.py` (imports only — no API calls in gate file)
+- [ ] Test helpers: `python backend/02_intelligence/helpers/market.py` (each helper file runnable standalone)
+- [ ] Test gate: `python backend/02_intelligence/gate1_hard_threat/gate.py`
+- [ ] Create `gate1_playground.ipynb`
+
+**Exit criteria:** Gate 1 returns pass/block with full `checks` dict. Runs in milliseconds. Zero Claude cost.
+
+---
+
+### 4.2 — Gate 2: News Threat Assessment
+
+**Folder:** `backend/02_intelligence/gate2_news_threat/`  
+**Claude:** Yes — call 1 of 4  
+**Runs:** After Gate 1 passes
+
+#### Gate function: `run(ticker, company_name, headlines=None)`
+
+| | |
+|---|---|
+| **Input** | `ticker`, `company_name` from candidate; `headlines` list from Pipeline (`fetch_headlines()` — **not fetched inside gate during pipeline run**) |
+| **Process** | 1) If standalone test with no headlines → call `fetch_headlines(ticker)`. 2) If empty headlines → pass with caution (no threat). 3) `format_headlines_for_claude(headlines)`. 4) Claude prompt: catastrophic threats only. 5) Parse `THREAT_DETECTED`, `THREAT_TYPE`, `REASON`. |
+| **Output** | `{passed: bool, threat_detected: bool, threat_type: str, reason: str, headlines_used: int}` |
+| **Connects from** | Pipeline (after Gate 1 pass) + `helpers/news.fetch_headlines()` |
+| **Connects to** | If `passed` → Gate 3 receives **same headlines list**. If blocked → `final_decision = BLOCKED_G2` |
+
+#### Helpers consumed by this gate
+
+| Helper | Role in this gate |
+|--------|-------------------|
+| `fetch_headlines(ticker)` | Called by Pipeline before this gate; Gate 2 receives result as input (standalone test may call directly) |
+| `format_headlines_for_claude(headlines)` | Builds Claude prompt body with reliability tags |
+| `classify_source()` | Used inside `fetch_headlines()` — not called directly by gate |
+
+> Full Input / Process / Output → see **Shared helpers — full specification**.
+
+#### Install (build helpers before `gate.py`)
+
+| Package | Why | Helper file |
+|---------|-----|-------------|
+| `alpaca-py` | Primary news source (Benzinga, real-time) | `helpers/news.py` |
+| `finnhub-python` | Supplementary company news | `helpers/news.py` |
+| `newsapi-python` | Fallback when Alpaca returns empty | `helpers/news.py` |
+| `anthropic` | Claude threat detection | `gate.py` only |
+
+**`.env` keys:** `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `FINNHUB_API_KEY`, `NEWS_API_KEY`, `ANTHROPIC_API_KEY`
+
+#### Tasks
+
+- [ ] Build `helpers/news.py`
+- [ ] Build `run()` in `gate2_news_threat/gate.py`
+- [ ] Test helpers: `python backend/02_intelligence/helpers/news.py`
+- [ ] Test gate with mock headlines: no threat → PASS; fraud headline → BLOCK
+- [ ] Test: `python backend/02_intelligence/gate2_news_threat/gate.py`
+- [ ] Create `gate2_playground.ipynb`
+
+**Exit criteria:** Binary threat result. YES blocks immediately. Headlines carry reliability tags.
+
+---
+
+### 4.3 — Gate 3: Sentiment Quality Check
+
+**Folder:** `backend/02_intelligence/gate3_sentiment/`  
+**Claude:** Yes — call 2 of 4  
+**Runs:** After Gate 2 passes
+
+#### Gate function: `run(ticker, company_name, headlines)`
+
+| | |
+|---|---|
+| **Input** | Same `headlines` list Gate 2 received — Pipeline passes through, **no re-fetch** |
+| **Process** | 1) `format_headlines_for_claude(headlines)`. 2) Claude prompt: sentiment direction + confidence (different question from Gate 2). 3) Parse `DIRECTION`, `CONFIDENCE`, `SOURCE_RELIABILITY`, `KEY_REASON`. 4) `apply_pass_rules()` on parsed values. |
+| **Output** | `{passed: bool, direction: str, confidence: int, source_reliability: str, key_reason: str, caution: bool, size_reduction_pct: int}` |
+| **Connects from** | Pipeline (same headlines from `fetch_headlines()`); Gate 2 must have passed |
+| **Connects to** | If `passed` → Gate 4 receives `gate3_result`. `caution` / `size_reduction_pct` → Gate 5 and risk gate downstream. If blocked → `final_decision = BLOCKED_G3` |
+
+#### Helpers consumed by this gate
+
+| Helper | Role in this gate |
+|--------|-------------------|
+| `format_headlines_for_claude(headlines)` | Builds Claude prompt (reliability tags already on headline dicts from fetch) |
+| `apply_pass_rules(direction, confidence, source_reliability)` | Converts Claude response → pass/block/caution decision |
+
+> Full Input / Process / Output → see **Shared helpers — full specification**.
+
+#### Install (build helpers before `gate.py`)
+
+| Package | Why | Helper file |
+|---------|-----|-------------|
+| `anthropic` | Claude sentiment assessment | `gate.py` only |
+
+**`.env` keys:** `ANTHROPIC_API_KEY`
+
+> No new data packages — headlines come from `helpers/news.py` (built for Gate 2).
+
+#### Tasks
+
+- [ ] Build `helpers/sentiment_rules.py`
+- [ ] Build `run()` in `gate3_sentiment/gate.py`
+- [ ] Test: bullish headlines → PASS; bearish → BLOCK
+- [ ] Test: `python backend/02_intelligence/gate3_sentiment/gate.py`
+- [ ] Create `gate3_playground.ipynb`
+
+**Exit criteria:** Sentiment direction, confidence, and pass/block with caution flag returned.
+
+---
+
+### 4.4 — Gate 4: Contradiction Detection
+
+**Folder:** `backend/02_intelligence/gate4_contradiction/`  
+**Claude:** Yes — call 3 of 4  
+**Runs:** After Gate 3 passes
+
+#### Gate function: `run(ticker, candidate, gate3_result)`
+
+| | |
+|---|---|
+| **Input** | `candidate` dict from momentum scanner (score, rsi, volume_ratio, sector, price, atr); `gate3_result` from Gate 3 (direction, confidence, source_reliability) |
+| **Process** | 1) `get_market_context(candidate['sector'])` → market snapshot. 2) Build prompt: bullish signals on one side, market context on the other. 3) Claude: "Does anything contradict?" 4) Parse `CONTRADICTION_DETECTED`, `CONTRADICTION_TYPE`, `RISK_LEVEL`, `REASON`. 5) HIGH → block; MEDIUM/LOW → flag for review. |
+| **Output** | `{passed: bool, contradiction_detected: bool, contradiction_type: str, risk_level: str, reason: str, action: 'PASS'\|'BLOCK'\|'FLAG_FOR_REVIEW', market_context: dict}` |
+| **Connects from** | Gate 3 result + momentum candidate; `get_market_context()` composes Gate 1 market/calendar helpers |
+| **Connects to** | If `action == PASS` → Gate 5. If `FLAG_FOR_REVIEW` → `final_decision = FLAGGED_FOR_REVIEW`. If blocked → `final_decision = BLOCKED_G4` |
+
+#### Helpers consumed by this gate
+
+| Helper | Role in this gate |
+|--------|-------------------|
+| `get_market_context(sector)` | Single call bundles VIX, SPY, sector ETF, macro timing for Claude prompt |
+| *(via market_context)* `get_vix_snapshot()` | Composed — not called directly by gate |
+| *(via market_context)* `get_spy_snapshot()` | Composed — not called directly by gate |
+| *(via market_context)* `get_sector_etf_snapshot(sector)` | Composed — not called directly by gate |
+| *(via market_context)* `get_hours_to_next_macro_event()` | Composed — not called directly by gate |
+
+> Full Input / Process / Output → see **Shared helpers — full specification**.
+
+#### Install (build helpers before `gate.py`)
+
+| Package | Why | Helper file |
+|---------|-----|-------------|
+| `yfinance` | Composed inside `market_context` | `helpers/market_context.py` |
+| `finnhub-python` | Macro timing | `helpers/market_context.py` |
+| `anthropic` | Claude contradiction analysis | `gate.py` only |
+
+**`.env` keys:** `FINNHUB_API_KEY`, `ANTHROPIC_API_KEY`
+
+> Requires Gate 1 helpers (`market.py`, `calendars.py`) already built — `market_context.py` composes them.
+
+#### Tasks
+
+- [ ] Build `helpers/market_context.py` (compose existing market + calendar helpers)
+- [ ] Build `run()` in `gate4_contradiction/gate.py`
+- [ ] Test: calm market → PASS; sector selling scenario → FLAG or BLOCK
+- [ ] Test: `python backend/02_intelligence/gate4_contradiction/gate.py`
+- [ ] Create `gate4_playground.ipynb`
+
+**Exit criteria:** Correctly returns PASS, FLAG_FOR_REVIEW, or BLOCK based on risk level.
+
+---
+
+### 4.5 — Gate 5: Final Signal + EV
+
+**Folder:** `backend/02_intelligence/gate5_signal/`  
+**Claude:** Yes — call 4 of 4  
+**Runs:** After Gate 4 passes (not flagged)
+
+#### Gate function: `run(ticker, company_name, candidate, gate_results)`
+
+| | |
+|---|---|
+| **Input** | `candidate` from momentum scanner (`price`, `atr`, `score`, etc.); `gate_results` dict with outputs from Gates 1–4 |
+| **Process** | 1) `build_trade_levels(candidate)` → stop, target, reward:risk. 2) `build_gate_summary(gate_results)` → prior gate summary for prompt. 3) Claude final prompt with hardcoded EV formula. 4) Parse `WIN_PROBABILITY`, `EXPECTED_VALUE`, `DECISION`, `POSITION_CONFIDENCE`, `REASON`. 5) Hard cap: EV < `MIN_EDGE_PCT` → force SKIP in code. |
+| **Output** | `{passed: bool, decision: 'BUY'\|'SKIP', win_probability: float, expected_value: float, edge: float, position_confidence: str, reason: str, trade_levels: dict}` |
+| **Connects from** | All prior gate results + momentum candidate |
+| **Connects to** | If `decision == BUY` → Phase 5 risk gate (`validate_trade()`). If SKIP → `final_decision = SKIP` |
+
+#### Helpers consumed by this gate
+
+| Helper | Role in this gate |
+|--------|-------------------|
+| `build_trade_levels(candidate)` | Computes entry/stop/target for Claude prompt and output dict |
+| `build_gate_summary(gate_results)` | Formats Gate 1–4 audit into Claude prompt context |
+
+> Full Input / Process / Output → see **Shared helpers — full specification**.
+
+#### Install (build helpers before `gate.py`)
+
+| Package | Why | Helper file |
+|---------|-----|-------------|
+| `anthropic` | Claude final BUY/SKIP decision | `gate.py` only |
+
+**`.env` keys:** `ANTHROPIC_API_KEY`, `MIN_EDGE_PCT` (default 0.04)
+
+#### Tasks
+
+- [ ] Build `helpers/trade_levels.py`
+- [ ] Build `run()` in `gate5_signal/gate.py`
+- [ ] Test: strong mock signals → BUY; weak → SKIP
+- [ ] Test: `python backend/02_intelligence/gate5_signal/gate.py`
+- [ ] Create `gate5_playground.ipynb`
+
+**Exit criteria:** Returns BUY or SKIP with win probability, EV, and trade levels. EV below 4% always SKIPs.
+
+---
+
+### 4.6 — Pipeline Orchestrator
+
+**Folder:** `backend/02_intelligence/pipeline/`  
+**Claude:** No — wiring only
+
+#### Orchestrator function: `run_pipeline(candidate, portfolio_value, daily_pnl)`
+
+| | |
+|---|---|
+| **Input** | Full momentum `candidate` dict; live `portfolio_value` and `daily_pnl` from Alpaca |
+| **Process** | 1) Gate 1 `run()`. 2) If pass → `fetch_headlines(ticker)` once. 3) Gate 2 `run(headlines)`. 4) Gate 3 `run(same headlines)`. 5) Gate 4 `run(candidate, gate3_result)`. 6) Gate 5 `run(candidate, all gate_results)`. Stop on first failure. |
+| **Output** | `{ticker, gates: {gate1…gate5}, final_decision}` — `final_decision` is `BUY`, `SKIP`, `BLOCKED_G1`…`BLOCKED_G4`, or `FLAGGED_FOR_REVIEW` |
+| **Connects from** | Momentum scanner (`run_scan()`); Alpaca account state |
+| **Connects to** | Phase 5 risk gate if `final_decision == BUY`; Phase 7 logger for full audit |
+
+#### Helpers consumed by pipeline
+
+| Helper / module | Role |
+|-----------------|------|
+| `helpers/news.fetch_headlines()` | Called once between Gate 1 and Gate 2; result shared with Gate 3 |
+| `gate1_hard_threat.gate.run()` | Step 1 |
+| `gate2_news_threat.gate.run()` | Step 3 |
+| `gate3_sentiment.gate.run()` | Step 4 |
+| `gate4_contradiction.gate.run()` | Step 5 |
+| `gate5_signal.gate.run()` | Step 6 |
+
+#### Install
+
+No new packages.
+
+#### Input
+
+```python
+candidate = {
+  "ticker": "NVDA",
+  "company_name": "NVIDIA Corporation",
+  "sector": "Technology",
+  "score": 3,
+  "rsi": 64.2,
+  "volume_ratio": 2.4,
+  "price": 875.50,
+  "atr": 12.30,
+}
+portfolio_value = 10000.0
+daily_pnl = 0.0
+```
+
+#### Tasks
+
+- [ ] Build `run_pipeline()` in `pipeline/run_pipeline.py`
+- [ ] Wire imports from all five gate folders
+- [ ] Smoke test: `python backend/02_intelligence/pipeline/run_pipeline.py`
+- [ ] Create `run_pipeline_playground.ipynb`
+
+**Exit criteria:** Single entry point for the rest of the bot. Full audit trail on every candidate.
+
+---
+
+### 4.7 — End-to-end intelligence test
+
+- [ ] Run `run_scan()` → pass top 3 candidates through `run_pipeline()` with live portfolio state
+- [ ] Confirm gate audit output for both PASS and BLOCK cases
+- [ ] Verify Claude API cost stays within budget (max ~4 calls × candidates assessed per night)
+
+**Phase 4 exit criteria:** Intelligence layer runs end-to-end on real momentum candidates. Only `final_decision == "BUY"` proceeds to the risk gate.
+
+**⚠️ Important:** Claude is never asked one big question. Each gate asks one focused question with a structured answer. Hedging is not acceptable.
+
+---
+
+## Phase 5 — 🛡️ Risk Gate
 
 **File:** `backend/03_risk/risk_gate.py`
 
-**Goal:** Build the bouncer. Every trade must pass all checks or it does not happen.
+**Goal:** Build the bouncer. Every trade must pass all checks or it does not happen. Runs **after** the intelligence layer returns `BUY`.
 
 - [ ] Build `calculate_position_size(signal, portfolio_value)` — Quarter-Kelly formula, capped at 8%
 - [ ] Build `calculate_stops(signal)` — stop at entry − (1.5 × ATR), target at 2× stop distance
@@ -129,7 +591,7 @@ Everything the bot needs to function must be in place before Step 1.
   - [ ] Daily loss limit not hit
   - [ ] Drawdown kill switch not triggered
   - [ ] Reward-to-risk ratio ≥ 2:1
-- [ ] Test: run against a mock signal and confirm approved trades include correct share count and stops
+- [ ] Test: run against a mock Gate 5 BUY output and confirm approved trades include correct share count and stops
 - [ ] Create `backend/03_risk/risk_gate_playground.ipynb`
 
 **Exit criteria:** Risk gate correctly approves valid trades and rejects trades that fail any single check.
@@ -138,7 +600,7 @@ Everything the bot needs to function must be in place before Step 1.
 
 ---
 
-## Phase 7 — ⚡ Execution Layer
+## Phase 6 — ⚡ Execution Layer
 
 **File:** `backend/04_execution/alpaca_executor.py`
 
@@ -153,55 +615,63 @@ Everything the bot needs to function must be in place before Step 1.
 
 ---
 
-## Phase 8 — 📝 Learning Loop
+## Phase 7 — 📝 Learning Loop
 
-**File:** `backend/05_learning/trade_logger.py`
+**Files:** `backend/05_learning/trade_logger.py`, `backend/05_learning/threat_memory.py`
 
-**Goal:** Log every trade and track prediction accuracy so the system can improve over time.
+**Goal:** Log every trade, every gate audit trail, and learn from exogenous shocks.
 
-- [ ] Build `log_trade(trade_details, action)` — appends every trade to `logs/trade_log.json`
+- [ ] Build `log_gate_result(audit)` — append every pipeline run to `logs/gate_audit_log.jsonl` (including blocked candidates)
+- [ ] Build `log_trade(trade_details, action)` — append every executed trade to `logs/trade_log.jsonl`
 - [ ] Build `log_failure(trade_details, reason)` — writes every loss to `logs/failure_log.md` with context
-- [ ] Build `calculate_brier_score()` — measures how calibrated the win probability estimates are
+- [ ] Build `calculate_brier_score()` — measures how calibrated Gate 5 win probability estimates are
 - [ ] Build `get_performance_summary()` — prints win rate, trade count, and Brier score to terminal
-- [ ] Test: log a mock trade and confirm it appears correctly in both log files
+- [ ] Build `threat_memory.py` — log Category B/D losses; post-loss Claude review; graduate repeated patterns into Gate 1 rules
+- [ ] Test: log a mock gate audit and mock trade; confirm both JSONL files write correctly
 - [ ] Create `backend/05_learning/trade_logger_playground.ipynb`
 
 **Weekly review ritual (not code):**
-- Every Sunday, export the trade log
-- Paste it into a Claude conversation and ask: "What patterns do you see in the losing trades?"
-- Look for: low sentiment confidence on losses, specific sectors underperforming, Brier score trend
+- Every Sunday, export the trade log and gate audit log
+- Paste into a Claude conversation and ask: "What patterns do you see in the losing trades and gate blocks?"
+- Look for: Gate 1 blocking too many winners, Gate 4 missing contradictions, low Gate 3 confidence on losses
 - Make manual threshold adjustments based on findings — do not automate this until you have 200+ trades
 
-**Exit criteria:** Both log files write correctly. Brier score calculates when 5+ closed trades exist.
+**Exit criteria:** Gate audit and trade logs write correctly. Brier score calculates when 5+ closed trades exist.
 
 ---
 
-## Phase 9 — 🔗 Full Pipeline Integration
+## Phase 8 — 🔗 Full Pipeline Integration
 
 **File:** `backend/bot.py`
 
 **Goal:** Wire all modules together into one pipeline that runs on a nightly schedule.
 
 - [ ] Import all modules and define the `run_bot()` function
-- [ ] Implement the six-stage pipeline in sequence: Scan → Research → Predict → Risk Gate → Execute → Log
+- [ ] Implement the nightly pipeline: Scan → Intelligence Layer (5 gates) → Risk Gate → Execute → Log
+- [ ] Loop momentum candidates through `run_pipeline()`; only `BUY` results proceed to `validate_trade()`
 - [ ] Add `--now` for immediate test runs and `--update-watchlist` for manual Tier 1 runs
 - [ ] Configure APScheduler: weekly universe filter (Sunday) + nightly bot run (Mon–Fri, 11:00 PM AEST)
-- [ ] Test with `python backend/bot.py --now` — confirm all six stages run without errors
+- [ ] Test with `python backend/bot.py --now` — confirm scan, intelligence layer, risk gate, and logging all run without errors
 
-**Exit criteria:** Full pipeline runs end-to-end in test mode. Paper orders placed and logged correctly.
+**Exit criteria:** Full pipeline runs end-to-end in test mode. Gate audits and paper orders logged correctly.
 
 ---
 
-## Phase 10 — 📋 Paper Trading (Minimum 8 Weeks)
+## Phase 9 — 📋 Paper Trading (Minimum 8 Weeks)
 
 **Goal:** Prove the strategy works before any real money is involved.
 
 | Week | Focus | What to Check |
 |------|-------|---------------|
-| 1–2 | Run nightly, review each morning | Are signals making sense? Any obvious errors? |
+| 1–2 | Run nightly, review each morning | Are gate decisions making sense? Any obvious errors? |
 | 3–4 | Let it run, start tracking metrics | Win rate above 50%? Brier score below 0.30? |
-| 5–6 | Weekly Claude review of trade log | Is sentiment adding value over momentum alone? |
-| 7–8 | Full performance review | All six go-live criteria met? |
+| 5–6 | Weekly Claude review of trade + gate audit logs | Is the 5-gate system blocking threats that would have lost? |
+| 7–8 | Full performance review | All six go-live criteria met? Gate calibration analysis complete? |
+
+**Monthly gate calibration (from Paper Trading Protocol v3):**
+- Gate 1 block rate: above 60% = too tight; below 10% = too loose
+- Gate 4 accuracy: did flagged contradictions actually predict losses?
+- False blocks: trades blocked by gates that would have won
 
 **Go-live criteria (all six required, minimum 100 trades):**
 - [ ] Win rate consistently above 55%
@@ -213,7 +683,7 @@ Everything the bot needs to function must be in place before Step 1.
 
 ---
 
-## Phase 11 — 💰 Live Trading (Phased)
+## Phase 10 — 💰 Live Trading (Phased)
 
 **Goal:** Deploy real capital incrementally, gated by continued performance.
 

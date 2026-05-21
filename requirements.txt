@@ -23,6 +23,7 @@ APScheduler==3.11.2
 
 # Utilities
 python-dotenv==1.2.2
+markitdown[all]==0.1.5
 
 # Jupyter (playground notebooks)
 jupyterlab==4.5.7

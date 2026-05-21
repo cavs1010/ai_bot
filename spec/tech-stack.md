@@ -12,11 +12,12 @@
 | Language       | Python 3.11+               |
 | IDE            | Cursor (with built-in AI)  |
 | Broker         | Alpaca (paper + live)      |
-| AI / Sentiment | Claude AI (Anthropic)      |
+| AI / Intelligence | Claude AI (Anthropic) — 5-gate sequential assessment |
 | Market Data    | Yahoo Finance via yfinance |
 | Stock Universe | TradingView Screener       |
-| News Data      | NewsAPI                    |
+| News Data      | Alpaca News (Benzinga) via alpaca-py; NewsAPI fallback |
 | Earnings Data  | Finnhub                    |
+| SEC Filings    | SEC EDGAR RSS via feedparser |
 | Scheduling     | APScheduler                |
 | Backend API    | FastAPI + Uvicorn          |
 | Database ORM   | SQLAlchemy                 |
@@ -37,26 +38,38 @@
 
 ### 🧠 Claude AI (Anthropic)
 
-- **Role:** News sentiment analysis — reads headlines and rates them bullish / bearish / neutral
+- **Role:** Intelligence layer — four sequential gate calls per candidate (Gates 2–5)
 - **Model used:** `claude-sonnet-4-6`
-- **Called once** per candidate stock per nightly run
-- **Cost:** ~$1–2 per day during paper trading
+- **Gate 1 uses no Claude** — hard threat screen runs on rules only (zero API cost)
+- **Cost:** ~$1–2 per day during paper trading (scales with candidates assessed)
 - **Library:** `anthropic`
+
+### 📰 Alpaca News (Benzinga)
+
+- **Role:** Primary news source for Gates 2 and 3 — real-time financial headlines
+- **Used for:** threat detection and sentiment quality checks with source tagging
+- **Cost:** Free with existing Alpaca trading account
+- **Library:** `alpaca-py`
 
 ### 📰 NewsAPI
 
-- **Role:** Fetches recent headlines for each candidate stock
-- **Used for:** supplying raw text to Claude for sentiment analysis
-- **Free tier:** 100 requests/day (sufficient for paper trading)
+- **Role:** Fallback news source only (replaced by Alpaca News in Phase 4)
+- **Free tier:** 100 requests/day
 - **Library:** `newsapi-python`
-- **Alternatives under review:** see [iteration-02-ideas.md](iteration-02-ideas.md) (do not add long evaluation notes here)
 
 ### 📅 Finnhub
 
-- **Role:** Earnings calendar — filters stocks with earnings in the next 5 days from the weekly universe filter
-- **Used for:** `get_earnings_tickers()` in `universe_filter.py` — one call per week covering a date range
+- **Role:** Earnings + economic calendars
+- **Used for:** `universe_filter.py` (weekly earnings blackout) and Gate 1 (FOMC/CPI/NFP + per-stock earnings checks)
 - **Free tier:** 60 API calls/minute, no credit card required — finnhub.io
-- **Library:** `requests` (no dedicated library needed)
+- **Library:** `finnhub-python`
+
+### 📄 SEC EDGAR
+
+- **Role:** Material event detection — 8-K filings, insider trades
+- **Used for:** Gate 1 hard threat screen (8-K RSS feed)
+- **Cost:** Free, no API key required
+- **Library:** `feedparser`
 
 ### 📊 Yahoo Finance
 
@@ -88,12 +101,15 @@
 
 ### 🔌 API Clients
 
-| Library            | Purpose                   |
-| ------------------ | ------------------------- |
-| `alpaca-trade-api` | Alpaca broker integration |
-| `anthropic`        | Claude AI API client      |
-| `newsapi-python`   | NewsAPI client            |
-| `requests`         | General HTTP requests     |
+| Library            | Purpose                                      |
+| ------------------ | -------------------------------------------- |
+| `alpaca-trade-api` | Alpaca broker integration (orders, account)  |
+| `alpaca-py`        | Alpaca News API + pre-market data            |
+| `anthropic`        | Claude AI API client (Gates 2–5)             |
+| `finnhub-python`   | Economic + earnings calendars (Gate 1)       |
+| `feedparser`       | SEC EDGAR RSS parsing (Gate 1)               |
+| `newsapi-python`   | NewsAPI client (fallback only)               |
+| `requests`         | General HTTP requests                        |
 
 ### 🖥️ Backend & Scheduling
 
@@ -136,20 +152,38 @@ trading-bot/
 │   ├── 01_scanner/
 │   │   ├── universe_filter.py    # Tier 1: weekly S&P 500 → watchlist (~60–80)
 │   │   └── momentum_scanner.py   # Tier 2: nightly watchlist → top 10–15
-│   ├── 02_signals/
-│   │   ├── sentiment_analyzer.py # Claude reads news and scores sentiment
-│   │   └── signal_generator.py   # Combines signals, applies EV formula
+│   ├── 02_intelligence/
+│   │   ├── constants.py
+│   │   ├── helpers/                  # shared data fetchers — gates import from here
+│   │   │   ├── market.py             # VIX, SPY, sector ETF          → Gates 1, 4
+│   │   │   ├── calendars.py          # macro + earnings              → Gates 1, 4
+│   │   │   ├── premarket.py          # gap check                     → Gate 1
+│   │   │   ├── filings.py            # SEC 8-K                       → Gate 1
+│   │   │   ├── portfolio.py          # daily loss limit              → Gate 1
+│   │   │   ├── news.py               # fetch + classify headlines    → Gates 2, 3, Pipeline
+│   │   │   ├── market_context.py     # composed market snapshot      → Gate 4
+│   │   │   ├── sentiment_rules.py    # pass/block logic              → Gate 3
+│   │   │   └── trade_levels.py       # stop/target + gate summary    → Gate 5
+│   │   ├── pipeline/run_pipeline.py
+│   │   ├── gate1_hard_threat/gate.py
+│   │   ├── gate2_news_threat/gate.py
+│   │   ├── gate3_sentiment/gate.py
+│   │   ├── gate4_contradiction/gate.py
+│   │   └── gate5_signal/gate.py
 │   ├── 03_risk/
 │   │   └── risk_gate.py          # Validates every trade before execution
 │   ├── 04_execution/
 │   │   └── alpaca_executor.py    # Places bracket orders via Alpaca
 │   └── 05_learning/
-│       └── trade_logger.py       # Logs trades, calculates Brier score
+│       ├── trade_logger.py       # Logs trades + gate audit trail, Brier score
+│       └── threat_memory.py      # Exogenous shock memory + post-loss review
 ├── data/
 │   └── watchlist.csv             # Tier 1 output — refreshed weekly
 └── logs/
-    ├── trade_log.json            # Every trade ever made
-    └── failure_log.md            # Human-readable loss diary
+    ├── gate_audit_log.jsonl      # Every candidate assessed — including gate blocks
+    ├── trade_log.jsonl           # Every trade executed (entry + exit)
+    ├── failure_log.md            # Human-readable loss diary
+    └── threat_memory.jsonl       # Exogenous shock events + graduated rules
 ```
 
 ---
