@@ -1,15 +1,46 @@
-# helpers/market.py — VIX, SPY, and sector ETF snapshots
+# helpers/market.py — market snapshots and context bundle
 # Phase 4 | Intelligence Layer | Shared helper
-# Used by: Gate 1 run(), get_market_context() (Gate 4)
+# Used by: Gate 1 run() (snapshots), Gate 4 run() (get_market_context)
 #
-# Functions:
+# Raw fetchers (no dependencies):
 #   get_vix_snapshot()               → {level, change_pct_today, prior_close} | None
-#   get_spy_snapshot()               → {price, change_pct_today, prior_close}  | None   [TODO]
-#   get_sector_etf_snapshot(sector)  → {etf_ticker, change_pct_today, prior_close} | None  [TODO]
+#   get_spy_snapshot()               → {price, change_pct_today, prior_close}  | None
+#   get_sector_etf_snapshot(sector)  → {etf_ticker, price, change_pct_today, prior_close} | None
+#
+# Composed bundle (imports from calendars.py):
+#   get_market_context(sector)       → {vix, spy, sector, hours_to_next_macro} | None  [TODO — build after calendars.py]
 #
 # Test: python backend/02_intelligence/helpers/market.py
 
+import sys
+import pathlib
+
 import yfinance as yf
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+from constants import SECTOR_ETF_MAP
+
+
+def _fetch_closes(ticker: str, label: str) -> tuple[float, float] | None:
+    """
+    Fetches the two most recent daily closing prices for a ticker via yfinance.
+
+    Args:
+        ticker: yfinance ticker symbol, e.g. '^VIX', 'SPY', 'XLK'.
+        label:  human-readable label used in print messages, e.g. 'VIX'.
+
+    Returns:
+        (current_close, prior_close) as floats, or None on failure.
+    """
+    try:
+        df = yf.Ticker(ticker).history(period="5d", interval="1d")
+        if len(df) < 2:
+            print(f"[market] {label}: insufficient data returned (need ≥ 2 rows)")
+            return None
+        return round(float(df["Close"].iloc[-1]), 2), round(float(df["Close"].iloc[-2]), 2)
+    except Exception as e:
+        print(f"[market] {label}: fetch failed — {e}")
+        return None
 
 
 def get_vix_snapshot() -> dict | None:
@@ -24,35 +55,116 @@ def get_vix_snapshot() -> dict | None:
             level (float)             — most recent closing level
             change_pct_today (float)  — signed % change vs prior close (e.g. 0.05 = +5%)
             prior_close (float)       — prior session's closing level
-        None on fetch failure or insufficient data (< 2 rows).
+        None on fetch failure or insufficient data.
     """
-    try:
-        df = yf.Ticker("^VIX").history(period="5d", interval="1d")
-        if df is None or len(df) < 2:
-            print("[market] VIX: insufficient data returned (need ≥ 2 rows)")
-            return None
-        prior_close = round(float(df["Close"].iloc[-2]), 2)
-        level = round(float(df["Close"].iloc[-1]), 2)
-        change_pct_today = round((level - prior_close) / prior_close, 4)
-        return {
-            "level": level,
-            "change_pct_today": change_pct_today,
-            "prior_close": prior_close,
-        }
-    except Exception as e:
-        print(f"[market] VIX: fetch failed — {e}")
+    closes = _fetch_closes("^VIX", "VIX")
+    if closes is None:
         return None
+    level, prior_close = closes
+    return {
+        "level": level,
+        "change_pct_today": round((level - prior_close) / prior_close, 4),
+        "prior_close": prior_close,
+    }
 
 
-# get_spy_snapshot()              → TODO: Phase 4.1
-# get_sector_etf_snapshot(sector) → TODO: Phase 4.1
+def get_spy_snapshot() -> dict | None:
+    """
+    Fetches the SPY price and intraday change vs prior close via yfinance.
+
+    Args:
+        None
+
+    Returns:
+        dict with keys:
+            price (float)             — most recent closing price
+            change_pct_today (float)  — signed % change vs prior close (e.g. -0.02 = -2%)
+            prior_close (float)       — prior session's closing price
+        None on fetch failure or insufficient data.
+    """
+    closes = _fetch_closes("SPY", "SPY")
+    if closes is None:
+        return None
+    price, prior_close = closes
+    return {
+        "price": price,
+        "change_pct_today": round((price - prior_close) / prior_close, 4),
+        "prior_close": prior_close,
+    }
+
+
+def get_sector_etf_snapshot(sector: str) -> dict | None:
+    """
+    Fetches the sector ETF price and intraday change vs prior close via yfinance.
+
+    Args:
+        sector: TradingView sector name, e.g. "Electronic Technology".
+                Must match a key in constants.SECTOR_ETF_MAP.
+
+    Returns:
+        dict with keys:
+            etf_ticker (str)          — the ETF used, e.g. "XLK"
+            price (float)             — most recent closing price
+            change_pct_today (float)  — signed % change vs prior close (e.g. -0.02 = -2%)
+            prior_close (float)       — prior session's closing price
+        None if sector is unknown or fetch fails.
+    """
+    etf_ticker = SECTOR_ETF_MAP.get(sector)
+    if not etf_ticker:
+        print(f"[market] sector ETF: unknown sector '{sector}'")
+        return None
+    closes = _fetch_closes(etf_ticker, etf_ticker)
+    if closes is None:
+        return None
+    price, prior_close = closes
+    return {
+        "etf_ticker": etf_ticker,
+        "price": price,
+        "change_pct_today": round((price - prior_close) / prior_close, 4),
+        "prior_close": prior_close,
+    }
+
+
+# ---------------------------------------------------------------------------
+# get_market_context(sector) — TODO: build after calendars.py is implemented
+#
+# Will import get_hours_to_next_macro_event() from helpers/calendars.py.
+# Returns: {vix: dict, spy: dict, sector: dict, hours_to_next_macro: float} | None
+# Used by: Gate 4 run() only
+# ---------------------------------------------------------------------------
 
 
 if __name__ == "__main__":
-    result = get_vix_snapshot()
-    if result:
-        print(f"[market] VIX level:        {result['level']}")
-        print(f"[market] VIX prior close:  {result['prior_close']}")
-        print(f"[market] VIX change today: {result['change_pct_today']:+.2%}")
+    vix = get_vix_snapshot()
+    if vix:
+        print(f"[market] VIX level:        {vix['level']}")
+        print(f"[market] VIX prior close:  {vix['prior_close']}")
+        print(f"[market] VIX change today: {vix['change_pct_today']:+.2%}")
     else:
         print("[market] VIX: snapshot returned None")
+
+    print()
+
+    spy = get_spy_snapshot()
+    if spy:
+        print(f"[market] SPY price:        {spy['price']}")
+        print(f"[market] SPY prior close:  {spy['prior_close']}")
+        print(f"[market] SPY change today: {spy['change_pct_today']:+.2%}")
+    else:
+        print("[market] SPY: snapshot returned None")
+
+    print()
+
+    etf = get_sector_etf_snapshot("Electronic Technology")
+    if etf:
+        print(f"[market] Sector ETF:       {etf['etf_ticker']}")
+        print(f"[market] ETF price:        {etf['price']}")
+        print(f"[market] ETF prior close:  {etf['prior_close']}")
+        print(f"[market] ETF change today: {etf['change_pct_today']:+.2%}")
+    else:
+        print("[market] sector ETF: snapshot returned None")
+
+    print()
+    result = get_sector_etf_snapshot("Unknown Sector")
+    assert result is None, "Expected None for unknown sector"
+    print("[market] unknown sector correctly returned None ✅")

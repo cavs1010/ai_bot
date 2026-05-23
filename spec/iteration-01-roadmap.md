@@ -23,10 +23,10 @@ Everything the bot needs to function must be in place before Step 1.
 
 - [x] Install Cursor IDE
 - [x] Install Python 3.11+
-- [ ] Create Alpaca account + generate paper API keys — alpaca.markets (Free)
+- [x] Create Alpaca account + generate paper API keys — alpaca.markets (Free)
 - [ ] Create Anthropic account + add credit + generate API key — console.anthropic.com (~$10)
-- [ ] Create Finnhub account + get free API key — finnhub.io (Free; used by Gate 1 + universe filter)
-- [ ] Create NewsAPI account + get free API key — newsapi.org (Free; fallback only after Alpaca News upgrade)
+- [x] Create Finnhub account + get free API key — finnhub.io (Free; used by Gate 1 + universe filter)
+- [x] Create NewsAPI account + get free API key — newsapi.org (Free; fallback only after Alpaca News upgrade)
 
 **Exit criteria:** All API keys saved locally. Cursor and Python confirmed working in terminal.
 
@@ -105,17 +105,14 @@ Everything the bot needs to function must be in place before Step 1.
 
 ```
 backend/02_intelligence/
-├── __init__.py
 ├── constants.py                     # SECTOR_ETF_MAP, block thresholds, SOURCE_RELIABILITY tiers
 ├── helpers/                         # shared — gates import from here
-│   ├── __init__.py
-│   ├── market.py                    # VIX, SPY, sector ETF snapshots        → Gate 1, Gate 4
+│   ├── market.py                    # VIX, SPY, sector ETF snapshots; get_market_context() → Gate 1, Gate 4
 │   ├── calendars.py                 # macro events, per-ticker earnings     → Gate 1, Gate 4
 │   ├── premarket.py                 # pre-market gap                        → Gate 1
 │   ├── filings.py                   # SEC EDGAR 8-K                         → Gate 1
 │   ├── portfolio.py                 # daily loss limit check                → Gate 1
 │   ├── news.py                      # fetch, classify, format headlines     → Gate 2, Gate 3, Pipeline
-│   ├── market_context.py            # bundles market + macro for prompts    → Gate 4
 │   ├── sentiment_rules.py           # apply_pass_rules (pure logic)         → Gate 3
 │   └── trade_levels.py              # stop/target/EV context builders       → Gate 5
 ├── pipeline/
@@ -158,7 +155,7 @@ Each helper returns `None` on failure. Gates decide how to handle missing data (
 |----------|-------|---------|--------|-------------|
 | `get_vix_snapshot()` | — | Fetch `^VIX` via yfinance (today + prior close). Compute absolute level and intraday % change. | `{level: float, change_pct_today: float, prior_close: float}` \| `None` | → Gate 1 `run()` (block rules); → `get_market_context()` (Gate 4 prompt) |
 | `get_spy_snapshot()` | — | Fetch `SPY` via yfinance. Compute today's % change vs prior close. | `{price: float, change_pct_today: float, prior_close: float}` \| `None` | → Gate 1 `run()`; → `get_market_context()` |
-| `get_sector_etf_snapshot(sector)` | `sector: str` | Look up ETF in `SECTOR_ETF_MAP`. Fetch ETF price via yfinance. Compute today's % change. | `{etf_ticker: str, change_pct_today: float, prior_close: float}` \| `None` | → Gate 1 `run()` (uses candidate's sector); → `get_market_context()` |
+| `get_sector_etf_snapshot(sector)` | `sector: str` | Look up ETF in `SECTOR_ETF_MAP`. Fetch ETF price via yfinance. Compute today's % change. | `{etf_ticker: str, price: float, change_pct_today: float, prior_close: float}` \| `None` | → Gate 1 `run()` (uses candidate's sector); → `get_market_context()` |
 
 ---
 
@@ -176,7 +173,7 @@ Each helper returns `None` on failure. Gates decide how to handle missing data (
 
 | Function | Input | Process | Output | Connects to |
 |----------|-------|---------|--------|-------------|
-| `get_premarket_gap(ticker)` | `ticker: str` | Fetch prior close (yfinance or Alpaca). Fetch latest pre-market price (Alpaca). Compute signed gap %. | `{gap_pct: float, prior_close: float, current_price: float, direction: 'up'\|'down'\|'flat'}` \| `None` | → Gate 1 `run()` only |
+| `get_premarket_gap(ticker)` | `ticker: str` | Fetch prior close and pre-market price via yfinance (`prepost=True`). Compute signed gap %. No API key required. | `{gap_pct: float, prior_close: float, premarket_price: float, direction: 'up'\|'down'\|'flat'}` \| `None` | → Gate 1 `run()` only |
 
 ---
 
@@ -206,11 +203,13 @@ Each helper returns `None` on failure. Gates decide how to handle missing data (
 
 ---
 
-#### `helpers/market_context.py`
+#### `helpers/market.py` — `get_market_context(sector)`
+
+> Lives in `market.py` alongside the other market helpers. Composes existing functions — no fetch logic of its own.
 
 | Function | Input | Process | Output | Connects to |
 |----------|-------|---------|--------|-------------|
-| `get_market_context(sector)` | `sector: str` | Compose: `get_vix_snapshot()` + `get_spy_snapshot()` + `get_sector_etf_snapshot(sector)` + `get_hours_to_next_macro_event()`. Does not duplicate fetch logic. | `{vix: dict, spy: dict, sector: dict, hours_to_next_macro: float}` \| `None` | → Gate 4 `run()` (feeds Claude contradiction prompt alongside candidate + gate3_result) |
+| `get_market_context(sector)` | `sector: str` | Compose: `get_vix_snapshot()` + `get_spy_snapshot()` + `get_sector_etf_snapshot(sector)` + `get_hours_to_next_macro_event()`. | `{vix: dict, spy: dict, sector: dict, hours_to_next_macro: float}` \| `None` | → Gate 4 `run()` only |
 
 ---
 
@@ -293,19 +292,21 @@ momentum candidate + portfolio state
 
 | Package | Why | Helper file |
 |---------|-----|-------------|
-| `yfinance` | VIX, SPY, sector ETF price data | `helpers/market.py` |
-| `alpaca-py` | Pre-market gap check | `helpers/premarket.py` |
+| `yfinance` | VIX, SPY, sector ETF, pre-market bars | `helpers/market.py`, `helpers/premarket.py` |
 | `feedparser` | SEC EDGAR 8-K RSS feed | `helpers/filings.py` |
 | `finnhub-python` | Economic + earnings calendars | `helpers/calendars.py` |
 
-**`.env` keys:** `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `FINNHUB_API_KEY`
+**`.env` keys:** `FINNHUB_API_KEY`
 
 #### Tasks
 
-- [ ] Create `constants.py` + `helpers/` folder with `__init__.py`
-- [ ] Build `helpers/market.py`, `helpers/calendars.py`, `helpers/premarket.py`, `helpers/filings.py`, `helpers/portfolio.py`
+- [x] Create `constants.py` + `helpers/` folder (no `__init__.py` — digit-prefix folders can't be Python packages)
+- [x] Build `helpers/market.py` — `get_vix_snapshot`, `get_spy_snapshot`, `get_sector_etf_snapshot` ✅ · `get_market_context` 🔲 TODO
+- [x] Build `helpers/calendars.py` — `get_upcoming_macro_events`, `get_hours_to_next_macro_event` ✅ · `get_ticker_earnings_window` 🔲 TODO
+- [x] Build `helpers/premarket.py` — `get_premarket_gap` ✅
+- [ ] Build `helpers/filings.py` — `get_recent_8k_filings`
+- [ ] Build `helpers/portfolio.py` — `check_daily_loss_limit`
 - [ ] Build `run()` in `gate1_hard_threat/gate.py` (imports only — no API calls in gate file)
-- [ ] Test helpers: `python backend/02_intelligence/helpers/market.py` (each helper file runnable standalone)
 - [ ] Test gate: `python backend/02_intelligence/gate1_hard_threat/gate.py`
 - [ ] Create `gate1_playground.ipynb`
 
@@ -452,7 +453,7 @@ momentum candidate + portfolio state
 
 #### Tasks
 
-- [ ] Build `helpers/market_context.py` (compose existing market + calendar helpers)
+- [ ] Build `get_market_context(sector)` in `helpers/market.py` (stub exists — compose `get_vix_snapshot`, `get_spy_snapshot`, `get_sector_etf_snapshot`, `get_hours_to_next_macro_event`)
 - [ ] Build `run()` in `gate4_contradiction/gate.py`
 - [ ] Test: calm market → PASS; sector selling scenario → FLAG or BLOCK
 - [ ] Test: `python backend/02_intelligence/gate4_contradiction/gate.py`

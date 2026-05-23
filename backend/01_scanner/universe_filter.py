@@ -69,7 +69,7 @@ def save_watchlist(df: pd.DataFrame) -> None:
     Saves the filtered stock universe to data/watchlist.csv.
 
     Args:
-        df: DataFrame with columns ticker, price, volume, atr, atr_pct.
+        df: DataFrame with columns ticker, price, volume, atr, atr_pct, rsi, sma20, sma50, sector.
 
     Returns:
         None
@@ -92,7 +92,7 @@ def run_universe_filter() -> int | None:
     try:
         print('[universe] querying TradingView screener...')
         _, df = (Query()
-            .select('name', 'close', 'average_volume_10d_calc', 'ATR', 'RSI', 'SMA20', 'SMA50')
+            .select('name', 'close', 'average_volume_10d_calc', 'ATR', 'RSI', 'SMA20', 'SMA50', 'sector')
             .where(
                 col('market_cap_basic') > MIN_MARKET_CAP,
                 col('country') == 'United States',
@@ -127,8 +127,8 @@ def run_universe_filter() -> int | None:
 
     assert df[['RSI', 'SMA20', 'SMA50']].notna().any().all(), '[universe] momentum columns missing from TradingView response'
 
-    watchlist = df[['name', 'close', 'average_volume_10d_calc', 'ATR', 'atr_pct', 'RSI', 'SMA20', 'SMA50']].copy()
-    watchlist.columns = ['ticker', 'price', 'volume', 'atr', 'atr_pct', 'rsi', 'sma20', 'sma50']
+    watchlist = df[['name', 'close', 'average_volume_10d_calc', 'ATR', 'atr_pct', 'RSI', 'SMA20', 'SMA50', 'sector']].copy()
+    watchlist.columns = ['ticker', 'price', 'volume', 'atr', 'atr_pct', 'rsi', 'sma20', 'sma50', 'sector']
     watchlist['price'] = watchlist['price'].round(2)
     watchlist['volume'] = watchlist['volume'].astype(int)
     watchlist['atr'] = watchlist['atr'].round(2)
