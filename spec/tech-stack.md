@@ -155,13 +155,12 @@ trading-bot/
 │   ├── 02_intelligence/
 │   │   ├── constants.py
 │   │   ├── helpers/                  # shared data fetchers — gates import from here
-│   │   │   ├── market.py             # VIX, SPY, sector ETF          → Gates 1, 4
+│   │   │   ├── market.py             # VIX, SPY, sector ETF, get_market_context() → Gates 1, 4
 │   │   │   ├── calendars.py          # macro + earnings              → Gates 1, 4
 │   │   │   ├── premarket.py          # gap check                     → Gate 1
 │   │   │   ├── filings.py            # SEC 8-K                       → Gate 1
 │   │   │   ├── portfolio.py          # daily loss limit              → Gate 1
 │   │   │   ├── news.py               # fetch + classify headlines    → Gates 2, 3, Pipeline
-│   │   │   ├── market_context.py     # composed market snapshot      → Gate 4
 │   │   │   ├── sentiment_rules.py    # pass/block logic              → Gate 3
 │   │   │   └── trade_levels.py       # stop/target + gate summary    → Gate 5
 │   │   ├── pipeline/run_pipeline.py

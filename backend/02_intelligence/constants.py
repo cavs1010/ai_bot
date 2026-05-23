@@ -52,7 +52,14 @@ MACRO_EVENT_KEYWORDS: list[str] = [
 # BLOCK_THRESHOLDS: numeric limits for Gate 1 block rules
 # Used by: Gate 1 run()
 # ---------------------------------------------------------------------------
-BLOCK_THRESHOLDS: dict[str, float] = {}  # TODO: populate
+BLOCK_THRESHOLDS: dict[str, float] = {
+    'vix_level':          30.0,   # CBOE fear threshold; VIX at or above this = elevated fear
+    'spy_change_pct':    -0.015,  # SPY down > 1.5% on the day = broad market stress
+    'sector_change_pct': -0.02,   # sector ETF down > 2% on the day = sector-specific stress
+    'premarket_gap_pct':  0.03,   # |gap| ≥ 3% before open = price instability
+    'macro_hours':         2.0,   # high-impact event within 2 hours = imminent risk
+    'loss_limit_pct':      0.03,  # portfolio down ≥ 3% today = hard stop
+}
 
 # ---------------------------------------------------------------------------
 # SOURCE_RELIABILITY_TIERS: publisher → reliability tier

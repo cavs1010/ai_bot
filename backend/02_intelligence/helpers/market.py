@@ -17,8 +17,10 @@ import pathlib
 
 import yfinance as yf
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))  # 02_intelligence/ — for constants
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))       # helpers/ — for calendars
 from constants import SECTOR_ETF_MAP
+from calendars import get_hours_to_next_macro_event
 
 
 def _fetch_closes(ticker: str, label: str) -> tuple[float, float] | None:
@@ -125,46 +127,96 @@ def get_sector_etf_snapshot(sector: str) -> dict | None:
     }
 
 
-# ---------------------------------------------------------------------------
-# get_market_context(sector) — TODO: build after calendars.py is implemented
-#
-# Will import get_hours_to_next_macro_event() from helpers/calendars.py.
-# Returns: {vix: dict, spy: dict, sector: dict, hours_to_next_macro: float} | None
-# Used by: Gate 4 run() only
-# ---------------------------------------------------------------------------
+def get_market_context(sector: str) -> dict | None:
+    """
+    Composes a market snapshot bundle used by Gate 4 contradiction detection.
+
+    Calls four existing helpers and bundles their results. Individual keys may be
+    None if their respective fetch fails — Gate 4 handles partial data gracefully.
+    Returns None only if all three market-data components (vix, spy, sector) fail.
+
+    Args:
+        sector: TradingView sector name, e.g. 'Electronic Technology'.
+                Passed through to get_sector_etf_snapshot().
+
+    Returns:
+        dict with keys:
+            vix (dict | None)                  — {level, change_pct_today, prior_close}
+            spy (dict | None)                  — {price, change_pct_today, prior_close}
+            sector (dict | None)               — {etf_ticker, price, change_pct_today, prior_close}
+            hours_to_next_macro (float | None) — hours to nearest high-impact US event;
+                                                 None = no event found in 7 days (normal)
+        None if vix, spy, and sector all fail simultaneously.
+    """
+    vix         = get_vix_snapshot()
+    spy         = get_spy_snapshot()
+    sector_data = get_sector_etf_snapshot(sector)
+    hours_macro = get_hours_to_next_macro_event()
+
+    if vix is None and spy is None and sector_data is None:
+        print('[market] get_market_context: all market data failed — returning None')
+        return None
+
+    return {
+        'vix':                vix,
+        'spy':                spy,
+        'sector':             sector_data,
+        'hours_to_next_macro': hours_macro,
+    }
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     vix = get_vix_snapshot()
     if vix:
-        print(f"[market] VIX level:        {vix['level']}")
-        print(f"[market] VIX prior close:  {vix['prior_close']}")
-        print(f"[market] VIX change today: {vix['change_pct_today']:+.2%}")
+        print(f'[market] VIX level:        {vix["level"]}')
+        print(f'[market] VIX prior close:  {vix["prior_close"]}')
+        print(f'[market] VIX change today: {vix["change_pct_today"]:+.2%}')
     else:
-        print("[market] VIX: snapshot returned None")
+        print('[market] VIX: snapshot returned None')
 
     print()
 
     spy = get_spy_snapshot()
     if spy:
-        print(f"[market] SPY price:        {spy['price']}")
-        print(f"[market] SPY prior close:  {spy['prior_close']}")
-        print(f"[market] SPY change today: {spy['change_pct_today']:+.2%}")
+        print(f'[market] SPY price:        {spy["price"]}')
+        print(f'[market] SPY prior close:  {spy["prior_close"]}')
+        print(f'[market] SPY change today: {spy["change_pct_today"]:+.2%}')
     else:
-        print("[market] SPY: snapshot returned None")
+        print('[market] SPY: snapshot returned None')
 
     print()
 
-    etf = get_sector_etf_snapshot("Electronic Technology")
+    etf = get_sector_etf_snapshot('Electronic Technology')
     if etf:
-        print(f"[market] Sector ETF:       {etf['etf_ticker']}")
-        print(f"[market] ETF price:        {etf['price']}")
-        print(f"[market] ETF prior close:  {etf['prior_close']}")
-        print(f"[market] ETF change today: {etf['change_pct_today']:+.2%}")
+        print(f'[market] Sector ETF:       {etf["etf_ticker"]}')
+        print(f'[market] ETF price:        {etf["price"]}')
+        print(f'[market] ETF prior close:  {etf["prior_close"]}')
+        print(f'[market] ETF change today: {etf["change_pct_today"]:+.2%}')
     else:
-        print("[market] sector ETF: snapshot returned None")
+        print('[market] sector ETF: snapshot returned None')
 
     print()
-    result = get_sector_etf_snapshot("Unknown Sector")
-    assert result is None, "Expected None for unknown sector"
-    print("[market] unknown sector correctly returned None ✅")
+    result = get_sector_etf_snapshot('Unknown Sector')
+    assert result is None, 'Expected None for unknown sector'
+    print('[market] unknown sector correctly returned None ✅')
+
+    print()
+
+    ctx = get_market_context('Electronic Technology')
+    if ctx:
+        vix_str   = f"level={ctx['vix']['level']}" if ctx['vix'] else 'None'
+        spy_str   = f"price={ctx['spy']['price']}" if ctx['spy'] else 'None'
+        sec_str   = f"etf={ctx['sector']['etf_ticker']}" if ctx['sector'] else 'None'
+        macro_str = f"{ctx['hours_to_next_macro']}h" if ctx['hours_to_next_macro'] is not None else 'None (no events)'
+        print(f'[market] context vix:            {vix_str}')
+        print(f'[market] context spy:            {spy_str}')
+        print(f'[market] context sector:         {sec_str}')
+        print(f'[market] context hours_to_macro: {macro_str}')
+    else:
+        print('[market] get_market_context: returned None')
+
+    print()
+    ctx_bad = get_market_context('Unknown Sector')
+    assert ctx_bad is not None, 'Expected dict even for unknown sector'
+    assert ctx_bad['sector'] is None, 'Expected sector=None for unknown sector'
+    print('[market] unknown sector correctly returns dict with sector=None ✅')

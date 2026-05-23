@@ -144,7 +144,7 @@ Each helper returns `None` on failure. Gates decide how to handle missing data (
 | Constant | Input (lookup key) | Process | Output | Used by |
 |----------|-------------------|---------|--------|---------|
 | `SECTOR_ETF_MAP` | sector name, e.g. `"Technology"` | Static map GICS sector → ETF ticker | `"XLK"` | `get_sector_etf_snapshot`, Gate 1, Gate 4 |
-| `BLOCK_THRESHOLDS` | threshold name, e.g. `"vix_max"` | Static numeric limits for Gate 1 rules | `28`, `0.02`, etc. | Gate 1 `run()` |
+| `BLOCK_THRESHOLDS` | threshold name, e.g. `"vix_level"` | Static numeric limits for Gate 1 rules | `30.0`, `-0.015`, etc. | Gate 1 `screen_gate1_hard_threats()` |
 | `SOURCE_RELIABILITY_TIERS` | source name pattern | Static map publisher → tier | pattern list per tier | `classify_source`, Gates 2, 3 |
 
 ---
@@ -233,24 +233,24 @@ Each helper returns `None` on failure. Gates decide how to handle missing data (
 ### Data flow between gates
 
 ```
-momentum candidate + portfolio state
+shared = get_shared_market_data()   ← called ONCE before the candidate loop
         │
-        ▼
-┌─ Gate 1 run() ──► helpers: market, calendars, premarket, filings, portfolio
+        ▼ (for each candidate)
+┌─ screen_gate1_hard_threats(candidate, shared, ...) ──► helpers: market, calendars, premarket, filings, portfolio
 │       │ passed?
 │       ▼
 │   fetch_headlines()  ◄── helpers/news (called by Pipeline, not Gate 2)
 │       │
-├─ Gate 2 run(headlines) ──► helpers/news.format ──► Claude threat check
+├─ assess_gate2_news_threat(candidate, headlines) ──► helpers/news.format ──► Claude threat check
 │       │ passed?
 │       ▼
-├─ Gate 3 run(same headlines) ──► helpers/news.format + sentiment_rules ──► Claude sentiment
+├─ evaluate_gate3_sentiment(candidate, headlines) ──► helpers/news.format + sentiment_rules ──► Claude sentiment
 │       │ passed?
 │       ▼
-├─ Gate 4 run(candidate, gate3_result) ──► helpers/market_context ──► Claude contradiction
+├─ detect_gate4_contradiction(candidate, gate3_result) ──► helpers/market_context ──► Claude contradiction
 │       │ passed? (not FLAG_FOR_REVIEW)
 │       ▼
-└─ Gate 5 run(candidate, all gate_results) ──► helpers/trade_levels ──► Claude EV ──► BUY | SKIP
+└─ decide_gate5_signal(candidate, all gate_results) ──► helpers/trade_levels ──► Claude EV ──► BUY | SKIP
 ```
 
 **Convention:** Build a helper module **before** the first gate that needs it. Gates never call external APIs directly.
@@ -263,28 +263,31 @@ momentum candidate + portfolio state
 **Claude:** No — rules only, zero API cost  
 **Runs:** First — before any Claude call
 
-#### Gate function: `run(ticker, sector, portfolio_value, daily_pnl)`
+#### Gate functions
+
+`get_shared_market_data()` — call once per batch run; returns shared VIX/SPY/macro dict.  
+`screen_gate1_hard_threats(candidate, shared, portfolio_value, daily_pnl)` — call once per candidate.
 
 | | |
 |---|---|
-| **Input** | `ticker` and `sector` from momentum candidate; `portfolio_value` and `daily_pnl` from pipeline (Alpaca account state) |
-| **Process** | 1) Call each helper listed below → populate `checks` dict. 2) Evaluate block rules in order using `BLOCK_THRESHOLDS` (first match wins). 3) No Claude call. |
+| **Input** | `candidate: dict` from momentum scanner (keys: `ticker`, `sector`, …); `shared` from `get_shared_market_data()`; `portfolio_value` and `daily_pnl` from Alpaca |
+| **Process** | 1) Unpack shared data + fetch per-ticker data. 2) Evaluate 8 block rules in priority order using `BLOCK_THRESHOLDS` (first match wins). 3) No Claude call. |
 | **Output** | `{passed: bool, block_reason: str\|None, checks: dict}` — full raw values in `checks` for audit |
-| **Connects from** | Pipeline / momentum scanner (candidate fields); Alpaca executor (portfolio state) |
+| **Connects from** | Pipeline / momentum scanner (candidate dict); Alpaca executor (portfolio state) |
 | **Connects to** | If `passed` → Pipeline continues to `fetch_headlines()` then Gate 2. If blocked → Pipeline stops, `final_decision = BLOCKED_G1` |
 
 #### Helpers consumed by this gate
 
 | Helper | Role in this gate |
 |--------|-------------------|
-| `get_vix_snapshot()` | Populate `checks`; block if level > 28 or change ≥ 20% |
-| `get_spy_snapshot()` | Populate `checks`; block if down ≥ 2% |
-| `get_sector_etf_snapshot(sector)` | Populate `checks`; block if sector ETF down ≥ 2% |
-| `get_premarket_gap(ticker)` | Populate `checks`; block on gap down ≥ 2% or gap up ≥ 4% |
-| `get_upcoming_macro_events(24)` | Populate `checks`; block if FOMC/CPI/NFP within 24 h |
-| `get_ticker_earnings_window(ticker)` | Populate `checks`; block if reports today/tomorrow |
-| `get_recent_8k_filings(ticker)` | Populate `checks`; block if 8-K filed today |
-| `check_daily_loss_limit(...)` | Populate `checks`; block if daily loss ≥ 3% |
+| `get_vix_snapshot()` | Shared (pre-fetched); block if level ≥ 30 |
+| `get_spy_snapshot()` | Shared (pre-fetched); block if down > 1.5% |
+| `get_sector_etf_snapshot(sector)` | Per-ticker; block if sector ETF down > 2% |
+| `get_premarket_gap(ticker)` | Per-ticker; block if \|gap\| ≥ 3% |
+| `get_hours_to_next_macro_event()` | Shared (pre-fetched); block if event within 2 hours |
+| `get_ticker_earnings_window(ticker)` | Per-ticker; block if reports today or tomorrow bmo |
+| `get_recent_8k_filings(ticker)` | Per-ticker; block if any 8-K in last 24h |
+| `check_daily_loss_limit(...)` | Pure math; block if daily loss ≥ 3% |
 
 > Full Input / Process / Output for each helper → see **Shared helpers — full specification** above.
 
@@ -301,14 +304,14 @@ momentum candidate + portfolio state
 #### Tasks
 
 - [x] Create `constants.py` + `helpers/` folder (no `__init__.py` — digit-prefix folders can't be Python packages)
-- [x] Build `helpers/market.py` — `get_vix_snapshot`, `get_spy_snapshot`, `get_sector_etf_snapshot` ✅ · `get_market_context` 🔲 TODO
+- [x] Build `helpers/market.py` — `get_vix_snapshot`, `get_spy_snapshot`, `get_sector_etf_snapshot` ✅ · `get_market_context` ✅
 - [x] Build `helpers/calendars.py` — `get_upcoming_macro_events`, `get_hours_to_next_macro_event` ✅ · `get_ticker_earnings_window` ✅
 - [x] Build `helpers/premarket.py` — `get_premarket_gap` ✅
 - [x] Build `helpers/filings.py` — `get_recent_8k_filings` ✅
-- [ ] Build `helpers/portfolio.py` — `check_daily_loss_limit`
-- [ ] Build `run()` in `gate1_hard_threat/gate.py` (imports only — no API calls in gate file)
-- [ ] Test gate: `python backend/02_intelligence/gate1_hard_threat/gate.py`
-- [ ] Create `gate1_playground.ipynb`
+- [x] Build `helpers/portfolio.py` — `check_daily_loss_limit` ✅
+- [x] Build `get_shared_market_data()` + `screen_gate1_hard_threats()` in `gate1_hard_threat/gate.py` ✅
+- [x] Test gate: `python backend/02_intelligence/gate1_hard_threat/gate.py` ✅
+- [x] Create `gate1_playground.ipynb` ✅
 
 **Exit criteria:** Gate 1 returns pass/block with full `checks` dict. Runs in milliseconds. Zero Claude cost.
 
@@ -320,11 +323,11 @@ momentum candidate + portfolio state
 **Claude:** Yes — call 1 of 4  
 **Runs:** After Gate 1 passes
 
-#### Gate function: `run(ticker, company_name, headlines=None)`
+#### Gate function: `assess_gate2_news_threat(candidate, headlines)`
 
 | | |
 |---|---|
-| **Input** | `ticker`, `company_name` from candidate; `headlines` list from Pipeline (`fetch_headlines()` — **not fetched inside gate during pipeline run**) |
+| **Input** | `candidate: dict` from momentum scanner; `headlines` list from Pipeline (`fetch_headlines()` — **not fetched inside gate during pipeline run**) |
 | **Process** | 1) If standalone test with no headlines → call `fetch_headlines(ticker)`. 2) If empty headlines → pass with caution (no threat). 3) `format_headlines_for_claude(headlines)`. 4) Claude prompt: catastrophic threats only. 5) Parse `THREAT_DETECTED`, `THREAT_TYPE`, `REASON`. |
 | **Output** | `{passed: bool, threat_detected: bool, threat_type: str, reason: str, headlines_used: int}` |
 | **Connects from** | Pipeline (after Gate 1 pass) + `helpers/news.fetch_headlines()` |
@@ -370,11 +373,11 @@ momentum candidate + portfolio state
 **Claude:** Yes — call 2 of 4  
 **Runs:** After Gate 2 passes
 
-#### Gate function: `run(ticker, company_name, headlines)`
+#### Gate function: `evaluate_gate3_sentiment(candidate, headlines)`
 
 | | |
 |---|---|
-| **Input** | Same `headlines` list Gate 2 received — Pipeline passes through, **no re-fetch** |
+| **Input** | `candidate: dict`; same `headlines` list Gate 2 received — Pipeline passes through, **no re-fetch** |
 | **Process** | 1) `format_headlines_for_claude(headlines)`. 2) Claude prompt: sentiment direction + confidence (different question from Gate 2). 3) Parse `DIRECTION`, `CONFIDENCE`, `SOURCE_RELIABILITY`, `KEY_REASON`. 4) `apply_pass_rules()` on parsed values. |
 | **Output** | `{passed: bool, direction: str, confidence: int, source_reliability: str, key_reason: str, caution: bool, size_reduction_pct: int}` |
 | **Connects from** | Pipeline (same headlines from `fetch_headlines()`); Gate 2 must have passed |
@@ -417,7 +420,7 @@ momentum candidate + portfolio state
 **Claude:** Yes — call 3 of 4  
 **Runs:** After Gate 3 passes
 
-#### Gate function: `run(ticker, candidate, gate3_result)`
+#### Gate function: `detect_gate4_contradiction(candidate, gate3_result)`
 
 | | |
 |---|---|
@@ -469,7 +472,7 @@ momentum candidate + portfolio state
 **Claude:** Yes — call 4 of 4  
 **Runs:** After Gate 4 passes (not flagged)
 
-#### Gate function: `run(ticker, company_name, candidate, gate_results)`
+#### Gate function: `decide_gate5_signal(candidate, gate_results)`
 
 | | |
 |---|---|
@@ -527,12 +530,13 @@ momentum candidate + portfolio state
 
 | Helper / module | Role |
 |-----------------|------|
+| `gate1.get_shared_market_data()` | Called once before the candidate loop; result passed to every Gate 1 call |
 | `helpers/news.fetch_headlines()` | Called once between Gate 1 and Gate 2; result shared with Gate 3 |
-| `gate1_hard_threat.gate.run()` | Step 1 |
-| `gate2_news_threat.gate.run()` | Step 3 |
-| `gate3_sentiment.gate.run()` | Step 4 |
-| `gate4_contradiction.gate.run()` | Step 5 |
-| `gate5_signal.gate.run()` | Step 6 |
+| `gate1_hard_threat.gate.screen_gate1_hard_threats()` | Step 1 |
+| `gate2_news_threat.gate.assess_gate2_news_threat()` | Step 3 |
+| `gate3_sentiment.gate.evaluate_gate3_sentiment()` | Step 4 |
+| `gate4_contradiction.gate.detect_gate4_contradiction()` | Step 5 |
+| `gate5_signal.gate.decide_gate5_signal()` | Step 6 |
 
 #### Install
 
