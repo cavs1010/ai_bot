@@ -33,13 +33,13 @@ def _fetch_closes(ticker: str, label: str) -> tuple[float, float] | None:
         (current_close, prior_close) as floats, or None on failure.
     """
     try:
-        df = yf.Ticker(ticker).history(period="5d", interval="1d")
+        df = yf.Ticker(ticker).history(period='5d', interval='1d')
         if len(df) < 2:
-            print(f"[market] {label}: insufficient data returned (need ≥ 2 rows)")
+            print(f'[market] {label}: insufficient data returned (need ≥ 2 rows)')
             return None
-        return round(float(df["Close"].iloc[-1]), 2), round(float(df["Close"].iloc[-2]), 2)
+        return round(float(df['Close'].iloc[-1]), 2), round(float(df['Close'].iloc[-2]), 2)
     except Exception as e:
-        print(f"[market] {label}: fetch failed — {e}")
+        print(f'[market] {label}: fetch failed — {e}')
         return None
 
 
@@ -57,14 +57,14 @@ def get_vix_snapshot() -> dict | None:
             prior_close (float)       — prior session's closing level
         None on fetch failure or insufficient data.
     """
-    closes = _fetch_closes("^VIX", "VIX")
+    closes = _fetch_closes('^VIX', 'VIX')
     if closes is None:
         return None
     level, prior_close = closes
     return {
-        "level": level,
-        "change_pct_today": round((level - prior_close) / prior_close, 4),
-        "prior_close": prior_close,
+        'level':            level,
+        'change_pct_today': round((level - prior_close) / prior_close, 4),
+        'prior_close':      prior_close,
     }
 
 
@@ -82,14 +82,14 @@ def get_spy_snapshot() -> dict | None:
             prior_close (float)       — prior session's closing price
         None on fetch failure or insufficient data.
     """
-    closes = _fetch_closes("SPY", "SPY")
+    closes = _fetch_closes('SPY', 'SPY')
     if closes is None:
         return None
     price, prior_close = closes
     return {
-        "price": price,
-        "change_pct_today": round((price - prior_close) / prior_close, 4),
-        "prior_close": prior_close,
+        'price':            price,
+        'change_pct_today': round((price - prior_close) / prior_close, 4),
+        'prior_close':      prior_close,
     }
 
 
@@ -98,12 +98,12 @@ def get_sector_etf_snapshot(sector: str) -> dict | None:
     Fetches the sector ETF price and intraday change vs prior close via yfinance.
 
     Args:
-        sector: TradingView sector name, e.g. "Electronic Technology".
+        sector: TradingView sector name, e.g. 'Electronic Technology'.
                 Must match a key in constants.SECTOR_ETF_MAP.
 
     Returns:
         dict with keys:
-            etf_ticker (str)          — the ETF used, e.g. "XLK"
+            etf_ticker (str)          — the ETF used, e.g. 'XLK'
             price (float)             — most recent closing price
             change_pct_today (float)  — signed % change vs prior close (e.g. -0.02 = -2%)
             prior_close (float)       — prior session's closing price
@@ -118,10 +118,10 @@ def get_sector_etf_snapshot(sector: str) -> dict | None:
         return None
     price, prior_close = closes
     return {
-        "etf_ticker": etf_ticker,
-        "price": price,
-        "change_pct_today": round((price - prior_close) / prior_close, 4),
-        "prior_close": prior_close,
+        'etf_ticker':       etf_ticker,
+        'price':            price,
+        'change_pct_today': round((price - prior_close) / prior_close, 4),
+        'prior_close':      prior_close,
     }
 
 

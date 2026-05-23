@@ -302,9 +302,9 @@ momentum candidate + portfolio state
 
 - [x] Create `constants.py` + `helpers/` folder (no `__init__.py` — digit-prefix folders can't be Python packages)
 - [x] Build `helpers/market.py` — `get_vix_snapshot`, `get_spy_snapshot`, `get_sector_etf_snapshot` ✅ · `get_market_context` 🔲 TODO
-- [x] Build `helpers/calendars.py` — `get_upcoming_macro_events`, `get_hours_to_next_macro_event` ✅ · `get_ticker_earnings_window` 🔲 TODO
+- [x] Build `helpers/calendars.py` — `get_upcoming_macro_events`, `get_hours_to_next_macro_event` ✅ · `get_ticker_earnings_window` ✅
 - [x] Build `helpers/premarket.py` — `get_premarket_gap` ✅
-- [ ] Build `helpers/filings.py` — `get_recent_8k_filings`
+- [x] Build `helpers/filings.py` — `get_recent_8k_filings` ✅
 - [ ] Build `helpers/portfolio.py` — `check_daily_loss_limit`
 - [ ] Build `run()` in `gate1_hard_threat/gate.py` (imports only — no API calls in gate file)
 - [ ] Test gate: `python backend/02_intelligence/gate1_hard_threat/gate.py`
