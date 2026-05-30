@@ -351,23 +351,23 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 
 | Package | Why | Helper file |
 |---------|-----|-------------|
-| `alpaca-py` | Primary news source (Benzinga, real-time) | `helpers/news.py` |
-| `finnhub-python` | Supplementary company news | `helpers/news.py` |
-| `newsapi-python` | Fallback when Alpaca returns empty | `helpers/news.py` |
+| `alpaca-py` | Primary news source (Benzinga, real-time) | `helpers/fetchers/news.py` |
+| `finnhub-python` | Supplementary company news | `helpers/fetchers/news.py` |
+| `newsapi-python` | Fallback when Alpaca returns empty | `helpers/fetchers/news.py` |
 | `pydantic-ai` | Provider-flexible LLM threat detection | `gate.py` only |
 
 **`.env` keys:** `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `FINNHUB_API_KEY`, `NEWS_API_KEY`, `ANTHROPIC_API_KEY`
 
 #### Tasks
 
-- [x] Build `helpers/news.py`
+- [x] Build `helpers/fetchers/news.py`
   - [x] Add `classify_source(source_name)` using `SOURCE_RELIABILITY_TIERS` with deterministic fallback (`LOW` if no match)
   - [x] Add `fetch_news(ticker, days_back=2, max_results=5)` with source priority: Alpaca primary → Finnhub supplement → NewsAPI fallback
   - [x] In `fetch_news()`, normalize each item to a shared schema: `{headline, source, reliability, url, published_at, summary}`
   - [x] Cap output to `max_results` via each API's limit param
   - [x] Add `format_news_for_prompt(headlines)` to output a stable multiline prompt block with source + reliability tags
 - [ ] Build `run()` in `gate2_news_threat/gate.py`
-- [x] Test helpers: `python backend/02_intelligence/helpers/news.py`
+- [x] Test helpers: `python backend/02_intelligence/helpers/fetchers/news.py`
 - [ ] Test gate with mock headlines: no threat → PASS; fraud headline → BLOCK
 - [ ] Test: `python backend/02_intelligence/gate2_news_threat/gate.py`
 - [ ] Create `gate2_playground.ipynb`
@@ -409,11 +409,11 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 
 **`.env` keys:** `ANTHROPIC_API_KEY`
 
-> No new data packages — headlines come from `helpers/news.py` (built for Gate 2).
+> No new data packages — headlines come from `helpers/fetchers/news.py` (built for Gate 2).
 
 #### Tasks
 
-- [ ] Build `helpers/sentiment_rules.py`
+- [ ] Build `helpers/logic/sentiment_rules.py`
 - [ ] Build `run()` in `gate3_sentiment/gate.py`
 - [ ] Test: bullish headlines → PASS; bearish → BLOCK
 - [ ] Test: `python backend/02_intelligence/gate3_sentiment/gate.py`
@@ -455,13 +455,13 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 
 | Package | Why | Helper file |
 |---------|-----|-------------|
-| `yfinance` | Composed inside `market_context` | `helpers/market_context.py` |
-| `finnhub-python` | Macro timing | `helpers/market_context.py` |
+| `yfinance` | Composed inside `get_market_context` | `helpers/fetchers/market.py` |
+| `finnhub-python` | Macro timing | `helpers/fetchers/market.py` |
 | `pydantic-ai` | Provider-flexible LLM contradiction analysis | `gate.py` only |
 
 **`.env` keys:** `FINNHUB_API_KEY`, `ANTHROPIC_API_KEY`
 
-> Requires Gate 1 helpers (`market.py`, `calendars.py`) already built — `market_context.py` composes them.
+> Requires Gate 1 helpers already built — `helpers/fetchers/market.py` composes `get_market_context` from market + calendars fetchers.
 
 #### Tasks
 
