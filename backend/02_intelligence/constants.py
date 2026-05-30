@@ -62,7 +62,33 @@ BLOCK_THRESHOLDS: dict[str, float] = {
 }
 
 # ---------------------------------------------------------------------------
-# SOURCE_RELIABILITY_TIERS: publisher → reliability tier
+# SOURCE_RELIABILITY_TIERS: substring patterns → reliability tier
+# Matched case-insensitively against source name and URL (Alpaca URL fallback).
+# Order of tiers is enforced in classify_source(): DANGEROUS → HIGH → MEDIUM → LOW.
+# Unknown sources default to LOW (doc §3.4: "unknown blogs").
 # Used by: classify_source(), Gates 2 & 3
 # ---------------------------------------------------------------------------
-SOURCE_RELIABILITY_TIERS: dict[str, list[str]] = {}  # TODO: populate
+SOURCE_RELIABILITY_TIERS: dict[str, list[str]] = {
+    'DANGEROUS': [
+        'penny stock', 'pump', 'dump', 'anonymous', 'unverified',
+        'telegram', 'discord', 'hotstock', 'investorshub',
+        'reddit.com/r/pennystocks', 'stocktwits.com/message',
+    ],
+    'HIGH': [
+        'reuters', 'bloomberg', 'wsj', 'wall street journal',
+        'financial times', 'ft.com', 'associated press', 'ap news',
+        'apnews.com', 'benzinga',
+    ],
+    'MEDIUM': [
+        'cnbc', 'marketwatch', 'seeking alpha', 'motley fool', 'fool.com',
+        'finnhub', 'yahoo', 'finance.yahoo', 'barrons', 'investing.com',
+        'thestreet', 'zacks', 'tipranks', 'nasdaq.com/news',
+        'business insider', 'insider.com',
+    ],
+    'LOW': [
+        'press release', 'business wire', 'globenewswire', 'pr newswire',
+        'accesswire', 'stocktwits', 'reddit', 'blog', 'medium.com',
+        'substack', 'investor relations', 'ir.', '/newsroom',
+        'prnewswire', 'company announcement',
+    ],
+}

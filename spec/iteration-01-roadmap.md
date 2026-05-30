@@ -92,6 +92,8 @@ Everything the bot needs to function must be in place before Step 1.
 
 **Goal:** Each momentum candidate passes through five gates in order. The pipeline stops at the first failure.
 
+**LLM layer:** Use `pydantic-ai` for Gates 2–5 so Claude can be swapped later for GPT/Gemini without rewriting gate logic.
+
 **Organisation rule:**
 - **`gate*/gate.py`** — decision logic only (prompts, pass/block rules, parsers). One folder per gate.
 - **`helpers/`** — shared data fetchers and pure functions, grouped by domain. If two or more gates need the same function, it lives here — never duplicated inside a gate folder.
@@ -197,9 +199,9 @@ Each helper returns `None` on failure. Gates decide how to handle missing data (
 
 | Function | Input | Process | Output | Connects to |
 |----------|-------|---------|--------|-------------|
-| `classify_source(source_name)` | `source_name: str` | Match source name against `SOURCE_RELIABILITY_TIERS`. | `'HIGH'` \| `'MEDIUM'` \| `'LOW'` \| `'DANGEROUS'` | → called inside `fetch_headlines()`; tags used by Gates 2, 3 prompts |
-| `fetch_headlines(ticker, days_back=2, max_results=5)` | `ticker: str`, optional window/limit | 1) Alpaca News API. 2) If sparse, merge Finnhub company news. 3) If still empty, NewsAPI fallback. Run `classify_source()` on each item. | `[{headline, source, reliability, url, published_at}]` \| `None` | → Pipeline calls once; result passed to Gate 2 `run()` and Gate 3 `run()` |
-| `format_headlines_for_claude(headlines)` | `headlines: list[dict]` | Format each item as `{headline} [Source: X] [Reliability: Y]`. Join into multi-line string. No API. | `str` | → Gate 2 `run()` (Claude prompt); → Gate 3 `run()` (Claude prompt) |
+| `classify_source(source_name)` | `source_name: str` | Match source name against `SOURCE_RELIABILITY_TIERS`. | `'HIGH'` \| `'MEDIUM'` \| `'LOW'` \| `'DANGEROUS'` | → called inside `fetch_news()`; tags used by Gates 2, 3 prompts |
+| `fetch_news(ticker, days_back=2, max_results=5, include_summary=True)` | `ticker: str`, optional window/limit/summary | 1) Alpaca News API. 2) If empty, Finnhub. 3) If still empty, NewsAPI. Run `classify_source()` on each item. | `[{headline, source, reliability, url, published_at, summary}]` \| `None` | → Pipeline calls once; result passed to Gate 2 `run()` and Gate 3 `run()` |
+| `format_news_for_prompt(headlines)` | `headlines: list[dict]` | Format each item as `{headline} [Source: X] [Reliability: Y]`. Join into multi-line string. No API. | `str` | → Gate 2 `run()` (Claude prompt); → Gate 3 `run()` (Claude prompt) |
 
 ---
 
@@ -239,7 +241,7 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 ┌─ screen_gate1_hard_threats(candidate, shared, ...) ──► helpers: market, calendars, premarket, filings, portfolio
 │       │ passed?
 │       ▼
-│   fetch_headlines()  ◄── helpers/news (called by Pipeline, not Gate 2)
+│   fetch_news()  ◄── helpers/news (called by Pipeline, not Gate 2)
 │       │
 ├─ assess_gate2_news_threat(candidate, headlines) ──► helpers/news.format ──► Claude threat check
 │       │ passed?
@@ -274,7 +276,7 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 | **Process** | 1) Unpack shared data + fetch per-ticker data. 2) Evaluate 8 block rules in priority order using `BLOCK_THRESHOLDS` (first match wins). 3) No Claude call. |
 | **Output** | `{passed: bool, block_reason: str\|None, checks: dict}` — full raw values in `checks` for audit |
 | **Connects from** | Pipeline / momentum scanner (candidate dict); Alpaca executor (portfolio state) |
-| **Connects to** | If `passed` → Pipeline continues to `fetch_headlines()` then Gate 2. If blocked → Pipeline stops, `final_decision = BLOCKED_G1` |
+| **Connects to** | If `passed` → Pipeline continues to `fetch_news()` then Gate 2. If blocked → Pipeline stops, `final_decision = BLOCKED_G1` |
 
 #### Helpers consumed by this gate
 
@@ -327,19 +329,19 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 
 | | |
 |---|---|
-| **Input** | `candidate: dict` from momentum scanner; `headlines` list from Pipeline (`fetch_headlines()` — **not fetched inside gate during pipeline run**) |
-| **Process** | 1) If standalone test with no headlines → call `fetch_headlines(ticker)`. 2) If empty headlines → pass with caution (no threat). 3) `format_headlines_for_claude(headlines)`. 4) Claude prompt: catastrophic threats only. 5) Parse `THREAT_DETECTED`, `THREAT_TYPE`, `REASON`. |
+| **Input** | `candidate: dict` from momentum scanner; `headlines` list from Pipeline (`fetch_news()` — **not fetched inside gate during pipeline run**) |
+| **Process** | 1) If standalone test with no headlines → call `fetch_news(ticker)`. 2) If empty headlines → pass with caution (no threat). 3) `format_news_for_prompt(headlines)`. 4) Claude prompt: catastrophic threats only. 5) Parse `THREAT_DETECTED`, `THREAT_TYPE`, `REASON`. |
 | **Output** | `{passed: bool, threat_detected: bool, threat_type: str, reason: str, headlines_used: int}` |
-| **Connects from** | Pipeline (after Gate 1 pass) + `helpers/news.fetch_headlines()` |
+| **Connects from** | Pipeline (after Gate 1 pass) + `helpers/news.fetch_news()` |
 | **Connects to** | If `passed` → Gate 3 receives **same headlines list**. If blocked → `final_decision = BLOCKED_G2` |
 
 #### Helpers consumed by this gate
 
 | Helper | Role in this gate |
 |--------|-------------------|
-| `fetch_headlines(ticker)` | Called by Pipeline before this gate; Gate 2 receives result as input (standalone test may call directly) |
-| `format_headlines_for_claude(headlines)` | Builds Claude prompt body with reliability tags |
-| `classify_source()` | Used inside `fetch_headlines()` — not called directly by gate |
+| `fetch_news(ticker)` | Called by Pipeline before this gate; Gate 2 receives result as input (standalone test may call directly) |
+| `format_news_for_prompt(headlines)` | Builds Claude prompt body with reliability tags |
+| `classify_source()` | Used inside `fetch_news()` — not called directly by gate |
 
 > Full Input / Process / Output → see **Shared helpers — full specification**.
 
@@ -350,15 +352,20 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 | `alpaca-py` | Primary news source (Benzinga, real-time) | `helpers/news.py` |
 | `finnhub-python` | Supplementary company news | `helpers/news.py` |
 | `newsapi-python` | Fallback when Alpaca returns empty | `helpers/news.py` |
-| `anthropic` | Claude threat detection | `gate.py` only |
+| `pydantic-ai` | Provider-flexible LLM threat detection | `gate.py` only |
 
 **`.env` keys:** `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `FINNHUB_API_KEY`, `NEWS_API_KEY`, `ANTHROPIC_API_KEY`
 
 #### Tasks
 
-- [ ] Build `helpers/news.py`
+- [x] Build `helpers/news.py`
+  - [x] Add `classify_source(source_name)` using `SOURCE_RELIABILITY_TIERS` with deterministic fallback (`LOW` if no match)
+  - [x] Add `fetch_news(ticker, days_back=2, max_results=5)` with source priority: Alpaca primary → Finnhub supplement → NewsAPI fallback
+  - [x] In `fetch_news()`, normalize each item to a shared schema: `{headline, source, reliability, url, published_at, summary}`
+  - [x] Cap output to `max_results` via each API's limit param
+  - [x] Add `format_news_for_prompt(headlines)` to output a stable multiline prompt block with source + reliability tags
 - [ ] Build `run()` in `gate2_news_threat/gate.py`
-- [ ] Test helpers: `python backend/02_intelligence/helpers/news.py`
+- [x] Test helpers: `python backend/02_intelligence/helpers/news.py`
 - [ ] Test gate with mock headlines: no threat → PASS; fraud headline → BLOCK
 - [ ] Test: `python backend/02_intelligence/gate2_news_threat/gate.py`
 - [ ] Create `gate2_playground.ipynb`
@@ -378,16 +385,16 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 | | |
 |---|---|
 | **Input** | `candidate: dict`; same `headlines` list Gate 2 received — Pipeline passes through, **no re-fetch** |
-| **Process** | 1) `format_headlines_for_claude(headlines)`. 2) Claude prompt: sentiment direction + confidence (different question from Gate 2). 3) Parse `DIRECTION`, `CONFIDENCE`, `SOURCE_RELIABILITY`, `KEY_REASON`. 4) `apply_pass_rules()` on parsed values. |
+| **Process** | 1) `format_news_for_prompt(headlines)`. 2) Claude prompt: sentiment direction + confidence (different question from Gate 2). 3) Parse `DIRECTION`, `CONFIDENCE`, `SOURCE_RELIABILITY`, `KEY_REASON`. 4) `apply_pass_rules()` on parsed values. |
 | **Output** | `{passed: bool, direction: str, confidence: int, source_reliability: str, key_reason: str, caution: bool, size_reduction_pct: int}` |
-| **Connects from** | Pipeline (same headlines from `fetch_headlines()`); Gate 2 must have passed |
+| **Connects from** | Pipeline (same headlines from `fetch_news()`); Gate 2 must have passed |
 | **Connects to** | If `passed` → Gate 4 receives `gate3_result`. `caution` / `size_reduction_pct` → Gate 5 and risk gate downstream. If blocked → `final_decision = BLOCKED_G3` |
 
 #### Helpers consumed by this gate
 
 | Helper | Role in this gate |
 |--------|-------------------|
-| `format_headlines_for_claude(headlines)` | Builds Claude prompt (reliability tags already on headline dicts from fetch) |
+| `format_news_for_prompt(headlines)` | Builds Claude prompt (reliability tags already on headline dicts from fetch) |
 | `apply_pass_rules(direction, confidence, source_reliability)` | Converts Claude response → pass/block/caution decision |
 
 > Full Input / Process / Output → see **Shared helpers — full specification**.
@@ -396,7 +403,7 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 
 | Package | Why | Helper file |
 |---------|-----|-------------|
-| `anthropic` | Claude sentiment assessment | `gate.py` only |
+| `pydantic-ai` | Provider-flexible LLM sentiment assessment | `gate.py` only |
 
 **`.env` keys:** `ANTHROPIC_API_KEY`
 
@@ -448,7 +455,7 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 |---------|-----|-------------|
 | `yfinance` | Composed inside `market_context` | `helpers/market_context.py` |
 | `finnhub-python` | Macro timing | `helpers/market_context.py` |
-| `anthropic` | Claude contradiction analysis | `gate.py` only |
+| `pydantic-ai` | Provider-flexible LLM contradiction analysis | `gate.py` only |
 
 **`.env` keys:** `FINNHUB_API_KEY`, `ANTHROPIC_API_KEY`
 
@@ -495,7 +502,7 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 
 | Package | Why | Helper file |
 |---------|-----|-------------|
-| `anthropic` | Claude final BUY/SKIP decision | `gate.py` only |
+| `pydantic-ai` | Provider-flexible LLM final BUY/SKIP decision | `gate.py` only |
 
 **`.env` keys:** `ANTHROPIC_API_KEY`, `MIN_EDGE_PCT` (default 0.04)
 
@@ -521,7 +528,7 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 | | |
 |---|---|
 | **Input** | Full momentum `candidate` dict; live `portfolio_value` and `daily_pnl` from Alpaca |
-| **Process** | 1) Gate 1 `run()`. 2) If pass → `fetch_headlines(ticker)` once. 3) Gate 2 `run(headlines)`. 4) Gate 3 `run(same headlines)`. 5) Gate 4 `run(candidate, gate3_result)`. 6) Gate 5 `run(candidate, all gate_results)`. Stop on first failure. |
+| **Process** | 1) Gate 1 `run()`. 2) If pass → `fetch_news(ticker)` once. 3) Gate 2 `run(headlines)`. 4) Gate 3 `run(same headlines)`. 5) Gate 4 `run(candidate, gate3_result)`. 6) Gate 5 `run(candidate, all gate_results)`. Stop on first failure. |
 | **Output** | `{ticker, gates: {gate1…gate5}, final_decision}` — `final_decision` is `BUY`, `SKIP`, `BLOCKED_G1`…`BLOCKED_G4`, or `FLAGGED_FOR_REVIEW` |
 | **Connects from** | Momentum scanner (`run_scan()`); Alpaca account state |
 | **Connects to** | Phase 5 risk gate if `final_decision == BUY`; Phase 7 logger for full audit |
@@ -531,7 +538,7 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 | Helper / module | Role |
 |-----------------|------|
 | `gate1.get_shared_market_data()` | Called once before the candidate loop; result passed to every Gate 1 call |
-| `helpers/news.fetch_headlines()` | Called once between Gate 1 and Gate 2; result shared with Gate 3 |
+| `helpers/news.fetch_news()` | Called once between Gate 1 and Gate 2; result shared with Gate 3 |
 | `gate1_hard_threat.gate.screen_gate1_hard_threats()` | Step 1 |
 | `gate2_news_threat.gate.assess_gate2_news_threat()` | Step 3 |
 | `gate3_sentiment.gate.evaluate_gate3_sentiment()` | Step 4 |

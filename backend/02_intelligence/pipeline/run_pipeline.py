@@ -8,7 +8,7 @@
 #
 # Flow:
 #   1. Gate 1 run()
-#   2. If pass → fetch_headlines(ticker)  ← called once here, shared with Gates 2 & 3
+#   2. If pass → fetch_news(ticker)  ← called once here, shared with Gates 2 & 3
 #   3. Gate 2 run(headlines)
 #   4. Gate 3 run(same headlines)
 #   5. Gate 4 run(candidate, gate3_result)
