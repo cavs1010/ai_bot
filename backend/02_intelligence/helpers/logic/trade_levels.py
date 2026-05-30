@@ -1,4 +1,4 @@
-# helpers/trade_levels.py — trade level calculations and gate summary formatting
+# helpers/logic/trade_levels.py — trade level calculations and gate summary formatting
 # Phase 4 | Intelligence Layer | Shared helper
 # Used by: Gate 5 run()
 #

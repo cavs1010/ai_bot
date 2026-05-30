@@ -1,4 +1,4 @@
-# helpers/filings.py — SEC EDGAR 8-K filings via RSS feed (feedparser)
+# helpers/fetchers/filings.py — SEC EDGAR 8-K filings via RSS feed (feedparser)
 # Phase 4 | Intelligence Layer | Shared helper
 # Used by: Gate 1 run()
 #
@@ -16,7 +16,7 @@ import pathlib
 import datetime
 import feedparser
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 
 # SEC fair-access policy: identify the application and contact email in User-Agent
 feedparser.USER_AGENT = 'ai-trading-bot/1.0 cavs1010@gmail.com'

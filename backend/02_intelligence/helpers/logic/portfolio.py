@@ -1,4 +1,4 @@
-# helpers/portfolio.py — daily loss limit check (pure calculation, no API)
+# helpers/logic/portfolio.py — daily loss limit check (pure calculation, no API)
 # Phase 4 | Intelligence Layer | Shared helper
 # Used by: Gate 1 screen_gate1_hard_threats()
 #

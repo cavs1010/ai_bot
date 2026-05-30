@@ -1,4 +1,4 @@
-# helpers/news.py — fetch, classify, and format news for Gates 2/3
+# helpers/fetchers/news.py — fetch, classify, and format news for Gates 2/3
 # Phase 4 | Intelligence Layer | Shared helper
 # Used by: Pipeline (fetch once), Gate 2 run(), Gate 3 run()
 #
@@ -15,7 +15,7 @@ from newsapi import NewsApiClient
 
 load_dotenv()
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 from constants import SOURCE_RELIABILITY_TIERS
 
 

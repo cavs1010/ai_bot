@@ -1,4 +1,4 @@
-# helpers/calendars.py — macro events and per-ticker earnings windows
+# helpers/fetchers/calendars.py — macro events and per-ticker earnings windows
 # Phase 4 | Intelligence Layer | Shared helper
 # Used by: Gate 1 run(), get_market_context() in market.py (via get_hours_to_next_macro_event)
 #
@@ -23,7 +23,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 from constants import MACRO_EVENT_KEYWORDS
 
 

@@ -1,4 +1,4 @@
-# helpers/market.py — market snapshots and context bundle
+# helpers/fetchers/market.py — market snapshots and context bundle
 # Phase 4 | Intelligence Layer | Shared helper
 # Used by: Gate 1 run() (snapshots), Gate 4 run() (get_market_context)
 #
@@ -17,8 +17,8 @@ import pathlib
 
 import yfinance as yf
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))  # 02_intelligence/ — for constants
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))       # helpers/ — for calendars
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))  # 02_intelligence/ — for constants
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))       # fetchers/ — for calendars
 from constants import SECTOR_ETF_MAP
 from calendars import get_hours_to_next_macro_event
 

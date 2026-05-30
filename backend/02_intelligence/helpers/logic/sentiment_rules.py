@@ -1,4 +1,4 @@
-# helpers/sentiment_rules.py — apply_pass_rules (pure logic, no API)
+# helpers/logic/sentiment_rules.py — apply_pass_rules (pure logic, no API)
 # Phase 4 | Intelligence Layer | Shared helper
 # Used by: Gate 3 run() (after Claude response is parsed)
 #

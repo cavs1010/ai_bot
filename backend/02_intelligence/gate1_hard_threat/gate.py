@@ -22,11 +22,11 @@ base = pathlib.Path(__file__).resolve().parents[1]   # → 02_intelligence/
 sys.path.insert(0, str(base))
 
 from constants import BLOCK_THRESHOLDS
-from helpers.market    import get_vix_snapshot, get_spy_snapshot, get_sector_etf_snapshot
-from helpers.calendars import get_ticker_earnings_window, get_hours_to_next_macro_event
-from helpers.premarket import get_premarket_gap
-from helpers.filings   import get_recent_8k_filings
-from helpers.portfolio import check_daily_loss_limit
+from helpers.fetchers.market    import get_vix_snapshot, get_spy_snapshot, get_sector_etf_snapshot
+from helpers.fetchers.calendars import get_ticker_earnings_window, get_hours_to_next_macro_event
+from helpers.fetchers.premarket import get_premarket_gap
+from helpers.fetchers.filings   import get_recent_8k_filings
+from helpers.logic.portfolio    import check_daily_loss_limit
 
 
 def get_shared_market_data() -> dict | None:

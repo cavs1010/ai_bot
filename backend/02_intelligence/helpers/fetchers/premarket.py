@@ -1,4 +1,4 @@
-# helpers/premarket.py — pre-market gap calculation via yfinance
+# helpers/fetchers/premarket.py — pre-market gap calculation via yfinance
 # Phase 4 | Intelligence Layer | Shared helper
 # Used by: Gate 1 run()
 #
@@ -17,7 +17,7 @@ import pathlib
 import datetime
 import yfinance as yf
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 
 
 def get_premarket_gap(ticker: str) -> dict | None:

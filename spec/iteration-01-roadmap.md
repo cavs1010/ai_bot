@@ -96,7 +96,7 @@ Everything the bot needs to function must be in place before Step 1.
 
 **Organisation rule:**
 - **`gate*/gate.py`** — decision logic only (prompts, pass/block rules, parsers). One folder per gate.
-- **`helpers/`** — shared data fetchers and pure functions, grouped by domain. If two or more gates need the same function, it lives here — never duplicated inside a gate folder.
+- **`helpers/`** — shared functions, split into two sub-folders: `fetchers/` (external API calls) and `logic/` (pure calculations / rule functions). If two or more gates need the same function, it lives here — never duplicated inside a gate folder.
 - **`constants.py`** — thresholds and maps used across multiple gates.
 
 **Reference docs:** `spec/info_source/6. Trading_Bot_Intelligence_Layer_v2.md`, `spec/info_source/7. Trading_Bot_Intelligence_Layer_Install_Guide.md`
@@ -108,32 +108,34 @@ Everything the bot needs to function must be in place before Step 1.
 ```
 backend/02_intelligence/
 ├── constants.py                     # SECTOR_ETF_MAP, block thresholds, SOURCE_RELIABILITY tiers
-├── helpers/                         # shared — gates import from here
-│   ├── market.py                    # VIX, SPY, sector ETF snapshots; get_market_context() → Gate 1, Gate 4
-│   ├── calendars.py                 # macro events, per-ticker earnings     → Gate 1, Gate 4
-│   ├── premarket.py                 # pre-market gap                        → Gate 1
-│   ├── filings.py                   # SEC EDGAR 8-K                         → Gate 1
-│   ├── portfolio.py                 # daily loss limit check                → Gate 1
-│   ├── news.py                      # fetch, classify, format headlines     → Gate 2, Gate 3, Pipeline
-│   ├── sentiment_rules.py           # apply_pass_rules (pure logic)         → Gate 3
-│   └── trade_levels.py              # stop/target/EV context builders       → Gate 5
+├── helpers/
+│   ├── fetchers/                    # external API calls — shared across gates
+│   │   ├── market.py                # VIX, SPY, sector ETF snapshots; get_market_context() → Gate 1, Gate 4
+│   │   ├── calendars.py             # macro events, per-ticker earnings     → Gate 1, Gate 4
+│   │   ├── premarket.py             # pre-market gap                        → Gate 1
+│   │   ├── filings.py               # SEC EDGAR 8-K                         → Gate 1
+│   │   └── news.py                  # fetch, classify, format headlines     → Gate 2, Gate 3, Pipeline
+│   └── logic/                       # pure calculations / rule functions — no external calls
+│       ├── portfolio.py             # daily loss limit check                → Gate 1
+│       ├── sentiment_rules.py       # apply_pass_rules                      → Gate 3
+│       └── trade_levels.py          # stop/target/EV context builders       → Gate 5
 ├── pipeline/
 │   ├── run_pipeline.py
 │   └── run_pipeline_playground.ipynb
 ├── gate1_hard_threat/
-│   ├── gate.py                      # imports helpers/market, calendars, premarket, filings, portfolio
+│   ├── gate.py                      # imports helpers/fetchers: market, calendars, premarket, filings; helpers/logic: portfolio
 │   └── gate1_playground.ipynb
 ├── gate2_news_threat/
-│   ├── gate.py                      # imports helpers/news
+│   ├── gate.py                      # imports helpers/fetchers/news
 │   └── gate2_playground.ipynb
 ├── gate3_sentiment/
-│   ├── gate.py                      # imports helpers/news, helpers/sentiment_rules
+│   ├── gate.py                      # imports helpers/fetchers/news, helpers/logic/sentiment_rules
 │   └── gate3_playground.ipynb
 ├── gate4_contradiction/
-│   ├── gate.py                      # imports helpers/market_context
+│   ├── gate.py                      # imports helpers/fetchers/market (get_market_context)
 │   └── gate4_playground.ipynb
 └── gate5_signal/
-    ├── gate.py                      # imports helpers/trade_levels
+    ├── gate.py                      # imports helpers/logic/trade_levels
     └── gate5_playground.ipynb
 ```
 
@@ -151,7 +153,7 @@ Each helper returns `None` on failure. Gates decide how to handle missing data (
 
 ---
 
-#### `helpers/market.py`
+#### `helpers/fetchers/market.py`
 
 | Function | Input | Process | Output | Connects to |
 |----------|-------|---------|--------|-------------|
@@ -161,7 +163,7 @@ Each helper returns `None` on failure. Gates decide how to handle missing data (
 
 ---
 
-#### `helpers/calendars.py`
+#### `helpers/fetchers/calendars.py`
 
 | Function | Input | Process | Output | Connects to |
 |----------|-------|---------|--------|-------------|
@@ -171,7 +173,7 @@ Each helper returns `None` on failure. Gates decide how to handle missing data (
 
 ---
 
-#### `helpers/premarket.py`
+#### `helpers/fetchers/premarket.py`
 
 | Function | Input | Process | Output | Connects to |
 |----------|-------|---------|--------|-------------|
@@ -179,7 +181,7 @@ Each helper returns `None` on failure. Gates decide how to handle missing data (
 
 ---
 
-#### `helpers/filings.py`
+#### `helpers/fetchers/filings.py`
 
 | Function | Input | Process | Output | Connects to |
 |----------|-------|---------|--------|-------------|
@@ -187,7 +189,7 @@ Each helper returns `None` on failure. Gates decide how to handle missing data (
 
 ---
 
-#### `helpers/portfolio.py`
+#### `helpers/logic/portfolio.py`
 
 | Function | Input | Process | Output | Connects to |
 |----------|-------|---------|--------|-------------|
@@ -195,7 +197,7 @@ Each helper returns `None` on failure. Gates decide how to handle missing data (
 
 ---
 
-#### `helpers/news.py`
+#### `helpers/fetchers/news.py`
 
 | Function | Input | Process | Output | Connects to |
 |----------|-------|---------|--------|-------------|
@@ -205,7 +207,7 @@ Each helper returns `None` on failure. Gates decide how to handle missing data (
 
 ---
 
-#### `helpers/market.py` — `get_market_context(sector)`
+#### `helpers/fetchers/market.py` — `get_market_context(sector)`
 
 > Lives in `market.py` alongside the other market helpers. Composes existing functions — no fetch logic of its own.
 
@@ -215,7 +217,7 @@ Each helper returns `None` on failure. Gates decide how to handle missing data (
 
 ---
 
-#### `helpers/sentiment_rules.py`
+#### `helpers/logic/sentiment_rules.py`
 
 | Function | Input | Process | Output | Connects to |
 |----------|-------|---------|--------|-------------|
@@ -223,7 +225,7 @@ Each helper returns `None` on failure. Gates decide how to handle missing data (
 
 ---
 
-#### `helpers/trade_levels.py`
+#### `helpers/logic/trade_levels.py`
 
 | Function | Input | Process | Output | Connects to |
 |----------|-------|---------|--------|-------------|
@@ -238,21 +240,21 @@ Each helper returns `None` on failure. Gates decide how to handle missing data (
 shared = get_shared_market_data()   ← called ONCE before the candidate loop
         │
         ▼ (for each candidate)
-┌─ screen_gate1_hard_threats(candidate, shared, ...) ──► helpers: market, calendars, premarket, filings, portfolio
+┌─ screen_gate1_hard_threats(candidate, shared, ...) ──► fetchers: market, calendars, premarket, filings  +  logic: portfolio
 │       │ passed?
 │       ▼
-│   fetch_news()  ◄── helpers/news (called by Pipeline, not Gate 2)
+│   fetch_news()  ◄── helpers/fetchers/news (called by Pipeline, not Gate 2)
 │       │
-├─ assess_gate2_news_threat(candidate, headlines) ──► helpers/news.format ──► Claude threat check
+├─ assess_gate2_news_threat(candidate, headlines) ──► fetchers/news.format ──► Claude threat check
 │       │ passed?
 │       ▼
-├─ evaluate_gate3_sentiment(candidate, headlines) ──► helpers/news.format + sentiment_rules ──► Claude sentiment
+├─ evaluate_gate3_sentiment(candidate, headlines) ──► fetchers/news.format + logic/sentiment_rules ──► Claude sentiment
 │       │ passed?
 │       ▼
-├─ detect_gate4_contradiction(candidate, gate3_result) ──► helpers/market_context ──► Claude contradiction
+├─ detect_gate4_contradiction(candidate, gate3_result) ──► fetchers/market.get_market_context ──► Claude contradiction
 │       │ passed? (not FLAG_FOR_REVIEW)
 │       ▼
-└─ decide_gate5_signal(candidate, all gate_results) ──► helpers/trade_levels ──► Claude EV ──► BUY | SKIP
+└─ decide_gate5_signal(candidate, all gate_results) ──► logic/trade_levels ──► Claude EV ──► BUY | SKIP
 ```
 
 **Convention:** Build a helper module **before** the first gate that needs it. Gates never call external APIs directly.
@@ -297,20 +299,20 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 
 | Package | Why | Helper file |
 |---------|-----|-------------|
-| `yfinance` | VIX, SPY, sector ETF, pre-market bars | `helpers/market.py`, `helpers/premarket.py` |
-| `feedparser` | SEC EDGAR 8-K RSS feed | `helpers/filings.py` |
-| `finnhub-python` | Economic + earnings calendars | `helpers/calendars.py` |
+| `yfinance` | VIX, SPY, sector ETF, pre-market bars | `helpers/fetchers/market.py`, `helpers/fetchers/premarket.py` |
+| `feedparser` | SEC EDGAR 8-K RSS feed | `helpers/fetchers/filings.py` |
+| `finnhub-python` | Economic + earnings calendars | `helpers/fetchers/calendars.py` |
 
 **`.env` keys:** `FINNHUB_API_KEY`
 
 #### Tasks
 
-- [x] Create `constants.py` + `helpers/` folder (no `__init__.py` — digit-prefix folders can't be Python packages)
-- [x] Build `helpers/market.py` — `get_vix_snapshot`, `get_spy_snapshot`, `get_sector_etf_snapshot` ✅ · `get_market_context` ✅
-- [x] Build `helpers/calendars.py` — `get_upcoming_macro_events`, `get_hours_to_next_macro_event` ✅ · `get_ticker_earnings_window` ✅
-- [x] Build `helpers/premarket.py` — `get_premarket_gap` ✅
-- [x] Build `helpers/filings.py` — `get_recent_8k_filings` ✅
-- [x] Build `helpers/portfolio.py` — `check_daily_loss_limit` ✅
+- [x] Create `constants.py` + `helpers/fetchers/` + `helpers/logic/` folders
+- [x] Build `helpers/fetchers/market.py` — `get_vix_snapshot`, `get_spy_snapshot`, `get_sector_etf_snapshot` ✅ · `get_market_context` ✅
+- [x] Build `helpers/fetchers/calendars.py` — `get_upcoming_macro_events`, `get_hours_to_next_macro_event` ✅ · `get_ticker_earnings_window` ✅
+- [x] Build `helpers/fetchers/premarket.py` — `get_premarket_gap` ✅
+- [x] Build `helpers/fetchers/filings.py` — `get_recent_8k_filings` ✅
+- [x] Build `helpers/logic/portfolio.py` — `check_daily_loss_limit` ✅
 - [x] Build `get_shared_market_data()` + `screen_gate1_hard_threats()` in `gate1_hard_threat/gate.py` ✅
 - [x] Test gate: `python backend/02_intelligence/gate1_hard_threat/gate.py` ✅
 - [x] Create `gate1_playground.ipynb` ✅
