@@ -1,4 +1,4 @@
-# gate3_sentiment/gate.py — Sentiment Quality Check (Claude call 2 of 4)
+# gate3_sentiment/sentiment_gate3.py — Sentiment Quality Check (Claude call 2 of 4)
 # Phase 4.3 | Intelligence Layer
 #
 # Function: run(ticker, company_name, headlines)
@@ -9,4 +9,4 @@
 # Claude prompt: sentiment direction + confidence — parse DIRECTION, CONFIDENCE, SOURCE_RELIABILITY, KEY_REASON
 # Same headlines list Gate 2 received — no re-fetch
 #
-# Test: python backend/02_intelligence/gate3_sentiment/gate.py
+# Test: python backend/02_intelligence/gate3_sentiment/sentiment_gate3.py

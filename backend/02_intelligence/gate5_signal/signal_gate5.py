@@ -1,4 +1,4 @@
-# gate5_signal/gate.py — Final Signal + Expected Value (Claude call 4 of 4)
+# gate5_signal/signal_gate5.py — Final Signal + Expected Value (Claude call 4 of 4)
 # Phase 4.5 | Intelligence Layer
 #
 # Function: run(ticker, company_name, candidate, gate_results)
@@ -9,4 +9,4 @@
 # Claude prompt: EV formula + prior gate summary — parse WIN_PROBABILITY, EXPECTED_VALUE, DECISION, POSITION_CONFIDENCE, REASON
 # Hard cap: EV < MIN_EDGE_PCT → force SKIP in code (not Claude's call)
 #
-# Test: python backend/02_intelligence/gate5_signal/gate.py
+# Test: python backend/02_intelligence/gate5_signal/signal_gate5.py

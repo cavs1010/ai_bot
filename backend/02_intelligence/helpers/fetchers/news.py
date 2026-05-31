@@ -2,7 +2,7 @@
 # Phase 4 | Intelligence Layer | Shared helper
 # Used by: Pipeline (fetch once), Gate 2 run(), Gate 3 run()
 #
-# Test: python backend/02_intelligence/helpers/news.py
+# Test: python backend/02_intelligence/helpers/fetchers/news.py
 
 import os
 import sys

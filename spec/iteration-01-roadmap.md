@@ -334,7 +334,7 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 | **Input** | `candidate: dict` from momentum scanner; `headlines` list from Pipeline (`fetch_news()` — **not fetched inside gate during pipeline run**) |
 | **Process** | 1) If standalone test with no headlines → call `fetch_news(ticker)`. 2) If empty headlines → pass with caution (no threat). 3) `format_news_for_prompt(headlines)`. 4) Claude prompt: catastrophic threats only. 5) Parse `THREAT_DETECTED`, `THREAT_TYPE`, `REASON`. |
 | **Output** | `{passed: bool, threat_detected: bool, threat_type: str, reason: str, headlines_used: int}` |
-| **Connects from** | Pipeline (after Gate 1 pass) + `helpers/news.fetch_news()` |
+| **Connects from** | Pipeline (after Gate 1 pass) + `helpers/fetchers/news.fetch_news()` |
 | **Connects to** | If `passed` → Gate 3 receives **same headlines list**. If blocked → `final_decision = BLOCKED_G2` |
 
 #### Helpers consumed by this gate
@@ -360,17 +360,18 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 
 #### Tasks
 
-- [x] Build `helpers/fetchers/news.py`
-  - [x] Add `classify_source(source_name)` using `SOURCE_RELIABILITY_TIERS` with deterministic fallback (`LOW` if no match)
-  - [x] Add `fetch_news(ticker, days_back=2, max_results=5)` with source priority: Alpaca primary → Finnhub supplement → NewsAPI fallback
-  - [x] In `fetch_news()`, normalize each item to a shared schema: `{headline, source, reliability, url, published_at, summary}`
-  - [x] Cap output to `max_results` via each API's limit param
-  - [x] Add `format_news_for_prompt(headlines)` to output a stable multiline prompt block with source + reliability tags
-- [ ] Build `run()` in `gate2_news_threat/gate.py`
-- [x] Test helpers: `python backend/02_intelligence/helpers/fetchers/news.py`
-- [ ] Test gate with mock headlines: no threat → PASS; fraud headline → BLOCK
-- [ ] Test: `python backend/02_intelligence/gate2_news_threat/gate.py`
-- [ ] Create `gate2_playground.ipynb`
+- [x] Build `helpers/fetchers/news.py`✅
+  - [x] Add `classify_source(source_name)` using `SOURCE_RELIABILITY_TIERS` with deterministic fallback (`LOW` if no match)✅
+  - [x] Add `fetch_news(ticker, days_back=2, max_results=5)` with source priority: Alpaca primary → Finnhub supplement → NewsAPI fallback ✅
+  - [x] In `fetch_news()`, normalize each item to a shared schema: `{headline, source, reliability, url, published_at, summary}`✅
+  - [x] Cap output to `max_results` via each API's limit param✅
+  - [x] Add `format_news_for_prompt(headlines)` to output a stable multiline prompt block with source + reliability tags ✅
+- [x] Build shared LLM standard `helpers/llm/client.py` — `build_agent` + `run_agent` (pydantic-ai; cheap Haiku default, per-gate overridable; loop-aware for notebooks) ✅
+- [x] Build `assess_gate2_news_threat(candidate, headlines=None)` in `gate2_news_threat/gate.py` ✅
+- [x] Test helpers: `python backend/02_intelligence/helpers/fetchers/news.py`✅
+- [x] Test gate with mock headlines: no threat → PASS; fraud headline → BLOCK ✅
+- [x] Test: `python backend/02_intelligence/gate2_news_threat/gate.py` ✅
+- [x] Create `gate2_playground.ipynb` ✅
 
 **Exit criteria:** Binary threat result. YES blocks immediately. Headlines carry reliability tags.
 
@@ -465,7 +466,7 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 
 #### Tasks
 
-- [ ] Build `get_market_context(sector)` in `helpers/market.py` (stub exists — compose `get_vix_snapshot`, `get_spy_snapshot`, `get_sector_etf_snapshot`, `get_hours_to_next_macro_event`)
+- [ ] Build `get_market_context(sector)` in `helpers/fetchers/market.py` (stub exists — compose `get_vix_snapshot`, `get_spy_snapshot`, `get_sector_etf_snapshot`, `get_hours_to_next_macro_event`)
 - [ ] Build `run()` in `gate4_contradiction/gate.py`
 - [ ] Test: calm market → PASS; sector selling scenario → FLAG or BLOCK
 - [ ] Test: `python backend/02_intelligence/gate4_contradiction/gate.py`
@@ -510,7 +511,7 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 
 #### Tasks
 
-- [ ] Build `helpers/trade_levels.py`
+- [ ] Build `helpers/logic/trade_levels.py`
 - [ ] Build `run()` in `gate5_signal/gate.py`
 - [ ] Test: strong mock signals → BUY; weak → SKIP
 - [ ] Test: `python backend/02_intelligence/gate5_signal/gate.py`
@@ -540,7 +541,7 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 | Helper / module | Role |
 |-----------------|------|
 | `gate1.get_shared_market_data()` | Called once before the candidate loop; result passed to every Gate 1 call |
-| `helpers/news.fetch_news()` | Called once between Gate 1 and Gate 2; result shared with Gate 3 |
+| `helpers/fetchers/news.fetch_news()` | Called once between Gate 1 and Gate 2; result shared with Gate 3 |
 | `gate1_hard_threat.gate.screen_gate1_hard_threats()` | Step 1 |
 | `gate2_news_threat.gate.assess_gate2_news_threat()` | Step 3 |
 | `gate3_sentiment.gate.evaluate_gate3_sentiment()` | Step 4 |

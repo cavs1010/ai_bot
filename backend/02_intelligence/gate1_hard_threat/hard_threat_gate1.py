@@ -1,4 +1,4 @@
-# gate1_hard_threat/gate.py — Hard Threat Screen (rules only, zero Claude cost)
+# gate1_hard_threat/hard_threat_gate1.py — Hard Threat Screen (rules only, zero Claude cost)
 # Phase 4.1 | Intelligence Layer
 #
 # Functions:
@@ -13,7 +13,7 @@
 # Thresholds from: constants.BLOCK_THRESHOLDS
 # No Claude call — first gate, runs in milliseconds
 #
-# Test: python backend/02_intelligence/gate1_hard_threat/gate.py
+# Test: python backend/02_intelligence/gate1_hard_threat/hard_threat_gate1.py
 
 import sys
 import pathlib
