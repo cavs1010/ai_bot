@@ -7,7 +7,7 @@
 # Asks Claude ONE focused question: is there a catastrophic threat in the news?
 # (Not sentiment — that is Gate 3.) Any threat → block.
 #
-# Imports: helpers/fetchers/news (fetch_news, format_news_for_prompt),
+# Imports: helpers/fetchers/news (format_news_for_prompt),
 #          helpers/llm/client   (build_agent, run_agent)
 #
 # Test: python backend/02_intelligence/gate2_news_threat/news_threat_gate2.py
@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 base = pathlib.Path(__file__).resolve().parents[1]   # → 02_intelligence/
 sys.path.insert(0, str(base))
 
-from helpers.fetchers.news import fetch_news, format_news_for_prompt
+from helpers.fetchers.news import format_news_for_prompt
 from helpers.llm.client import build_agent, run_agent
 
 
@@ -94,19 +94,19 @@ def _build_user_prompt(ticker: str, company_name: str, headlines: list[dict]) ->
     )
 
 
-def assess_gate2_news_threat(candidate: dict, headlines: list[dict] | None = None) -> dict:
+def assess_gate2_news_threat(candidate: dict, headlines: list[dict]) -> dict:
     """
     Gate 2 — asks Claude whether the news carries a catastrophic threat (block if yes).
 
-    First of four LLM gates; runs after Gate 1 passes. The pipeline fetches headlines once
-    and passes them in. A standalone test may omit them and let the gate fetch its own.
+    First of four LLM gates; runs after Gate 1 passes. The caller (pipeline) fetches news
+    once and passes the same headlines to every gate that needs them (Gate 2, Gate 3) — the
+    gate does not fetch, so the gates stay consistent and the news API is hit once per candidate.
 
     Args:
         candidate: Momentum scanner dict. Required key: 'ticker'. Optional: 'company_name'
                    (falls back to ticker).
-        headlines: Pre-fetched news from fetch_news() (pipeline path). If None, the gate
-                   fetches them itself (standalone path). Empty list → no news to assess.
-                   Each item is a dict with keys: 'headline' (str), 'source' (str),
+        headlines: News from fetch_news(), passed in by the caller. Empty list → no news to
+                   assess. Each item is a dict with keys: 'headline' (str), 'source' (str),
                    'reliability' (str: HIGH/MEDIUM/LOW/DANGEROUS), and optional 'summary' (str).
 
     Returns:
@@ -119,9 +119,6 @@ def assess_gate2_news_threat(candidate: dict, headlines: list[dict] | None = Non
     """
     ticker = candidate['ticker']
     company_name = candidate.get('company_name', ticker)
-
-    if headlines is None:
-        headlines = fetch_news(ticker)
 
     # No news to assess → no threat. (Doc §4 Gate 2: "treats no news as no threat — proceeds".)
     if not headlines:
