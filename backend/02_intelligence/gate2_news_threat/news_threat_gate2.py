@@ -84,7 +84,7 @@ SYSTEM_PROMPT = (
 _agent = build_agent(Gate2Threat, SYSTEM_PROMPT)
 
 
-def _build_user_prompt(ticker: str, company_name: str, headlines: list[dict]) -> str:
+def _build_gate2_user_prompt(ticker: str, company_name: str, headlines: list[dict]) -> str:
     return (
         f'Analyse these headlines for {ticker} ({company_name}). '
         'Each is tagged with source reliability.\n\n'
@@ -131,7 +131,7 @@ def assess_gate2_news_threat(candidate: dict, headlines: list[dict]) -> dict:
             'headlines_used': 0,
         }
 
-    prompt = _build_user_prompt(ticker, company_name, headlines)
+    prompt = _build_gate2_user_prompt(ticker, company_name, headlines)
     result = run_agent(_agent, prompt)
 
     # LLM unavailable → cannot confirm the news is safe. For a money decision, block rather

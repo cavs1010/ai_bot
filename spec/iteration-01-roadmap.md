@@ -221,7 +221,7 @@ Each helper returns `None` on failure. Gates decide how to handle missing data (
 
 | Function | Input | Process | Output | Connects to |
 |----------|-------|---------|--------|-------------|
-| `apply_pass_rules(direction, confidence, source_reliability)` | Claude parsed fields: `direction`, `confidence` (0–10), `source_reliability` | Apply static rules: BEARISH → block; NEUTRAL + conf < 6 → block; NEUTRAL + conf ≥ 6 → caution (−25% size); BULLISH + LOW source → caution; BULLISH + MEDIUM/HIGH → pass. No API. | `{passed: bool, caution: bool, size_reduction_pct: int}` | → Gate 3 `run()` (after Claude response parsed); caution flag → Gate 5 / risk gate downstream |
+| `apply_pass_rules(direction, confidence)` | Claude parsed fields: `direction`, `confidence` (0–10) | Apply static rules: BEARISH → block; NEUTRAL + conf < 6 → block; NEUTRAL + conf ≥ 6 → caution (−25% size); BULLISH + conf < 6 → caution; BULLISH + conf ≥ 6 → pass. Confidence is the single quality knob (Claude folds source reliability into it). No API. | `{passed: bool, caution: bool, size_reduction_pct: int}` | → Gate 3 `evaluate_gate3_sentiment()` (after Claude response parsed); caution flag → Gate 5 / risk gate downstream |
 
 ---
 
@@ -388,8 +388,8 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 | | |
 |---|---|
 | **Input** | `candidate: dict`; same `headlines` list Gate 2 received — Pipeline passes through, **no re-fetch** |
-| **Process** | 1) `format_news_for_prompt(headlines)`. 2) Claude prompt: sentiment direction + confidence (different question from Gate 2). 3) Parse `DIRECTION`, `CONFIDENCE`, `SOURCE_RELIABILITY`, `KEY_REASON`. 4) `apply_pass_rules()` on parsed values. |
-| **Output** | `{passed: bool, direction: str, confidence: int, source_reliability: str, key_reason: str, caution: bool, size_reduction_pct: int}` |
+| **Process** | 1) `format_news_for_prompt(headlines)`. 2) Claude prompt: sentiment direction + confidence (different question from Gate 2). 3) Parse `DIRECTION`, `CONFIDENCE`, `KEY_REASON`. 4) `apply_pass_rules()` on parsed values. |
+| **Output** | `{passed: bool, direction: str, confidence: int, key_reason: str, caution: bool, size_reduction_pct: int}` |
 | **Connects from** | Pipeline (same headlines from `fetch_news()`); Gate 2 must have passed |
 | **Connects to** | If `passed` → Gate 4 receives `gate3_result`. `caution` / `size_reduction_pct` → Gate 5 and risk gate downstream. If blocked → `final_decision = BLOCKED_G3` |
 
@@ -398,7 +398,7 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 | Helper | Role in this gate |
 |--------|-------------------|
 | `format_news_for_prompt(headlines)` | Builds Claude prompt (reliability tags already on headline dicts from fetch) |
-| `apply_pass_rules(direction, confidence, source_reliability)` | Converts Claude response → pass/block/caution decision |
+| `apply_pass_rules(direction, confidence)` | Converts Claude response → pass/block/caution decision |
 
 > Full Input / Process / Output → see **Shared helpers — full specification**.
 
@@ -414,11 +414,11 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 
 #### Tasks
 
-- [ ] Build `helpers/logic/sentiment_rules.py`
-- [ ] Build `run()` in `gate3_sentiment/gate.py`
-- [ ] Test: bullish headlines → PASS; bearish → BLOCK
-- [ ] Test: `python backend/02_intelligence/gate3_sentiment/gate.py`
-- [ ] Create `gate3_playground.ipynb`
+- [x] Build `helpers/logic/sentiment_rules.py` — `apply_pass_rules` ✅
+- [x] Build `evaluate_gate3_sentiment(candidate, headlines)` in `gate3_sentiment/sentiment_gate3.py` ✅
+- [x] Test: bullish headlines → PASS; bearish → BLOCK ✅
+- [x] Test: `python backend/02_intelligence/gate3_sentiment/sentiment_gate3.py` ✅
+- [x] Create `gate3_playground.ipynb` ✅
 
 **Exit criteria:** Sentiment direction, confidence, and pass/block with caution flag returned.
 
