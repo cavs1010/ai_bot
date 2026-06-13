@@ -25,12 +25,18 @@ def get_max_share_price() -> float:
     """
     try:
         import alpaca_trade_api as tradeapi
+        from alpaca_trade_api.common import URL
+        key_id = os.getenv('ALPACA_API_KEY')
+        secret_key = os.getenv('ALPACA_SECRET_KEY')
+        base_url = os.getenv('ALPACA_BASE_URL')
+        if not key_id or not secret_key or not base_url:
+            raise ValueError('Alpaca credentials not set')
         api = tradeapi.REST(
-            key_id=os.getenv('ALPACA_API_KEY'),
-            secret_key=os.getenv('ALPACA_SECRET_KEY'),
-            base_url=os.getenv('ALPACA_BASE_URL'),
+            key_id=key_id,
+            secret_key=secret_key,
+            base_url=URL(base_url),
         )
-        portfolio_value = float(api.get_account().portfolio_value)
+        portfolio_value = float(str(api.get_account().portfolio_value))
         max_position_pct = float(os.getenv('MAX_POSITION_SIZE_PCT', 0.08))
         return portfolio_value * max_position_pct * 0.90
     except Exception as e:
@@ -91,7 +97,7 @@ def run_universe_filter() -> int | None:
 
     try:
         print('[universe] querying TradingView screener...')
-        _, df = (Query()
+        _, scanner_df = (Query()
             .select('name', 'close', 'average_volume_10d_calc', 'ATR', 'RSI', 'SMA20', 'SMA50', 'sector')
             .where(
                 col('market_cap_basic') > MIN_MARKET_CAP,
@@ -106,6 +112,7 @@ def run_universe_filter() -> int | None:
             .limit(200)
             .get_scanner_data()
         )
+        df: pd.DataFrame = pd.DataFrame(scanner_df)
     except Exception as e:
         print(f'[universe] TradingView query failed: {e}')
         return None
@@ -114,20 +121,24 @@ def run_universe_filter() -> int | None:
     # We convert to a percentage of price so stocks at different price levels are comparable.
     # A $300 stock with ATR $6 and a $30 stock with ATR $6 have very different risk profiles.
     df['atr_pct'] = (df['ATR'] / df['close'] * 100).round(2)
-    df = df[(df['atr_pct'] >= MIN_ATR_PCT) & (df['atr_pct'] <= MAX_ATR_PCT)].copy()
+    df = pd.DataFrame(
+        df[(df['atr_pct'] >= MIN_ATR_PCT) & (df['atr_pct'] <= MAX_ATR_PCT)].copy()
+    )
     print(f'[universe] {len(df)} stocks after ATR% filter ({MIN_ATR_PCT}%–{MAX_ATR_PCT}%)')
 
     earnings = get_earnings_tickers()
     if earnings:
         before = len(df)
-        df = df[~df['name'].isin(earnings)]
+        df = df[~df['name'].isin(list(earnings))]
         removed = before - len(df)
         if removed:
             print(f'[universe] {removed} stocks removed for upcoming earnings')
 
     assert df[['RSI', 'SMA20', 'SMA50']].notna().any().all(), '[universe] momentum columns missing from TradingView response'
 
-    watchlist = df[['name', 'close', 'average_volume_10d_calc', 'ATR', 'atr_pct', 'RSI', 'SMA20', 'SMA50', 'sector']].copy()
+    watchlist: pd.DataFrame = pd.DataFrame(
+        df[['name', 'close', 'average_volume_10d_calc', 'ATR', 'atr_pct', 'RSI', 'SMA20', 'SMA50', 'sector']].copy()
+    )
     watchlist.columns = ['ticker', 'price', 'volume', 'atr', 'atr_pct', 'rsi', 'sma20', 'sma50', 'sector']
     watchlist['price'] = watchlist['price'].round(2)
     watchlist['volume'] = watchlist['volume'].astype(int)

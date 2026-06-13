@@ -8,14 +8,18 @@
 #   get_ticker_earnings_window(ticker, days_ahead=1) → {reports_today, reports_tomorrow, report_date, hour} | None
 #
 # APIs:
-#   Finnhub economic calendar  — times UTC, impact 'low'|'medium'|'high'
-#   Finnhub earnings calendar  — date YYYY-MM-DD, hour 'amc'|'bmo'|'dmh'|''
+#   FairEconomy/ForexFactory economic calendar (free, no key) — impact High/Medium/Low
+#   Finnhub earnings calendar (free tier)  — date YYYY-MM-DD, hour 'amc'|'bmo'|'dmh'|''
 # No SDK — uses requests directly (consistent with universe_filter.py)
+#
+# Note: Finnhub's /calendar/economic endpoint moved to a paid plan (returns 403 on
+# the free tier), so macro events now come from the free FairEconomy JSON feed
+# (the public ForexFactory calendar). Earnings stays on Finnhub's free tier.
 #
 # Test: python backend/02_intelligence/helpers/calendars.py
 
 import os
-import sys
+import json
 import pathlib
 import requests
 from datetime import date, datetime, timezone, timedelta
@@ -23,18 +27,74 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
-from constants import MACRO_EVENT_KEYWORDS
+# FairEconomy publishes the public ForexFactory calendar as free, key-less JSON.
+# Only the current-week feed exists; it covers the rest of the calendar week,
+# which is enough for the 24h Gate 1 block and best-effort for the 168h lookahead.
+ECON_CALENDAR_URL = 'https://nfs.faireconomy.media/ff_calendar_thisweek.json'
+# The feed 403s without a browser-like User-Agent and rate-limits to 2 requests
+# per 5 min per IP. The data is weekly, so the response is cached on disk (shared
+# across gate runs) and only refetched every few hours — far under that limit.
+_FEED_HEADERS = {'User-Agent': 'Mozilla/5.0'}
+_CACHE_PATH = pathlib.Path(__file__).resolve().parent / '.cache' / 'ff_calendar_thisweek.json'
+_CACHE_TTL = timedelta(hours=6)
+
+
+def _read_cache() -> tuple[datetime, list[dict]] | None:
+    """Returns (fetched_at, data) from the on-disk cache, or None if missing/unreadable."""
+    try:
+        blob = json.loads(_CACHE_PATH.read_text())
+        return datetime.fromisoformat(blob['fetched_at']), blob['data']
+    except Exception:
+        return None
+
+
+def _fetch_econ_calendar() -> list[dict] | None:
+    """
+    Returns the raw ForexFactory feed, served from the on-disk cache while it is
+    fresh (< _CACHE_TTL). On a fetch failure a stale cache is returned if present
+    — an old calendar is safer for the gate than none. Returns None only when
+    both the network and the cache are unavailable.
+    """
+    now = datetime.now(timezone.utc)
+    cached = _read_cache()
+    if cached is not None and now - cached[0] < _CACHE_TTL:
+        return cached[1]
+
+    try:
+        r = requests.get(ECON_CALENDAR_URL, headers=_FEED_HEADERS, timeout=10)
+        r.raise_for_status()
+        # The feed has no server-side country filter — it returns the whole world.
+        # We only ever use US events, so trim to those before caching.
+        data = [e for e in r.json() if e.get('country') == 'USD']
+    except Exception as e:
+        if cached is not None:
+            print(f'[calendars] macro events: using stale cache — fetch failed: {e}')
+            return cached[1]
+        print(f'[calendars] macro events: fetch failed — {e}')
+        return None
+
+    try:
+        _CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _CACHE_PATH.write_text(json.dumps({'fetched_at': now.isoformat(), 'data': data}))
+    except Exception as e:
+        print(f'[calendars] macro events: cache write failed — {e}')
+    return data
 
 
 def get_upcoming_macro_events(hours_ahead: int = 24) -> list[dict] | None:
     """
-    Fetches upcoming US high-impact macro events from the Finnhub economic calendar.
+    Fetches upcoming US high-impact macro events from the free FairEconomy feed
+    (the public ForexFactory economic calendar — no API key required).
 
-    Server-side: filters by country=US and date range (from today to cutoff).
-    Client-side: filters by impact=='high' and MACRO_EVENT_KEYWORDS match.
-    Note: Finnhub ignores the `impact` query param — it must be filtered locally.
-    All times from Finnhub are UTC.
+    Filtering (all client-side): country=='USD' and impact=='High' (ForexFactory's
+    curated flag), then trimmed to the [now, now+hours_ahead] window.
+    Feed times are local-with-offset (ISO 8601); they are converted to UTC, and
+    the returned `time` field is a UTC string 'YYYY-MM-DD HH:MM:SS' so downstream
+    callers (get_hours_to_next_macro_event) can parse it as UTC.
+
+    Note: the feed only spans the current calendar week, so a 168h lookahead is
+    truncated at the week boundary — callers treat a short/empty result as
+    'no further macro risk known', which is the safe default here.
 
     Args:
         hours_ahead: How many hours ahead to look. Default 24.
@@ -42,48 +102,33 @@ def get_upcoming_macro_events(hours_ahead: int = 24) -> list[dict] | None:
     Returns:
         List of dicts with keys: event (str), country (str), time (str), impact (str).
         Empty list if no matching events in window.
-        None on fetch failure or missing API key.
+        None on fetch failure.
     """
-    key = os.getenv('FINNHUB_API_KEY')
-    if not key:
-        print('[calendars] macro events: FINNHUB_API_KEY not set')
-        return None
-
     now = datetime.now(timezone.utc)
     cutoff = now + timedelta(hours=hours_ahead)
-    date_from = now.strftime('%Y-%m-%d')
-    date_to = cutoff.strftime('%Y-%m-%d')
 
-    try:
-        r = requests.get(
-            'https://finnhub.io/api/v1/calendar/economic',
-            params={'from': date_from, 'to': date_to, 'country': 'US', 'token': key},
-            timeout=10,
-        )
-        r.raise_for_status()
-        all_events = r.json().get('economicCalendar', [])
-    except Exception as e:
-        print(f'[calendars] macro events: fetch failed — {e}')
+    all_events = _fetch_econ_calendar()
+    if all_events is None:
         return None
 
     result = []
     for e in all_events:
-        # impact param is ignored by Finnhub — must filter locally
-        if e.get('impact') != 'high':
+        # all_events is already US-only (filtered in _fetch_econ_calendar).
+        # Trust ForexFactory's curated High-impact flag — no keyword whitelist.
+        if e.get('impact') != 'High':
             continue
-        event_name = e.get('event', '')
-        if not any(kw.lower() in event_name.lower() for kw in MACRO_EVENT_KEYWORDS):
-            continue
+        event_name = e.get('title', '')
         try:
-            event_time = datetime.strptime(e['time'], '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)
-        except ValueError:
+            # e.g. '2026-06-12T08:30:00-04:00' → UTC
+            event_time = datetime.fromisoformat(e['date']).astimezone(timezone.utc)
+        except (ValueError, KeyError):
             continue
         if now <= event_time <= cutoff:
             result.append({
                 'event':   event_name,
-                'country': e['country'],
-                'time':    e['time'],
-                'impact':  e['impact'],
+                'country': 'US',
+                'time':    event_time.strftime('%Y-%m-%d %H:%M:%S'),
+                'impact':  'high',
             })
 
     return result

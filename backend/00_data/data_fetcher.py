@@ -32,7 +32,9 @@ def get_stock_data(ticker: str, period: str = '60d', interval: str = '1d') -> pd
             print(f'[data] {ticker}: no data returned')
             return None
         # yfinance returns tz-aware timestamps; ta library requires tz-naive
-        df.index = df.index.tz_convert(None)
+        idx = pd.DatetimeIndex(df.index)
+        if idx.tz is not None:
+            df.index = idx.tz_convert(None)
         return df
     except Exception as e:
         print(f'[data] {ticker}: fetch failed — {e}')

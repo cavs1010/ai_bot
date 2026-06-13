@@ -44,7 +44,7 @@ def calculate_momentum_score(row: pd.Series) -> tuple[int, float]:
         score += 1
     if row['sma20'] > row['sma50']:
         score += 1
-    return score, row['atr']
+    return score, float(row['atr'])
 
 
 def run_scan(min_score: int = MIN_SCORE) -> pd.DataFrame | None:
@@ -69,13 +69,14 @@ def run_scan(min_score: int = MIN_SCORE) -> pd.DataFrame | None:
     scores = df.apply(calculate_momentum_score, axis=1)
     df['score'] = [s[0] for s in scores]
 
-    candidates = df[df['score'] >= min_score].copy()
+    candidates: pd.DataFrame = df.loc[df['score'] >= min_score].copy()
     print(f'[scanner] {len(candidates)} stocks with score >= {min_score}')
 
-    candidates = candidates.sort_values('score', ascending=False).head(TOP_N)
+    candidates = candidates.sort_values(by='score', ascending=False).head(TOP_N)
     print(f'[scanner] returning top {len(candidates)} candidates')
 
-    return candidates[['ticker', 'price', 'score', 'atr', 'rsi', 'sma20', 'sma50']].reset_index(drop=True)
+    cols = ['ticker', 'price', 'score', 'atr', 'rsi', 'sma20', 'sma50']
+    return candidates.loc[:, cols].reset_index(drop=True)
 
 
 if __name__ == '__main__':

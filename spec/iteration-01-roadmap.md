@@ -466,11 +466,18 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 
 #### Tasks
 
-- [ ] Build `get_market_context(sector)` in `helpers/fetchers/market.py` (stub exists — compose `get_vix_snapshot`, `get_spy_snapshot`, `get_sector_etf_snapshot`, `get_hours_to_next_macro_event`)
-- [ ] Build `run()` in `gate4_contradiction/gate.py`
-- [ ] Test: calm market → PASS; sector selling scenario → FLAG or BLOCK
-- [ ] Test: `python backend/02_intelligence/gate4_contradiction/gate.py`
-- [ ] Create `gate4_playground.ipynb`
+- [x] Build `get_market_context(sector)` in `helpers/fetchers/market.py` — already built (composes the four snapshots) ✅
+- [x] Build `detect_gate4_contradiction(candidate, gate3_result, market_context)` in `gate4_contradiction/contradiction_gate4.py` ✅
+- [x] Test: calm market → PASS; gray-zone risk-off / divergence → FLAG or BLOCK ✅
+- [x] Test: `python backend/02_intelligence/gate4_contradiction/contradiction_gate4.py` ✅
+- [x] Create `gate4_playground.ipynb` ✅
+
+> **Lean build (deviation from the spec above):** Gate 4 was built focused on only the two
+> contradictions Gate 1 **cannot** already catch — `DIVERGENCE` (stock vs market) and
+> `BROAD_RISK_OFF` (sub-threshold accumulation) — dropping `MACRO/SECTOR/TIMING`, which just
+> re-check Gate 1's hard thresholds. The gate **fetches nothing**: the caller passes
+> `market_context` in (the pipeline reuses Gate 1's already-fetched VIX/SPY/macro + sector ETF),
+> and stock technicals are kept out of the prompt. One cheap Haiku call, no redundant API hits.
 
 **Exit criteria:** Correctly returns PASS, FLAG_FOR_REVIEW, or BLOCK based on risk level.
 
