@@ -177,7 +177,7 @@ trading-bot/
 │   │   ├── gate2_news_threat/gate.py
 │   │   ├── gate3_sentiment/gate.py
 │   │   ├── gate4_contradiction/gate.py
-│   │   └── gate5_signal/gate.py
+│   │   └── gate5_signal/signal_gate5.py
 │   ├── 03_risk/
 │   │   └── risk_gate.py          # Validates every trade before execution
 │   ├── 04_execution/
