@@ -64,3 +64,6 @@ data/
 # LangGraph / LangChain local state
 .langgraph_api/
 .checkpoint/
+
+# Fetcher cache
+backend/02_intelligence/helpers/fetchers/.cache/ff_calendar_thisweek.json
