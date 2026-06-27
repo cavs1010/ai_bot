@@ -167,7 +167,7 @@ Each helper returns `None` on failure. Gates decide how to handle missing data (
 
 | Function | Input | Process | Output | Connects to |
 |----------|-------|---------|--------|-------------|
-| `get_upcoming_macro_events(hours_ahead=24)` | `hours_ahead: int` | Call Finnhub economic calendar. Filter US high-impact events matching `MACRO_EVENT_KEYWORDS` (FOMC, CPI, NFP…) within window. | `[{event, country, time, impact}]` \| `None` | → Gate 1 `run()` (block if any in window); → `get_hours_to_next_macro_event()` |
+| `get_upcoming_macro_events(hours_ahead=24)` | `hours_ahead: int` | Call the free FairEconomy/ForexFactory feed (no key; disk-cached). Keep US `impact == 'High'` events within window — trust the source's curated flag, no keyword whitelist. | `[{event, country, time, impact}]` \| `None` | → Gate 1 `run()` (block if any in window); → `get_hours_to_next_macro_event()` |
 | `get_ticker_earnings_window(ticker, days_ahead=1)` | `ticker: str`, `days_ahead: int` | Call Finnhub earnings calendar for this ticker. Check if report date is today or tomorrow. | `{reports_today: bool, reports_tomorrow: bool, report_date, hour}` \| `None` | → Gate 1 `run()` only |
 | `get_hours_to_next_macro_event()` | — | Call `get_upcoming_macro_events()`. Return hours until the nearest high-impact US event. | `float` (hours) \| `None` | → `get_market_context()` → Gate 4 prompt |
 
@@ -301,7 +301,7 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 |---------|-----|-------------|
 | `yfinance` | VIX, SPY, sector ETF, pre-market bars | `helpers/fetchers/market.py`, `helpers/fetchers/premarket.py` |
 | `feedparser` | SEC EDGAR 8-K RSS feed | `helpers/fetchers/filings.py` |
-| `finnhub-python` | Economic + earnings calendars | `helpers/fetchers/calendars.py` |
+| `requests` | Earnings calendar (Finnhub REST) + economic calendar (free ForexFactory feed) | `helpers/fetchers/calendars.py` |
 
 **`.env` keys:** `FINNHUB_API_KEY`
 
@@ -352,7 +352,7 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 | Package | Why | Helper file |
 |---------|-----|-------------|
 | `alpaca-py` | Primary news source (Benzinga, real-time) | `helpers/fetchers/news.py` |
-| `finnhub-python` | Supplementary company news | `helpers/fetchers/news.py` |
+| `requests` | Supplementary company news (Finnhub REST) | `helpers/fetchers/news.py` |
 | `newsapi-python` | Fallback when Alpaca returns empty | `helpers/fetchers/news.py` |
 | `pydantic-ai` | Provider-flexible LLM threat detection | `gate.py` only |
 
@@ -457,7 +457,7 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 | Package | Why | Helper file |
 |---------|-----|-------------|
 | `yfinance` | Composed inside `get_market_context` | `helpers/fetchers/market.py` |
-| `finnhub-python` | Macro timing | `helpers/fetchers/market.py` |
+| `requests` | Macro timing (via `calendars.py` → free ForexFactory feed) | `helpers/fetchers/market.py` |
 | `pydantic-ai` | Provider-flexible LLM contradiction analysis | `gate.py` only |
 
 **`.env` keys:** `FINNHUB_API_KEY`, `ANTHROPIC_API_KEY`
@@ -466,11 +466,18 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 
 #### Tasks
 
-- [ ] Build `get_market_context(sector)` in `helpers/fetchers/market.py` (stub exists — compose `get_vix_snapshot`, `get_spy_snapshot`, `get_sector_etf_snapshot`, `get_hours_to_next_macro_event`)
-- [ ] Build `run()` in `gate4_contradiction/gate.py`
-- [ ] Test: calm market → PASS; sector selling scenario → FLAG or BLOCK
-- [ ] Test: `python backend/02_intelligence/gate4_contradiction/gate.py`
-- [ ] Create `gate4_playground.ipynb`
+- [x] Build `get_market_context(sector)` in `helpers/fetchers/market.py` — already built (composes the four snapshots) ✅
+- [x] Build `detect_gate4_contradiction(candidate, gate3_result, market_context)` in `gate4_contradiction/contradiction_gate4.py` ✅
+- [x] Test: calm market → PASS; gray-zone risk-off / divergence → FLAG or BLOCK ✅
+- [x] Test: `python backend/02_intelligence/gate4_contradiction/contradiction_gate4.py` ✅
+- [x] Create `gate4_playground.ipynb` ✅
+
+> **Lean build (deviation from the spec above):** Gate 4 was built focused on only the two
+> contradictions Gate 1 **cannot** already catch — `DIVERGENCE` (stock vs market) and
+> `BROAD_RISK_OFF` (sub-threshold accumulation) — dropping `MACRO/SECTOR/TIMING`, which just
+> re-check Gate 1's hard thresholds. The gate **fetches nothing**: the caller passes
+> `market_context` in (the pipeline reuses Gate 1's already-fetched VIX/SPY/macro + sector ETF),
+> and stock technicals are kept out of the prompt. One cheap Haiku call, no redundant API hits.
 
 **Exit criteria:** Correctly returns PASS, FLAG_FOR_REVIEW, or BLOCK based on risk level.
 

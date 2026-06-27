@@ -59,10 +59,20 @@
 
 ### 📅 Finnhub
 
-- **Role:** Earnings + economic calendars
-- **Used for:** `universe_filter.py` (weekly earnings blackout) and Gate 1 (FOMC/CPI/NFP + per-stock earnings checks)
+- **Role:** Earnings calendar
+- **Used for:** `universe_filter.py` (weekly earnings blackout) and Gate 1 (per-stock earnings checks)
 - **Free tier:** 60 API calls/minute, no credit card required — finnhub.io
-- **Library:** `finnhub-python`
+- **Library:** none — called as plain REST over `requests` (the `finnhub-python` SDK is not installed)
+- **Note:** its economic calendar moved to a paid plan (403 on free tier) — macro events now come from the FairEconomy feed below.
+
+### 📅 FairEconomy / ForexFactory
+
+- **Role:** Economic (macro) calendar — FOMC, CPI, NFP, etc.
+- **Used for:** Gate 1 imminent-macro-event block, via `helpers/fetchers/calendars.py`
+- **Endpoint:** `https://nfs.faireconomy.media/ff_calendar_thisweek.json` — free, no API key
+- **Filtering:** keep US (`country == "USD"`) events flagged `impact == "High"`; no keyword whitelist
+- **Limits:** ~2 requests / 5 min / IP → response is disk-cached (6h TTL) under `calendars.py`; needs a browser `User-Agent`
+- **Library:** none — plain `requests`
 
 ### 📄 SEC EDGAR
 
@@ -106,10 +116,9 @@
 | `alpaca-trade-api` | Alpaca broker integration (orders, account)  |
 | `alpaca-py`        | Alpaca News API + pre-market data            |
 | `anthropic`        | Claude AI API client (Gates 2–5)             |
-| `finnhub-python`   | Economic + earnings calendars (Gate 1)       |
 | `feedparser`       | SEC EDGAR RSS parsing (Gate 1)               |
 | `newsapi-python`   | NewsAPI client (fallback only)               |
-| `requests`         | General HTTP requests                        |
+| `requests`         | Finnhub earnings/news + ForexFactory econ calendar REST; general HTTP |
 
 ### 🖥️ Backend & Scheduling
 

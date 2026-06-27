@@ -28,27 +28,6 @@ SECTOR_ETF_MAP: dict[str, str] = {
 }
 
 # ---------------------------------------------------------------------------
-# MACRO_EVENT_KEYWORDS: substrings matched case-insensitively against Finnhub
-# economic calendar event names. Only US high-impact events that also contain
-# one of these keywords are treated as market-moving.
-# Used by: get_upcoming_macro_events(), get_hours_to_next_macro_event()
-# ---------------------------------------------------------------------------
-MACRO_EVENT_KEYWORDS: list[str] = [
-    "FOMC",              # FOMC Minutes, FOMC Statement, FOMC Meeting
-    "Fed Funds",         # Fed Funds Rate decision
-    "Interest Rate",     # catches rate decisions from any Fed label variant
-    "CPI",               # Consumer Price Index (headline + core)
-    "Nonfarm",           # Nonfarm Payrolls (NFP)
-    "Non Farm",          # alternate spelling
-    "PCE",               # Core PCE Price Index (Fed's preferred inflation gauge)
-    "GDP",               # GDP Growth Rate
-    "PPI",               # Producer Price Index
-    "Retail Sales",      # monthly consumer spending read
-    "Unemployment Rate", # monthly unemployment print
-    "Durable Goods",     # Durable Goods Orders
-]
-
-# ---------------------------------------------------------------------------
 # BLOCK_THRESHOLDS: numeric limits for Gate 1 block rules
 # Used by: Gate 1 run()
 # ---------------------------------------------------------------------------

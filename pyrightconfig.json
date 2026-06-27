@@ -1,4 +1,12 @@
 {
   "include": ["backend"],
-  "extraPaths": ["backend/02_intelligence"]
+  "extraPaths": [
+    "backend/02_intelligence",
+    "backend/02_intelligence/gate1_hard_threat",
+    "backend/02_intelligence/gate2_news_threat",
+    "backend/02_intelligence/gate3_sentiment",
+    "backend/02_intelligence/gate4_contradiction",
+    "backend/02_intelligence/gate5_signal",
+    "backend/02_intelligence/helpers/fetchers"
+  ]
 }
