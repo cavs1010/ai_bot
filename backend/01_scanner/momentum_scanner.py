@@ -47,32 +47,39 @@ def calculate_momentum_score(row: pd.Series) -> tuple[int, float]:
     return score, float(row['atr'])
 
 
-def run_scan(min_score: int = MIN_SCORE) -> pd.DataFrame | None:
+def run_scan(min_score: int = MIN_SCORE, df: pd.DataFrame | None = None, top_n: int = TOP_N) -> pd.DataFrame | None:
     """
-    Runs the Tier 2 momentum scan on the Tier 1 watchlist.
+    Runs the Tier 2 momentum scan on a Tier 1 watchlist.
 
-    Loads watchlist.csv, scores each stock, filters to score >= min_score,
-    and returns the top TOP_N candidates sorted by score descending.
+    Scores each stock, filters to score >= min_score, and returns the top top_n
+    candidates sorted by score descending.
 
     Args:
         min_score: Minimum momentum score (0–3) a stock must reach to be included.
                    Default is MIN_SCORE (2) — requiring at least two of three criteria met.
+        df: Pre-loaded watchlist DataFrame to score (must have the columns read by
+            calculate_momentum_score). When None (default), the watchlist is loaded
+            from WATCHLIST_PATH via load_watchlist(). Pass a DataFrame to score an
+            in-memory watchlist without disk I/O. The input is not mutated.
+        top_n: Maximum number of candidates to return. Default is TOP_N (15).
 
     Returns:
         DataFrame with columns ticker, price, score, atr, rsi, sma20, sma50,
-        or None on failure.
+        or None when the watchlist cannot be loaded.
     """
-    df = load_watchlist()
+    if df is None:
+        df = load_watchlist()
     if df is None:
         return None
 
+    df = df.copy()  # avoid mutating the caller's DataFrame when adding 'score'
     scores = df.apply(calculate_momentum_score, axis=1)
     df['score'] = [s[0] for s in scores]
 
     candidates: pd.DataFrame = df.loc[df['score'] >= min_score].copy()
     print(f'[scanner] {len(candidates)} stocks with score >= {min_score}')
 
-    candidates = candidates.sort_values(by='score', ascending=False).head(TOP_N)
+    candidates = candidates.sort_values(by='score', ascending=False).head(top_n)
     print(f'[scanner] returning top {len(candidates)} candidates')
 
     cols = ['ticker', 'price', 'score', 'atr', 'rsi', 'sma20', 'sma50']
@@ -83,3 +90,14 @@ if __name__ == '__main__':
     result = run_scan()
     if result is not None:
         print(result.to_string(index=False))
+
+    # Variation: scoring a pre-loaded DataFrame should match the disk-loaded path.
+    watchlist = load_watchlist()
+    if watchlist is not None:
+        from_df = run_scan(df=watchlist)
+        assert from_df is not None and from_df.equals(result)
+        print('[scanner] run_scan(df=...) matches run_scan() ✅')
+
+    capped = run_scan(top_n=5)
+    assert capped is not None and len(capped) <= 5
+    print('[scanner] run_scan(top_n=5) returned <= 5 rows ✅')
