@@ -1,6 +1,7 @@
 {
   "include": ["backend"],
   "extraPaths": [
+    "backend/01_scanner",
     "backend/02_intelligence",
     "backend/02_intelligence/gate1_hard_threat",
     "backend/02_intelligence/gate2_news_threat",
