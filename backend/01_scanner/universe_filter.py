@@ -3,7 +3,8 @@ import requests
 import pandas as pd
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
-from tradingview_screener import Query, col
+from tradingview_screener.query import Query
+from tradingview_screener.column import col
 
 load_dotenv()
 
@@ -13,6 +14,7 @@ MIN_ATR_PCT       = 1.0                 # % of price — below this, stock is to
 MAX_ATR_PCT       = 5.0                 # % of price — above this, stop-losses become too wide to trade safely
 MIN_MARKET_CAP    = 100_000_000_000     # $100B — proxy for large-cap US universe (~70 stocks, validated)
 EARNINGS_WINDOW_DAYS = 5               # days — exclude stocks with earnings: gaps can blow through stop-losses
+SCREENER_LIMIT    = 200                # rows requested from TradingView before ATR/earnings filtering
 WATCHLIST_PATH    = 'data/watchlist.csv'
 
 
@@ -85,14 +87,22 @@ def save_watchlist(df: pd.DataFrame) -> None:
     print(f'[universe] saved {len(df)} tickers to {WATCHLIST_PATH}')
 
 
-def run_universe_filter() -> int | None:
+def run_universe_filter(max_price: float | None = None, limit: int = SCREENER_LIMIT) -> int | None:
     """
     Runs the Tier 1 universe filter: large-cap US stocks → watchlist.csv.
+
+    Args:
+        max_price: Upper share-price bound for the screener. When None (default), it is
+                   fetched dynamically from Alpaca via get_max_share_price(). Pass a value
+                   to bypass the Alpaca call for reproducible runs, notebooks, or tests.
+        limit:     Max rows requested from the TradingView screener before the ATR% and
+                   earnings filters are applied. Default SCREENER_LIMIT (200).
 
     Returns:
         Count of stocks saved, or None on failure.
     """
-    max_price = get_max_share_price()
+    if max_price is None:
+        max_price = get_max_share_price()
     print(f'[universe] price ceiling: ${max_price:.2f}')
 
     try:
@@ -109,7 +119,7 @@ def run_universe_filter() -> int | None:
                 col('close') < max_price,
             )
             .order_by('average_volume_10d_calc', ascending=False)
-            .limit(200)
+            .limit(limit)
             .get_scanner_data()
         )
         df: pd.DataFrame = pd.DataFrame(scanner_df)
@@ -129,12 +139,12 @@ def run_universe_filter() -> int | None:
     earnings = get_earnings_tickers()
     if earnings:
         before = len(df)
-        df = df[~df['name'].isin(list(earnings))]
+        df = pd.DataFrame(df[~df['name'].isin(list(earnings))])
         removed = before - len(df)
         if removed:
             print(f'[universe] {removed} stocks removed for upcoming earnings')
 
-    assert df[['RSI', 'SMA20', 'SMA50']].notna().any().all(), '[universe] momentum columns missing from TradingView response'
+    assert df[['RSI', 'SMA20', 'SMA50']].notna().to_numpy().any(axis=0).all(), '[universe] momentum columns missing from TradingView response'
 
     watchlist: pd.DataFrame = pd.DataFrame(
         df[['name', 'close', 'average_volume_10d_calc', 'ATR', 'atr_pct', 'RSI', 'SMA20', 'SMA50', 'sector']].copy()
