@@ -41,6 +41,15 @@ BLOCK_THRESHOLDS: dict[str, float] = {
 }
 
 # ---------------------------------------------------------------------------
+# TRADE_LEVEL_PARAMS: stop/target math shared by Gate 5 and Phase 5 risk gate
+# Used by: build_trade_levels(), calculate_stops() (Phase 5)
+# ---------------------------------------------------------------------------
+TRADE_LEVEL_PARAMS: dict[str, float] = {
+    'atr_stop_multiplier': 1.5,   # stop = entry − (multiplier × ATR) — mission non-negotiable
+    'target_rr_multiple':  2.0,   # target distance = multiple × stop distance → ~2:1 R:R
+}
+
+# ---------------------------------------------------------------------------
 # SOURCE_RELIABILITY_TIERS: substring patterns → reliability tier
 # Matched case-insensitively against source name and URL (Alpaca URL fallback).
 # Order of tiers is enforced in classify_source(): DANGEROUS → HIGH → MEDIUM → LOW.

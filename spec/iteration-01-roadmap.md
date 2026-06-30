@@ -118,7 +118,8 @@ backend/02_intelligence/
 │   └── logic/                       # pure calculations / rule functions — no external calls
 │       ├── portfolio.py             # daily loss limit check                → Gate 1
 │       ├── sentiment_rules.py       # apply_pass_rules                      → Gate 3
-│       └── trade_levels.py          # stop/target/EV context builders       → Gate 5
+│       ├── ev_rules.py              # apply_edge_rules                      → Gate 5
+│       └── trade_levels.py          # stop/target + gate summary            → Gate 5
 ├── pipeline/
 │   ├── run_pipeline.py
 │   └── run_pipeline_playground.ipynb
@@ -225,12 +226,20 @@ Each helper returns `None` on failure. Gates decide how to handle missing data (
 
 ---
 
+#### `helpers/logic/ev_rules.py`
+
+| Function | Input | Process | Output | Connects to |
+|----------|-------|---------|--------|-------------|
+| `apply_edge_rules(score, direction, confidence, caution, reward_risk, min_edge_pct)` | Gate 3 parsed fields + momentum `score` + `reward_risk` from trade levels | Map score/confidence/caution to win probability; compute `EV = (p × R) − (1 − p)`; pass when EV ≥ min edge. Plain scalars in — no gate dicts. No API. | `{win_probability, expected_value, edge, passed, position_confidence}` | → Gate 5 `decide_gate5_signal()` (after trade levels built) |
+
+---
+
 #### `helpers/logic/trade_levels.py`
 
 | Function | Input | Process | Output | Connects to |
 |----------|-------|---------|--------|-------------|
-| `build_trade_levels(candidate)` | `candidate: dict` with `price`, `atr` | Compute stop = entry − (1.5 × ATR), target = entry + (2 × stop distance), reward:risk ratio. Pure math. | `{entry, atr, stop, target, stop_pct, target_pct, reward_risk}` | → Gate 5 `run()` (Claude prompt + output dict) |
-| `build_gate_summary(gate_results)` | `gate_results: dict` with gate1–4 outputs | Format each prior gate result into readable summary string for Claude. No API. | `str` | → Gate 5 `run()` (Claude prompt) |
+| `build_trade_levels(candidate)` | `candidate: dict` with `price`, `atr` | Compute stop/target using `TRADE_LEVEL_PARAMS` from `constants.py`. Pure math. | `{entry, atr, stop, target, stop_pct, target_pct, reward_risk}` | → Gate 5 `decide_gate5_signal()` |
+| `build_gate_summary(gate_results)` | `gate_results: dict` with gate1–4 outputs | Format each prior gate result into readable summary string for audit logging. No API. | `str` | → Gate 5 output + pipeline logger |
 
 ---
 
@@ -254,7 +263,7 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 ├─ detect_gate4_contradiction(candidate, gate3_result) ──► fetchers/market.get_market_context ──► Claude contradiction
 │       │ passed? (not FLAG_FOR_REVIEW)
 │       ▼
-└─ decide_gate5_signal(candidate, all gate_results) ──► logic/trade_levels ──► Claude EV ──► BUY | SKIP
+└─ decide_gate5_signal(candidate, all gate_results) ──► logic/trade_levels + logic/ev_rules ──► BUY | SKIP
 ```
 
 **Convention:** Build a helper module **before** the first gate that needs it. Gates never call external APIs directly.
@@ -483,10 +492,10 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 
 ---
 
-### 4.5 — Gate 5: Final Signal + EV
+### 4.5 — Gate 5: Edge Check + EV (rules only)
 
 **Folder:** `backend/02_intelligence/gate5_signal/`  
-**Claude:** Yes — call 4 of 4  
+**Claude:** No — rules only, zero API cost  
 **Runs:** After Gate 4 passes (not flagged)
 
 #### Gate function: `decide_gate5_signal(candidate, gate_results)`
@@ -494,8 +503,8 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 | | |
 |---|---|
 | **Input** | `candidate` from momentum scanner (`price`, `atr`, `score`, etc.); `gate_results` dict with outputs from Gates 1–4 |
-| **Process** | 1) `build_trade_levels(candidate)` → stop, target, reward:risk. 2) `build_gate_summary(gate_results)` → prior gate summary for prompt. 3) Claude final prompt with hardcoded EV formula. 4) Parse `WIN_PROBABILITY`, `EXPECTED_VALUE`, `DECISION`, `POSITION_CONFIDENCE`, `REASON`. 5) Hard cap: EV < `MIN_EDGE_PCT` → force SKIP in code. |
-| **Output** | `{passed: bool, decision: 'BUY'\|'SKIP', win_probability: float, expected_value: float, edge: float, position_confidence: str, reason: str, trade_levels: dict}` |
+| **Process** | 1) Validate Gate 3 passed + price/ATR present. 2) `build_trade_levels(candidate)` → stop, target, reward:risk. 3) `apply_edge_rules(...)` on Gate 3 fields + momentum score. 4) BUY if EV ≥ `MIN_EDGE_PCT`, else SKIP. 5) `build_gate_summary(gate_results)` for audit. No Claude call. |
+| **Output** | `{passed: bool, decision: 'BUY'\|'SKIP', win_probability: float, expected_value: float, edge: float, position_confidence: str, reason: str, trade_levels: dict, gate_summary: str}` |
 | **Connects from** | All prior gate results + momentum candidate |
 | **Connects to** | If `decision == BUY` → Phase 5 risk gate (`validate_trade()`). If SKIP → `final_decision = SKIP` |
 
@@ -503,26 +512,34 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 
 | Helper | Role in this gate |
 |--------|-------------------|
-| `build_trade_levels(candidate)` | Computes entry/stop/target for Claude prompt and output dict |
-| `build_gate_summary(gate_results)` | Formats Gate 1–4 audit into Claude prompt context |
+| `build_trade_levels(candidate)` | Computes entry/stop/target using `TRADE_LEVEL_PARAMS` |
+| `apply_edge_rules(...)` | Maps Gate 3 + momentum to win probability and EV verdict |
+| `build_gate_summary(gate_results)` | Formats Gate 1–4 audit for logging |
 
 > Full Input / Process / Output → see **Shared helpers — full specification**.
 
-#### Install (build helpers before `gate.py`)
+#### Install (build helpers before `signal_gate5.py`)
 
-| Package | Why | Helper file |
-|---------|-----|-------------|
-| `pydantic-ai` | Provider-flexible LLM final BUY/SKIP decision | `gate.py` only |
+No new packages.
 
-**`.env` keys:** `ANTHROPIC_API_KEY`, `MIN_EDGE_PCT` (default 0.04)
+**`.env` keys:** `MIN_EDGE_PCT` (default 0.04)
 
 #### Tasks
 
-- [ ] Build `helpers/logic/trade_levels.py`
-- [ ] Build `run()` in `gate5_signal/gate.py`
-- [ ] Test: strong mock signals → BUY; weak → SKIP
-- [ ] Test: `python backend/02_intelligence/gate5_signal/gate.py`
-- [ ] Create `gate5_playground.ipynb`
+- [x] Build `helpers/logic/ev_rules.py` — `apply_edge_rules` ✅
+- [x] Build `helpers/logic/trade_levels.py` — `build_trade_levels`, `build_gate_summary` ✅
+- [x] Build `decide_gate5_signal()` in `gate5_signal/signal_gate5.py` ✅
+- [x] Test: strong mock signals → BUY; weak → SKIP ✅
+- [x] Test: `python backend/02_intelligence/gate5_signal/signal_gate5.py` ✅
+- [x] Create `gate5_playground.ipynb` ✅
+- [x] Create `helpers/logic/trade_levels_playground.ipynb` ✅
+
+> **Lean build (deviation from original spec):** Gate 5 was redesigned as a **rules-only edge check**
+> instead of a fourth Claude call. Gates 2–4 already structured the qualitative assessment; asking
+> Claude to re-synthesize everything for win probability added cost and variance without a new
+> question. Win probability is mapped transparently from momentum score + Gate 3 confidence/caution;
+> EV and the 4% threshold are pure math. Coefficients in `ev_rules.py` are tunable from paper-
+> trading data during weekly review.
 
 **Exit criteria:** Returns BUY or SKIP with win probability, EV, and trade levels. EV below 4% always SKIPs.
 
@@ -591,7 +608,7 @@ daily_pnl = 0.0
 
 - [ ] Run `run_scan()` → pass top 3 candidates through `run_pipeline()` with live portfolio state
 - [ ] Confirm gate audit output for both PASS and BLOCK cases
-- [ ] Verify Claude API cost stays within budget (max ~4 calls × candidates assessed per night)
+- [ ] Verify Claude API cost stays within budget (max ~3 calls × candidates assessed per night — Gate 5 is rules-only)
 
 **Phase 4 exit criteria:** Intelligence layer runs end-to-end on real momentum candidates. Only `final_decision == "BUY"` proceeds to the risk gate.
 

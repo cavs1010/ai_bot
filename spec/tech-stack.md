@@ -170,14 +170,16 @@ trading-bot/
 │   │   │   ├── filings.py            # SEC 8-K                       → Gate 1
 │   │   │   ├── portfolio.py          # daily loss limit              → Gate 1
 │   │   │   ├── news.py               # fetch + classify headlines    → Gates 2, 3, Pipeline
-│   │   │   ├── sentiment_rules.py    # pass/block logic              → Gate 3
-│   │   │   └── trade_levels.py       # stop/target + gate summary    → Gate 5
+│   │   │   ├── logic/
+│   │   │   │   ├── sentiment_rules.py    # apply_pass_rules              → Gate 3
+│   │   │   │   ├── ev_rules.py           # apply_edge_rules              → Gate 5
+│   │   │   │   └── trade_levels.py       # stop/target + gate summary    → Gate 5
 │   │   ├── pipeline/run_pipeline.py
 │   │   ├── gate1_hard_threat/gate.py
 │   │   ├── gate2_news_threat/gate.py
 │   │   ├── gate3_sentiment/gate.py
 │   │   ├── gate4_contradiction/gate.py
-│   │   └── gate5_signal/gate.py
+│   │   └── gate5_signal/signal_gate5.py
 │   ├── 03_risk/
 │   │   └── risk_gate.py          # Validates every trade before execution
 │   ├── 04_execution/
