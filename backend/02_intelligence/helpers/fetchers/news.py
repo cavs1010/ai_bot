@@ -17,6 +17,9 @@ load_dotenv()
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 from constants import SOURCE_RELIABILITY_TIERS
+# News-input dials live on the central board — backend/config.py.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3]))   # → backend/
+from config import NEWS_LOOKBACK_DAYS, NEWS_MAX_RESULTS
 
 
 def classify_source(source_name: str, url: str | None = None) -> str:
@@ -64,8 +67,8 @@ def _item(
 
 def fetch_news(
     ticker: str,
-    days_back: int = 2,
-    max_results: int = 5,
+    days_back: int = NEWS_LOOKBACK_DAYS,
+    max_results: int = NEWS_MAX_RESULTS,
     include_summary: bool = True,
 ) -> list[dict] | None:
     """

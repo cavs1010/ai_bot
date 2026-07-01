@@ -97,7 +97,8 @@ Everything the bot needs to function must be in place before Step 1.
 **Organisation rule:**
 - **`gate*/gate.py`** — decision logic only (prompts, pass/block rules, parsers). One folder per gate.
 - **`helpers/`** — shared functions, split into two sub-folders: `fetchers/` (external API calls) and `logic/` (pure calculations / rule functions). If two or more gates need the same function, it lives here — never duplicated inside a gate folder.
-- **`constants.py`** — thresholds and maps used across multiple gates.
+- **`backend/config.py`** — the strategy dial board: every tunable number (universe filter, momentum scanner, gate thresholds `BLOCK_THRESHOLDS`, EV coefficients, `TRADE_LEVEL_PARAMS`, position size). One place to tune the whole pipeline.
+- **`constants.py`** — reference **maps** only (`SECTOR_ETF_MAP`, `SOURCE_RELIABILITY_TIERS`) used across multiple gates. Tunable dials moved to `config.py`.
 
 **Reference docs:** `spec/info_source/6. Trading_Bot_Intelligence_Layer_v2.md`, `spec/info_source/7. Trading_Bot_Intelligence_Layer_Install_Guide.md`
 
@@ -106,8 +107,9 @@ Everything the bot needs to function must be in place before Step 1.
 ### Folder layout
 
 ```
+backend/config.py                    # strategy dial board — BLOCK_THRESHOLDS, TRADE_LEVEL_PARAMS, EV, sizing, etc.
 backend/02_intelligence/
-├── constants.py                     # SECTOR_ETF_MAP, block thresholds, SOURCE_RELIABILITY tiers
+├── constants.py                     # reference maps only: SECTOR_ETF_MAP, SOURCE_RELIABILITY_TIERS
 ├── helpers/
 │   ├── fetchers/                    # external API calls — shared across gates
 │   │   ├── market.py                # VIX, SPY, sector ETF snapshots; get_market_context() → Gate 1, Gate 4
@@ -115,11 +117,13 @@ backend/02_intelligence/
 │   │   ├── premarket.py             # pre-market gap                        → Gate 1
 │   │   ├── filings.py               # SEC EDGAR 8-K                         → Gate 1
 │   │   └── news.py                  # fetch, classify, format headlines     → Gate 2, Gate 3, Pipeline
-│   └── logic/                       # pure calculations / rule functions — no external calls
-│       ├── portfolio.py             # daily loss limit check                → Gate 1
-│       ├── sentiment_rules.py       # apply_pass_rules                      → Gate 3
-│       ├── ev_rules.py              # apply_edge_rules                      → Gate 5
-│       └── trade_levels.py          # stop/target + gate summary            → Gate 5
+│   ├── logic/                       # pure calculations / rule functions — no external calls
+│   │   ├── portfolio.py             # daily loss limit check                → Gate 1
+│   │   ├── sentiment_rules.py       # apply_pass_rules                      → Gate 3
+│   │   ├── ev_rules.py              # apply_edge_rules                      → Gate 5
+│   │   └── trade_levels.py          # stop/target + gate summary            → Gate 5
+│   └── llm/
+│       └── client.py                # build_agent / run_agent (pydantic-ai) → Gate 2, Gate 3, Gate 4
 ├── pipeline/
 │   ├── run_pipeline.py
 │   └── run_pipeline_playground.ipynb
@@ -144,13 +148,14 @@ backend/02_intelligence/
 
 Each helper returns `None` on failure. Gates decide how to handle missing data (skip check vs block).
 
-#### `constants.py` (maps — not functions)
+#### `constants.py` (maps — not functions) & `config.py` (dials)
 
-| Constant | Input (lookup key) | Process | Output | Used by |
-|----------|-------------------|---------|--------|---------|
-| `SECTOR_ETF_MAP` | sector name, e.g. `"Technology"` | Static map GICS sector → ETF ticker | `"XLK"` | `get_sector_etf_snapshot`, Gate 1, Gate 4 |
-| `BLOCK_THRESHOLDS` | threshold name, e.g. `"vix_level"` | Static numeric limits for Gate 1 rules | `30.0`, `-0.015`, etc. | Gate 1 `screen_gate1_hard_threats()` |
-| `SOURCE_RELIABILITY_TIERS` | source name pattern | Static map publisher → tier | pattern list per tier | `classify_source`, Gates 2, 3 |
+| Constant | Lives in | Input (lookup key) | Process | Output | Used by |
+|----------|----------|-------------------|---------|--------|---------|
+| `SECTOR_ETF_MAP` | `constants.py` | sector name, e.g. `"Technology"` | Static map GICS sector → ETF ticker | `"XLK"` | `get_sector_etf_snapshot`, Gate 1, Gate 4 |
+| `SOURCE_RELIABILITY_TIERS` | `constants.py` | source name pattern | Static map publisher → tier | pattern list per tier | `classify_source`, Gates 2, 3 |
+| `BLOCK_THRESHOLDS` | `config.py` | threshold name, e.g. `"vix_level"` | Static numeric limits for Gate 1 rules | `30.0`, `-0.015`, etc. | Gate 1 `screen_gate1_hard_threats()` |
+| `TRADE_LEVEL_PARAMS` | `config.py` | param name, e.g. `"atr_stop_multiplier"` | Stop/target geometry | `1.5`, `2.0` | Gate 5 `build_trade_levels()` |
 
 ---
 
@@ -238,7 +243,7 @@ Each helper returns `None` on failure. Gates decide how to handle missing data (
 
 | Function | Input | Process | Output | Connects to |
 |----------|-------|---------|--------|-------------|
-| `build_trade_levels(candidate)` | `candidate: dict` with `price`, `atr` | Compute stop/target using `TRADE_LEVEL_PARAMS` from `constants.py`. Pure math. | `{entry, atr, stop, target, stop_pct, target_pct, reward_risk}` | → Gate 5 `decide_gate5_signal()` |
+| `build_trade_levels(candidate)` | `candidate: dict` with `price`, `atr` | Compute stop/target using `TRADE_LEVEL_PARAMS` from `config.py`. Pure math. | `{entry, atr, stop, target, stop_pct, target_pct, reward_risk}` | → Gate 5 `decide_gate5_signal()` |
 | `build_gate_summary(gate_results)` | `gate_results: dict` with gate1–4 outputs | Format each prior gate result into readable summary string for audit logging. No API. | `str` | → Gate 5 output + pipeline logger |
 
 ---
@@ -512,7 +517,7 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 
 | Helper | Role in this gate |
 |--------|-------------------|
-| `build_trade_levels(candidate)` | Computes entry/stop/target using `TRADE_LEVEL_PARAMS` |
+| `build_trade_levels(candidate)` | Computes entry/stop/target using `TRADE_LEVEL_PARAMS` (from `config.py`) |
 | `apply_edge_rules(...)` | Maps Gate 3 + momentum to win probability and EV verdict |
 | `build_gate_summary(gate_results)` | Formats Gate 1–4 audit for logging |
 
@@ -522,7 +527,7 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 
 No new packages.
 
-**`.env` keys:** `MIN_EDGE_PCT` (default 0.04)
+**Config dials (`config.py`):** `MIN_EDGE_PCT` (default 0.04), `TRADE_LEVEL_PARAMS`, EV coefficients. No `.env` keys.
 
 #### Tasks
 
@@ -609,6 +614,11 @@ daily_pnl = 0.0
 - [ ] Run `run_scan()` → pass top 3 candidates through `run_pipeline()` with live portfolio state
 - [ ] Confirm gate audit output for both PASS and BLOCK cases
 - [ ] Verify Claude API cost stays within budget (max ~3 calls × candidates assessed per night — Gate 5 is rules-only)
+
+> **Note:** `backend/full_pipeline_playground.ipynb` already demonstrates this end-to-end run
+> live (Stage 1 universe → Stage 2 scan → Gates 1–5, with the funnel counts and a BUY list).
+> It **inlines** the orchestration loop rather than calling `run_pipeline()`, so it does not
+> complete Phase 4.6 — but it verifies the wiring works and is a useful manual test harness.
 
 **Phase 4 exit criteria:** Intelligence layer runs end-to-end on real momentum candidates. Only `final_decision == "BUY"` proceeds to the risk gate.
 

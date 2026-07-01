@@ -38,9 +38,9 @@
 
 ### 🧠 Claude AI (Anthropic)
 
-- **Role:** Intelligence layer — four sequential gate calls per candidate (Gates 2–5)
-- **Model used:** `claude-sonnet-4-6`
-- **Gate 1 uses no Claude** — hard threat screen runs on rules only (zero API cost)
+- **Role:** Intelligence layer — three sequential gate calls per candidate (Gates 2–4)
+- **Model used:** `claude-haiku-4-5-20251001` (cheap Haiku default; per-gate overridable via `helpers/llm/client.py`)
+- **Gates 1 and 5 use no Claude** — hard threat screen (Gate 1) and edge/EV check (Gate 5) run on rules only (zero API cost)
 - **Cost:** ~$1–2 per day during paper trading (scales with candidates assessed)
 - **Library:** `anthropic`
 
@@ -115,7 +115,8 @@
 | ------------------ | -------------------------------------------- |
 | `alpaca-trade-api` | Alpaca broker integration (orders, account)  |
 | `alpaca-py`        | Alpaca News API + pre-market data            |
-| `anthropic`        | Claude AI API client (Gates 2–5)             |
+| `anthropic`        | Claude AI API client (Gates 2–4, via pydantic-ai) |
+| `pydantic-ai`      | Provider-flexible LLM agent layer — `helpers/llm/client.py` |
 | `feedparser`       | SEC EDGAR RSS parsing (Gate 1)               |
 | `newsapi-python`   | NewsAPI client (fallback only)               |
 | `requests`         | Finnhub earnings/news + ForexFactory econ calendar REST; general HTTP |
@@ -153,32 +154,39 @@ All dependencies (including Jupyter) are pinned in [`requirements.txt`](../requi
 
 ```
 trading-bot/
-├── .env                          # API keys — never commit this
+├── .env                          # API keys / secrets — never commit this
 ├── backend/
+│   ├── config.py                 # 🎛️ Strategy dial board — every tunable number (see §🔐)
+│   ├── full_pipeline_playground.ipynb  # cross-cutting demo: Stage 1 → Stage 2 → Gates 1–5
 │   ├── 00_data/
 │   │   └── data_fetcher.py       # Fetches price data and news headlines
 │   ├── bot.py                    # Main entry point — runs the full pipeline
 │   ├── 01_scanner/
 │   │   ├── universe_filter.py    # Tier 1: weekly S&P 500 → watchlist (~60–80)
-│   │   └── momentum_scanner.py   # Tier 2: nightly watchlist → top 10–15
+│   │   ├── momentum_scanner.py   # Tier 2: nightly watchlist → top 10–15
+│   │   └── data/
+│   │       └── watchlist.csv     # Tier 1 output — refreshed weekly
 │   ├── 02_intelligence/
-│   │   ├── constants.py
-│   │   ├── helpers/                  # shared data fetchers — gates import from here
-│   │   │   ├── market.py             # VIX, SPY, sector ETF, get_market_context() → Gates 1, 4
-│   │   │   ├── calendars.py          # macro + earnings              → Gates 1, 4
-│   │   │   ├── premarket.py          # gap check                     → Gate 1
-│   │   │   ├── filings.py            # SEC 8-K                       → Gate 1
-│   │   │   ├── portfolio.py          # daily loss limit              → Gate 1
-│   │   │   ├── news.py               # fetch + classify headlines    → Gates 2, 3, Pipeline
-│   │   │   ├── logic/
+│   │   ├── constants.py          # reference maps only: SECTOR_ETF_MAP, SOURCE_RELIABILITY_TIERS
+│   │   ├── helpers/
+│   │   │   ├── fetchers/                 # external API calls — shared across gates
+│   │   │   │   ├── market.py             # VIX, SPY, sector ETF, get_market_context() → Gates 1, 4
+│   │   │   │   ├── calendars.py          # macro + earnings              → Gates 1, 4
+│   │   │   │   ├── premarket.py          # gap check                     → Gate 1
+│   │   │   │   ├── filings.py            # SEC 8-K                       → Gate 1
+│   │   │   │   └── news.py               # fetch + classify headlines    → Gates 2, 3, Pipeline
+│   │   │   ├── logic/                    # pure calculations / rule functions
+│   │   │   │   ├── portfolio.py          # daily loss limit              → Gate 1
 │   │   │   │   ├── sentiment_rules.py    # apply_pass_rules              → Gate 3
 │   │   │   │   ├── ev_rules.py           # apply_edge_rules              → Gate 5
 │   │   │   │   └── trade_levels.py       # stop/target + gate summary    → Gate 5
+│   │   │   └── llm/
+│   │   │       └── client.py             # build_agent / run_agent (pydantic-ai) → Gates 2–4
 │   │   ├── pipeline/run_pipeline.py
-│   │   ├── gate1_hard_threat/gate.py
-│   │   ├── gate2_news_threat/gate.py
-│   │   ├── gate3_sentiment/gate.py
-│   │   ├── gate4_contradiction/gate.py
+│   │   ├── gate1_hard_threat/hard_threat_gate1.py
+│   │   ├── gate2_news_threat/news_threat_gate2.py
+│   │   ├── gate3_sentiment/sentiment_gate3.py
+│   │   ├── gate4_contradiction/contradiction_gate4.py
 │   │   └── gate5_signal/signal_gate5.py
 │   ├── 03_risk/
 │   │   └── risk_gate.py          # Validates every trade before execution
@@ -187,8 +195,6 @@ trading-bot/
 │   └── 05_learning/
 │       ├── trade_logger.py       # Logs trades + gate audit trail, Brier score
 │       └── threat_memory.py      # Exogenous shock memory + post-loss review
-├── data/
-│   └── watchlist.csv             # Tier 1 output — refreshed weekly
 └── logs/
     ├── gate_audit_log.jsonl      # Every candidate assessed — including gate blocks
     ├── trade_log.jsonl           # Every trade executed (entry + exit)
@@ -198,15 +204,41 @@ trading-bot/
 
 ---
 
-## 🔐 Key Configuration Variables (`.env`)
+## 🔐 Key Configuration Variables
+
+Configuration is split in two: **strategy dials** live on the documented board
+`backend/config.py`; **secrets** and the not-yet-wired Phase 5 risk params live in `.env`.
+
+### 🎛️ Strategy dials — `backend/config.py`
+
+The single place to tune the pipeline (each constant is annotated in the file). Selected knobs:
+
+| Variable                | Default   | Stage / Purpose                            |
+| ----------------------- | --------- | ------------------------------------------ |
+| `MIN_MARKET_CAP`        | 100e9     | Universe filter — large-cap floor ($100B)  |
+| `TOP_N`                 | 15        | Momentum scanner — max candidates to gates |
+| `MIN_SCORE`             | 2         | Momentum scanner — min score (0–3) to pass |
+| `BLOCK_THRESHOLDS`      | dict      | Gate 1 — VIX/SPY/sector/gap/macro/loss limits |
+| `MIN_CONFIDENCE`        | 6         | Gate 3 — sentiment conviction floor        |
+| `MIN_EDGE_PCT`          | 0.04      | Gate 5 — minimum 4% EV required to BUY      |
+| `MAX_POSITION_SIZE_PCT` | 0.08      | Max 8% of portfolio per trade              |
+| `TRADE_LEVEL_PARAMS`    | dict      | Gate 5 / Phase 5 — ATR stop × 1.5, R:R × 2.0 |
+
+> `BLOCK_THRESHOLDS` and `TRADE_LEVEL_PARAMS` moved here from `constants.py`;
+> `MAX_POSITION_SIZE_PCT` and `MIN_EDGE_PCT` moved here from `.env`. Reference **maps**
+> (`SECTOR_ETF_MAP`, `SOURCE_RELIABILITY_TIERS`) stay in `02_intelligence/constants.py`.
+
+### 🔑 Secrets & runtime — `.env`
 
 | Variable                | Default   | Purpose                                    |
 | ----------------------- | --------- | ------------------------------------------ |
+| `ALPACA_API_KEY` / `ALPACA_SECRET_KEY` | — | Broker + Alpaca News auth      |
 | `ALPACA_BASE_URL`       | paper URL | Switch to live URL when ready              |
-| `MAX_POSITION_SIZE_PCT` | 0.08      | Max 8% of portfolio per trade              |
-| `MAX_OPEN_POSITIONS`    | 5         | Hard limit on concurrent positions         |
-| `MAX_DAILY_LOSS_PCT`    | 0.03      | Bot stops if daily loss hits 3%            |
-| `MAX_DRAWDOWN_PCT`      | 0.08      | Kill switch fires at 8% drawdown from peak |
-| `KELLY_FRACTION`        | 0.25      | Quarter-Kelly position sizing              |
-| `MIN_EDGE_PCT`          | 0.04      | Minimum 4% edge required to trade          |
-| `MAX_HOLD_DAYS`         | 5         | Maximum days to hold any position          |
+| `ANTHROPIC_API_KEY`     | —         | Claude API (Gates 2–4)                     |
+| `FINNHUB_API_KEY`       | —         | Earnings calendar + news fallback          |
+| `NEWS_API_KEY`          | —         | NewsAPI fallback                           |
+| `MAX_OPEN_POSITIONS`    | 5         | Phase 5 risk gate — concurrent positions (not yet wired) |
+| `MAX_DAILY_LOSS_PCT`    | 0.03      | Phase 5 risk gate — daily loss stop (not yet wired) |
+| `MAX_DRAWDOWN_PCT`      | 0.08      | Phase 5 risk gate — drawdown kill switch (not yet wired) |
+| `KELLY_FRACTION`        | 0.25      | Phase 5 risk gate — Quarter-Kelly sizing (not yet wired) |
+| `MAX_HOLD_DAYS`         | 5         | Phase 5 risk gate — max hold (not yet wired) |

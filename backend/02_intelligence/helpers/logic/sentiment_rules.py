@@ -15,8 +15,12 @@
 #
 # Test: python backend/02_intelligence/helpers/logic/sentiment_rules.py
 
-CAUTION_SIZE_REDUCTION_PCT = 25  # position-size cut applied whenever a pass is flagged caution
-MIN_CONFIDENCE = 6               # below this, a directional call lacks conviction
+import sys
+import pathlib
+
+# Pass-rule dials live on the central board — backend/config.py.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3]))   # → backend/
+from config import MIN_CONFIDENCE, CAUTION_SIZE_REDUCTION_PCT
 
 
 def apply_pass_rules(direction: str, confidence: int) -> dict:

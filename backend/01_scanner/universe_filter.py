@@ -1,4 +1,6 @@
 import os
+import sys
+import pathlib
 import requests
 import pandas as pd
 from datetime import datetime, timedelta
@@ -8,14 +10,15 @@ from tradingview_screener.column import col
 
 load_dotenv()
 
-MIN_AVG_VOLUME    = 1_000_000           # shares/day — below this, order fills move the price against us
-MIN_PRICE         = 10.0                # USD — excludes micro-caps and near-zero stocks
-MIN_ATR_PCT       = 1.0                 # % of price — below this, stock is too flat to produce momentum signals
-MAX_ATR_PCT       = 5.0                 # % of price — above this, stop-losses become too wide to trade safely
-MIN_MARKET_CAP    = 100_000_000_000     # $100B — proxy for large-cap US universe (~70 stocks, validated)
-EARNINGS_WINDOW_DAYS = 5               # days — exclude stocks with earnings: gaps can blow through stop-losses
-SCREENER_LIMIT    = 200                # rows requested from TradingView before ATR/earnings filtering
-WATCHLIST_PATH    = 'data/watchlist.csv'
+# Strategy dials live on the central board — backend/config.py (see that file for
+# what each one does and how raising/lowering it changes the screen).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))   # → backend/
+from config import (
+    MIN_AVG_VOLUME, MIN_PRICE, MIN_ATR_PCT, MAX_ATR_PCT, MIN_MARKET_CAP,
+    EARNINGS_WINDOW_DAYS, SCREENER_LIMIT, MAX_POSITION_SIZE_PCT, PRICE_CEILING_BUFFER,
+)
+
+WATCHLIST_PATH = 'data/watchlist.csv'   # plumbing path, not a strategy dial
 
 
 def get_max_share_price() -> float:
@@ -39,8 +42,7 @@ def get_max_share_price() -> float:
             base_url=URL(base_url),
         )
         portfolio_value = float(str(api.get_account().portfolio_value))
-        max_position_pct = float(os.getenv('MAX_POSITION_SIZE_PCT', 0.08))
-        return portfolio_value * max_position_pct * 0.90
+        return portfolio_value * MAX_POSITION_SIZE_PCT * PRICE_CEILING_BUFFER
     except Exception as e:
         print(f'[universe] Alpaca unavailable, using fallback ceiling $360.00: {e}')
         return 360.0

@@ -13,21 +13,16 @@
 #
 # Test: python backend/02_intelligence/gate5_signal/signal_gate5.py
 
-import os
 import sys
 import pathlib
 
-from dotenv import load_dotenv
-
-load_dotenv()
-
-base = pathlib.Path(__file__).resolve().parents[1]   # → 02_intelligence/
+base = pathlib.Path(__file__).resolve().parents[1]   # → 02_intelligence/ (for helpers.*)
 sys.path.insert(0, str(base))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))   # → backend/ (for config)
 
+from config import MIN_EDGE_PCT
 from helpers.logic.ev_rules import apply_edge_rules
 from helpers.logic.trade_levels import build_gate_summary, build_trade_levels
-
-DEFAULT_MIN_EDGE_PCT = 0.04
 
 _RESULT_KEYS = {
     'passed', 'decision', 'win_probability', 'expected_value', 'edge',
@@ -82,7 +77,7 @@ def decide_gate5_signal(candidate: dict, gate_results: dict) -> dict:
             gate_summary         (str)  — audit block from build_gate_summary().
     """
     ticker = candidate['ticker']
-    min_edge = float(os.getenv('MIN_EDGE_PCT', DEFAULT_MIN_EDGE_PCT))
+    min_edge = MIN_EDGE_PCT
 
     gate3 = gate_results.get('gate3')
     if not gate3 or not gate3.get('passed'):
@@ -167,7 +162,7 @@ if __name__ == '__main__':
     assert set(r_strong) == _RESULT_KEYS
     assert r_strong['decision'] == 'BUY'
     assert r_strong['passed'] is True
-    assert r_strong['expected_value'] >= DEFAULT_MIN_EDGE_PCT
+    assert r_strong['expected_value'] >= MIN_EDGE_PCT
     assert r_strong['trade_levels']['reward_risk'] == 2.0
     print(f'passed={r_strong["passed"]} EV={r_strong["expected_value"]:.3f} '
           f'win_prob={r_strong["win_probability"]:.0%}')
@@ -185,7 +180,7 @@ if __name__ == '__main__':
     r_weak = decide_gate5_signal({**base_candidate, 'score': 2}, weak_gates)
     assert r_weak['decision'] == 'SKIP'
     assert r_weak['passed'] is False
-    assert r_weak['expected_value'] < DEFAULT_MIN_EDGE_PCT
+    assert r_weak['expected_value'] < MIN_EDGE_PCT
     print(f'passed={r_weak["passed"]} EV={r_weak["expected_value"]:.3f} '
           f'win_prob={r_weak["win_probability"]:.0%}')
 

@@ -12,19 +12,16 @@
 #
 # Test: python backend/02_intelligence/helpers/logic/ev_rules.py
 
-WIN_PROB_BASE = 0.35
-MOMENTUM_SCORE_MIN = 2          # candidates reaching Gate 5 already scored >= 2
-MOMENTUM_SCORE_MAX = 3
-MOMENTUM_COMPONENT = 0.10       # score 2 → +0.05, score 3 → +0.15
-CONFIDENCE_BASELINE = 6         # Gate 3 minimum for a passing read
-CONFIDENCE_COMPONENT = 0.25     # conf 6 → +0, conf 10 → +0.25
-CAUTION_PENALTY = 0.08
-NEUTRAL_DIRECTION_PENALTY = 0.05
-WIN_PROB_FLOOR = 0.30
-WIN_PROB_CEILING = 0.70
+import sys
+import pathlib
 
-POSITION_CONFIDENCE_HIGH = 0.55
-POSITION_CONFIDENCE_MEDIUM = 0.45
+# Win-probability dials live on the central board — backend/config.py.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3]))   # → backend/
+from config import (
+    WIN_PROB_BASE, MOMENTUM_SCORE_MIN, MOMENTUM_SCORE_MAX, MOMENTUM_COMPONENT,
+    CONFIDENCE_BASELINE, CONFIDENCE_COMPONENT, CAUTION_PENALTY, NEUTRAL_DIRECTION_PENALTY,
+    WIN_PROB_FLOOR, WIN_PROB_CEILING, POSITION_CONFIDENCE_HIGH, POSITION_CONFIDENCE_MEDIUM,
+)
 
 
 def _estimate_win_probability(

@@ -17,6 +17,9 @@ import datetime
 import feedparser
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
+# Threat-window dial lives on the central board — backend/config.py.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3]))   # → backend/
+from config import FILING_LOOKBACK_DAYS
 
 # SEC fair-access policy: identify the application and contact email in User-Agent
 feedparser.USER_AGENT = 'ai-trading-bot/1.0 cavs1010@gmail.com'
@@ -28,7 +31,7 @@ _EDGAR_URL = (
 )
 
 
-def get_recent_8k_filings(ticker: str, days_back: int = 1) -> list[dict] | None:
+def get_recent_8k_filings(ticker: str, days_back: int = FILING_LOOKBACK_DAYS) -> list[dict] | None:
     """
     Fetches recent 8-K filings for a ticker from the SEC EDGAR atom feed.
 

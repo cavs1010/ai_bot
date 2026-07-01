@@ -10,7 +10,7 @@
 #       → {passed: bool, block_reason: str | None, checks: dict}
 #       Call once per candidate. Uses pre-fetched shared data + per-ticker fetches.
 #
-# Thresholds from: constants.BLOCK_THRESHOLDS
+# Thresholds from: config.BLOCK_THRESHOLDS (the central strategy dial board)
 # No Claude call — first gate, runs in milliseconds
 #
 # Test: python backend/02_intelligence/gate1_hard_threat/hard_threat_gate1.py
@@ -18,10 +18,11 @@
 import sys
 import pathlib
 
-base = pathlib.Path(__file__).resolve().parents[1]   # → 02_intelligence/
+base = pathlib.Path(__file__).resolve().parents[1]   # → 02_intelligence/ (for helpers.*)
 sys.path.insert(0, str(base))
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))   # → backend/ (for config)
 
-from constants import BLOCK_THRESHOLDS
+from config import BLOCK_THRESHOLDS
 from helpers.fetchers.market    import get_vix_snapshot, get_spy_snapshot, get_sector_etf_snapshot
 from helpers.fetchers.calendars import get_ticker_earnings_window, get_hours_to_next_macro_event
 from helpers.fetchers.premarket import get_premarket_gap

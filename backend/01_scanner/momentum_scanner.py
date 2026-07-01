@@ -1,8 +1,12 @@
+import sys
+import pathlib
 import pandas as pd
 
-WATCHLIST_PATH = 'data/watchlist.csv'
-TOP_N          = 15
-MIN_SCORE      = 2
+# Strategy dials live on the central board — backend/config.py.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))   # → backend/
+from config import TOP_N, MIN_SCORE, RSI_MIN, RSI_MAX
+
+WATCHLIST_PATH = 'data/watchlist.csv'   # plumbing path, not a strategy dial
 
 
 def load_watchlist() -> pd.DataFrame | None:
@@ -38,7 +42,7 @@ def calculate_momentum_score(row: pd.Series) -> tuple[int, float]:
         Tuple of (score, atr).
     """
     score = 0
-    if 50 <= row['rsi'] <= 70:
+    if RSI_MIN <= row['rsi'] <= RSI_MAX:
         score += 1
     if row['price'] > row['sma20']:
         score += 1

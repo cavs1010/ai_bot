@@ -1,5 +1,10 @@
-# constants.py — thresholds and maps shared across multiple gates
+# constants.py — REFERENCE MAPS shared across multiple gates
 # Phase 4 | Intelligence Layer
+#
+# This file holds lookup tables (mappings), NOT tunable strategy dials.
+# Every number you adjust based on trading decisions lives on the central board:
+#   backend/config.py
+# (BLOCK_THRESHOLDS and TRADE_LEVEL_PARAMS moved there.)
 
 # ---------------------------------------------------------------------------
 # SECTOR_ETF_MAP: TradingView sector name → SPDR Select Sector ETF ticker
@@ -27,27 +32,8 @@ SECTOR_ETF_MAP: dict[str, str] = {
     "Utilities":              "XLU",   # → Utilities
 }
 
-# ---------------------------------------------------------------------------
-# BLOCK_THRESHOLDS: numeric limits for Gate 1 block rules
-# Used by: Gate 1 run()
-# ---------------------------------------------------------------------------
-BLOCK_THRESHOLDS: dict[str, float] = {
-    'vix_level':          30.0,   # CBOE fear threshold; VIX at or above this = elevated fear
-    'spy_change_pct':    -0.015,  # SPY down > 1.5% on the day = broad market stress
-    'sector_change_pct': -0.02,   # sector ETF down > 2% on the day = sector-specific stress
-    'premarket_gap_pct':  0.03,   # |gap| ≥ 3% before open = price instability
-    'macro_hours':         2.0,   # high-impact event within 2 hours = imminent risk
-    'loss_limit_pct':      0.03,  # portfolio down ≥ 3% today = hard stop
-}
-
-# ---------------------------------------------------------------------------
-# TRADE_LEVEL_PARAMS: stop/target math shared by Gate 5 and Phase 5 risk gate
-# Used by: build_trade_levels(), calculate_stops() (Phase 5)
-# ---------------------------------------------------------------------------
-TRADE_LEVEL_PARAMS: dict[str, float] = {
-    'atr_stop_multiplier': 1.5,   # stop = entry − (multiplier × ATR) — mission non-negotiable
-    'target_rr_multiple':  2.0,   # target distance = multiple × stop distance → ~2:1 R:R
-}
+# NOTE: BLOCK_THRESHOLDS (Gate 1) and TRADE_LEVEL_PARAMS (Gate 5 / Phase 5) used to
+# live here. They are tunable dials, so they now live on the board: backend/config.py.
 
 # ---------------------------------------------------------------------------
 # SOURCE_RELIABILITY_TIERS: substring patterns → reliability tier

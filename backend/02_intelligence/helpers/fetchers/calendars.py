@@ -19,6 +19,7 @@
 # Test: python backend/02_intelligence/helpers/calendars.py
 
 import os
+import sys
 import json
 import pathlib
 import requests
@@ -26,6 +27,10 @@ from datetime import date, datetime, timezone, timedelta
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Threat-window dial lives on the central board — backend/config.py.
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3]))   # → backend/
+from config import EARNINGS_THREAT_DAYS
 
 # FairEconomy publishes the public ForexFactory calendar as free, key-less JSON.
 # Only the current-week feed exists; it covers the rest of the calendar week,
@@ -164,7 +169,7 @@ def get_hours_to_next_macro_event() -> float | None:
     return round(hours, 1)
 
 
-def get_ticker_earnings_window(ticker: str, days_ahead: int = 1) -> dict | None:
+def get_ticker_earnings_window(ticker: str, days_ahead: int = EARNINGS_THREAT_DAYS) -> dict | None:
     """
     Checks whether a ticker has an upcoming earnings report within days_ahead calendar days.
 
