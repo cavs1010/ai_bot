@@ -14,7 +14,7 @@ def load_watchlist() -> pd.DataFrame | None:
     Reads the Tier 1 watchlist CSV produced by universe_filter.py.
 
     Returns:
-        DataFrame with columns ticker, price, volume, atr, atr_pct, rsi, sma20, sma50,
+        DataFrame with columns ticker, price, volume, atr, atr_pct, rsi, sma20, sma50, sector,
         or None on failure.
     """
     try:
@@ -68,7 +68,7 @@ def run_scan(min_score: int = MIN_SCORE, df: pd.DataFrame | None = None, top_n: 
         top_n: Maximum number of candidates to return. Default is TOP_N (15).
 
     Returns:
-        DataFrame with columns ticker, price, score, atr, rsi, sma20, sma50,
+        DataFrame with columns ticker, price, score, atr, rsi, sma20, sma50, sector,
         or None when the watchlist cannot be loaded.
     """
     if df is None:
@@ -86,7 +86,7 @@ def run_scan(min_score: int = MIN_SCORE, df: pd.DataFrame | None = None, top_n: 
     candidates = candidates.sort_values(by='score', ascending=False).head(top_n)
     print(f'[scanner] returning top {len(candidates)} candidates')
 
-    cols = ['ticker', 'price', 'score', 'atr', 'rsi', 'sma20', 'sma50']
+    cols = ['ticker', 'price', 'score', 'atr', 'rsi', 'sma20', 'sma50', 'sector']
     return candidates.loc[:, cols].reset_index(drop=True)
 
 

@@ -64,9 +64,9 @@ SYSTEM_PROMPT = (
 _agent = build_agent(Gate3Sentiment, SYSTEM_PROMPT)
 
 
-def _build_gate3_user_prompt(ticker: str, company_name: str, headlines: list[dict]) -> str:
+def _build_gate3_user_prompt(ticker: str, headlines: list[dict]) -> str:
     return (
-        f'Analyse these headlines for {ticker} ({company_name}). '
+        f'Analyse these headlines for {ticker}. '
         'Each is tagged with source reliability.\n\n'
         f'{format_news_for_prompt(headlines)}\n\n'
         'What is the overall sentiment direction, your confidence (0-10), and why?'
@@ -84,8 +84,7 @@ def evaluate_gate3_sentiment(candidate: dict, headlines: list[dict]) -> dict:
     apply_pass_rules.
 
     Args:
-        candidate: Momentum scanner dict. Required key: 'ticker'. Optional: 'company_name'
-                   (falls back to ticker).
+        candidate: Momentum scanner dict. Required key: 'ticker'.
         headlines: News from fetch_news(), passed in by the caller. Each item is a dict with
                    keys: 'headline' (str), 'source' (str), 'reliability' (str:
                    HIGH/MEDIUM/LOW/DANGEROUS), and optional 'summary' (str). Empty list → block
@@ -101,7 +100,6 @@ def evaluate_gate3_sentiment(candidate: dict, headlines: list[dict]) -> dict:
             size_reduction_pct (int)  — 25 when caution, else 0.
     """
     ticker = candidate['ticker']
-    company_name = candidate.get('company_name', ticker)
 
     # No news → no bullish sentiment to confirm. Gate 3 is a quality-confirmation gate, so it
     # blocks (unlike Gate 2, which treats no-news as no-threat and passes). No LLM call here.
@@ -116,7 +114,7 @@ def evaluate_gate3_sentiment(candidate: dict, headlines: list[dict]) -> dict:
             'size_reduction_pct': 0,
         }
 
-    prompt = _build_gate3_user_prompt(ticker, company_name, headlines)
+    prompt = _build_gate3_user_prompt(ticker, headlines)
     result = run_agent(_agent, prompt)
 
     # LLM unavailable → cannot confirm the sentiment supports an entry. For a money decision,
@@ -153,7 +151,7 @@ def evaluate_gate3_sentiment(candidate: dict, headlines: list[dict]) -> dict:
 
 
 if __name__ == '__main__':
-    candidate = {'ticker': 'NVDA', 'company_name': 'NVIDIA Corporation'}
+    candidate = {'ticker': 'NVDA'}
     keys = {'passed', 'direction', 'confidence', 'key_reason', 'caution', 'size_reduction_pct'}
 
     # Wiring check at zero API cost — TestModel returns a schema-valid Gate3Sentiment.

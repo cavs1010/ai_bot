@@ -84,9 +84,9 @@ SYSTEM_PROMPT = (
 _agent = build_agent(Gate2Threat, SYSTEM_PROMPT)
 
 
-def _build_gate2_user_prompt(ticker: str, company_name: str, headlines: list[dict]) -> str:
+def _build_gate2_user_prompt(ticker: str, headlines: list[dict]) -> str:
     return (
-        f'Analyse these headlines for {ticker} ({company_name}). '
+        f'Analyse these headlines for {ticker}. '
         'Each is tagged with source reliability.\n\n'
         f'{format_news_for_prompt(headlines)}\n\n'
         'Which threat categories, if any, have evidence in these headlines? '
@@ -103,8 +103,7 @@ def assess_gate2_news_threat(candidate: dict, headlines: list[dict]) -> dict:
     gate does not fetch, so the gates stay consistent and the news API is hit once per candidate.
 
     Args:
-        candidate: Momentum scanner dict. Required key: 'ticker'. Optional: 'company_name'
-                   (falls back to ticker).
+        candidate: Momentum scanner dict. Required key: 'ticker'.
         headlines: News from fetch_news(), passed in by the caller. Empty list → no news to
                    assess. Each item is a dict with keys: 'headline' (str), 'source' (str),
                    'reliability' (str: HIGH/MEDIUM/LOW/DANGEROUS), and optional 'summary' (str).
@@ -118,7 +117,6 @@ def assess_gate2_news_threat(candidate: dict, headlines: list[dict]) -> dict:
             headlines_used    (int)       — number of headlines sent to Claude.
     """
     ticker = candidate['ticker']
-    company_name = candidate.get('company_name', ticker)
 
     # No news to assess → no threat. (Doc §4 Gate 2: "treats no news as no threat — proceeds".)
     if not headlines:
@@ -131,7 +129,7 @@ def assess_gate2_news_threat(candidate: dict, headlines: list[dict]) -> dict:
             'headlines_used': 0,
         }
 
-    prompt = _build_gate2_user_prompt(ticker, company_name, headlines)
+    prompt = _build_gate2_user_prompt(ticker, headlines)
     result = run_agent(_agent, prompt)
 
     # LLM unavailable → cannot confirm the news is safe. For a money decision, block rather
@@ -168,7 +166,7 @@ def assess_gate2_news_threat(candidate: dict, headlines: list[dict]) -> dict:
 
 if __name__ == '__main__':
     # Live Claude calls (one per case). Requires ANTHROPIC_API_KEY in .env.
-    candidate = {'ticker': 'NVDA', 'company_name': 'NVIDIA Corporation'}
+    candidate = {'ticker': 'NVDA'}
 
     print('=== Case 1: benign headlines → expect PASS ===')
     benign = [

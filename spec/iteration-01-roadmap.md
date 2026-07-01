@@ -82,6 +82,11 @@ Everything the bot needs to function must be in place before Step 1.
 
 **Exit criteria:** Universe filter produces a valid `watchlist.csv`. Momentum scanner returns a ranked shortlist from that watchlist.
 
+> **Addendum (Phase 4.6 follow-on fix):** `run_scan()` originally dropped the `sector`
+> column even though the watchlist has it — but Gates 1 and 4 both require
+> `candidate['sector']`. Fixed by adding `sector` to `run_scan()`'s output columns, so
+> callers no longer need a manual watchlist join to backfill it.
+
 **→ Next:** Each momentum candidate passes into the Intelligence Layer (Phase 4) before reaching the risk gate.
 
 ---
@@ -346,8 +351,8 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 | | |
 |---|---|
 | **Input** | `candidate: dict` from momentum scanner; `headlines` list from Pipeline (`fetch_news()` — **not fetched inside gate during pipeline run**) |
-| **Process** | 1) If standalone test with no headlines → call `fetch_news(ticker)`. 2) If empty headlines → pass with caution (no threat). 3) `format_news_for_prompt(headlines)`. 4) Claude prompt: catastrophic threats only. 5) Parse `THREAT_DETECTED`, `THREAT_TYPE`, `REASON`. |
-| **Output** | `{passed: bool, threat_detected: bool, threat_type: str, reason: str, headlines_used: int}` |
+| **Process** | 1) If standalone test with no headlines → call `fetch_news(ticker)`. 2) If empty headlines → pass with caution (no threat). 3) `format_news_for_prompt(headlines)`. 4) Claude prompt: catastrophic threats only. 5) Parse `THREAT_DETECTED`, `THREAT_CATEGORIES`, `REASON`. |
+| **Output** | `{passed: bool, threat_detected: bool, threat_categories: list[str], reason: str, headlines_used: int}` — `threat_categories` is a list because more than one category can fire at once (corrected from an earlier singular `threat_type` in this doc — see implementation in `news_threat_gate2.py`). |
 | **Connects from** | Pipeline (after Gate 1 pass) + `helpers/fetchers/news.fetch_news()` |
 | **Connects to** | If `passed` → Gate 3 receives **same headlines list**. If blocked → `final_decision = BLOCKED_G2` |
 
@@ -388,6 +393,12 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 - [x] Create `gate2_playground.ipynb` ✅
 
 **Exit criteria:** Binary threat result. YES blocks immediately. Headlines carry reliability tags.
+
+> **Addendum (Phase 4.6 follow-on fix):** `company_name` was removed from this gate — it
+> was an optional field with a `.get('company_name', ticker)` fallback that had no real
+> data source and always resolved to the ticker anyway. Only `ticker` matters for the
+> Claude prompt and the trading decision, so the parameter, fallback, and docstring
+> mention were deleted outright rather than kept as dead-weight optionality.
 
 ---
 
@@ -435,6 +446,9 @@ shared = get_shared_market_data()   ← called ONCE before the candidate loop
 - [x] Create `gate3_playground.ipynb` ✅
 
 **Exit criteria:** Sentiment direction, confidence, and pass/block with caution flag returned.
+
+> **Addendum (Phase 4.6 follow-on fix):** `company_name` was removed from this gate too,
+> same reasoning as Gate 2's addendum above.
 
 ---
 
@@ -586,7 +600,6 @@ No new packages.
 ```python
 candidate = {
   "ticker": "NVDA",
-  "company_name": "NVIDIA Corporation",
   "sector": "Technology",
   "score": 3,
   "rsi": 64.2,
@@ -598,12 +611,24 @@ portfolio_value = 10000.0
 daily_pnl = 0.0
 ```
 
+> `company_name` was removed from the candidate schema — only `ticker` matters for the
+> gates' Claude prompts and trading logic (see addendum notes near Phase 3 and Phase 4.2/4.3).
+
 #### Tasks
 
-- [ ] Build `run_pipeline()` in `pipeline/run_pipeline.py`
-- [ ] Wire imports from all five gate folders
-- [ ] Smoke test: `python backend/02_intelligence/pipeline/run_pipeline.py`
-- [ ] Create `run_pipeline_playground.ipynb`
+- [x] Build `run_pipeline()` in `pipeline/run_pipeline.py` ✅
+- [x] Wire imports from all five gate folders ✅
+- [x] Smoke test: `python backend/02_intelligence/pipeline/run_pipeline.py` ✅
+- [x] Create `run_pipeline_playground.ipynb` ✅
+
+> **Note:** `run_pipeline()` takes an optional 4th param `shared: dict | None = None` beyond
+> the 3-arg signature originally sketched above — a pre-fetched `get_shared_market_data()`
+> result, so a future batch caller (Phase 8 `bot.py`) can fetch VIX/SPY/macro once per night
+> instead of once per candidate. Defaults to `None` (fetches internally), so the function
+> still works standalone. Also: a gate4 result is only present in `gates` when Gate 4 actually
+> ran — if `get_market_context()` fails entirely, the pipeline returns `BLOCKED_G4` with no
+> `gates['gate4']` entry (block rather than trade blind, matching the LLM-unavailable policy
+> already used in Gates 2–4).
 
 **Exit criteria:** Single entry point for the rest of the bot. Full audit trail on every candidate.
 
