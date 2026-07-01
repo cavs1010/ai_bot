@@ -78,6 +78,8 @@ Edit `.env` and uncomment/fill in the keys you have:
 
 > ⚠️ **Never commit `.env`** — it is gitignored. Only `.env.example` is tracked.
 
+> 🎛️ **Strategy tuning** (universe filters, momentum thresholds, gate rules, EV, position size) lives in [`backend/config.py`](backend/config.py) — not in `.env`. Edit that file to change pipeline behavior; secrets stay in `.env`.
+
 ### 5️⃣ Create data folders (if missing)
 
 ```bash
@@ -135,6 +137,7 @@ ai_bot/
 ├── .env.example                  # Template for .env
 ├── requirements.txt              # 📦 All Python dependencies
 ├── backend/
+│   ├── config.py                         # Strategy dials (thresholds, EV, position size)
 │   ├── 00_data/
 │   │   ├── data_fetcher.py               # Price + news fetching
 │   │   └── data_fetcher_playground.ipynb
@@ -167,6 +170,7 @@ TERMINAL_TESTS (in order):
   python backend/01_scanner/momentum_scanner.py   # needs data/watchlist.csv
 
 KEY_PATHS:
+  strategy dials   → backend/config.py
   watchlist output → data/watchlist.csv
   module tests     → python backend/<layer>/<module>.py
   spec/roadmap     → spec/iteration-01-roadmap.md
