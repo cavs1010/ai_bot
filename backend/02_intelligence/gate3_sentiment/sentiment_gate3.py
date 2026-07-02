@@ -98,6 +98,14 @@ def evaluate_gate3_sentiment(candidate: dict, headlines: list[dict]) -> dict:
             key_reason         (str)  — one-sentence reason, or 'no_headlines' / 'llm_unavailable'.
             caution            (bool) — from apply_pass_rules; passing but size should be cut.
             size_reduction_pct (int)  — 25 when caution, else 0.
+
+    Prints:
+        One line to stdout with the verdict — this is the `[gate3] …` line you see in logs:
+            `[gate3] <ticker>: passed — <DIRECTION> conf=<n>`         — cleared; `(caution)`
+                                                                        after 'passed' = size cut.
+            `[gate3] <ticker>: BLOCKED — <DIRECTION> …`               — direction/confidence failed.
+            `[gate3] <ticker>: no headlines — blocking …`             — can't confirm sentiment.
+            `[gate3] <ticker>: LLM unavailable — blocking …`          — no API key → blocks by design.
     """
     ticker = candidate['ticker']
 

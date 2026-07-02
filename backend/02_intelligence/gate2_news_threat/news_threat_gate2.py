@@ -115,6 +115,13 @@ def assess_gate2_news_threat(candidate: dict, headlines: list[dict]) -> dict:
             threat_categories (list[str]) — the matching ThreatCategory values, or [] if none.
             reason            (str)       — one-sentence reason, or 'NONE' / 'llm_unavailable'.
             headlines_used    (int)       — number of headlines sent to Claude.
+
+    Prints:
+        One line to stdout with the verdict — this is the `[gate2] …` line you see in logs:
+            `[gate2] <ticker>: passed — no threat across N headlines` — cleared.
+            `[gate2] <ticker>: no headlines — passing (no threat)`    — nothing to assess.
+            `[gate2] <ticker>: BLOCKED — <threats>: <reason>`         — catastrophic story found.
+            `[gate2] <ticker>: LLM unavailable — blocking …`          — no API key → blocks by design.
     """
     ticker = candidate['ticker']
 

@@ -75,6 +75,13 @@ def decide_gate5_signal(candidate: dict, gate_results: dict) -> dict:
             reason               (str)   — human-readable verdict or skip cause.
             trade_levels         (dict)  — from build_trade_levels(); {} on early SKIP.
             gate_summary         (str)  — audit block from build_gate_summary().
+
+    Prints:
+        One line to stdout with the verdict — this is the `[gate5] …` line you see in logs:
+            `[gate5] <ticker>: BUY — EV <ev> | win_prob=<p>% | <CONF>` — EV cleared MIN_EDGE_PCT.
+            `[gate5] <ticker>: SKIP — EV <ev> | win_prob=<p>%`         — EV below the edge threshold.
+            `[gate5] <ticker>: SKIP — <reason>`  (no EV shown)         — guard tripped: missing
+                                                                        price/atr or Gate 3 not passed.
     """
     ticker = candidate['ticker']
     min_edge = MIN_EDGE_PCT
