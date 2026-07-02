@@ -645,7 +645,16 @@ daily_pnl = 0.0
 > It **inlines** the orchestration loop rather than calling `run_pipeline()`, so it does not
 > complete Phase 4.6 — but it verifies the wiring works and is a useful manual test harness.
 
-**Phase 4 exit criteria:** Intelligence layer runs end-to-end on real momentum candidates. Only `final_decision == "BUY"` proceeds to the risk gate.
+> **Deliberately deferred, not dropped:** when Phase 5 (risk gate) started, this task was
+> still open. It was left unchecked on purpose — Phase 5 doesn't need a real
+> `run_pipeline()` call to build against, only a Gate-5-shaped `signal` dict, which the
+> mock in `risk_gate.py`'s own smoke test supplies. So Phase 5 was built and verified
+> (against the live paper account) ahead of 4.7 rather than blocking on it. This task is
+> still open and should be closed out before Phase 4 is called done — it's the one
+> remaining gap between "the gates work" (proven via the playground notebook) and "the
+> gates work through the actual `run_pipeline()` entry point every other phase will call."
+
+**Phase 4 exit criteria:** Intelligence layer runs end-to-end on real momentum candidates. Only `final_decision == "BUY"` proceeds to the risk gate. **Not yet met** — 4.7 above is still open, so this is formally unverified even though Phase 5/6 work has proceeded past it.
 
 **⚠️ Important:** Claude is never asked one big question. Each gate asks one focused question with a structured answer. Hedging is not acceptable.
 
