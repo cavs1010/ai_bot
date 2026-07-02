@@ -82,6 +82,12 @@ def screen_gate1_hard_threats(
             block_reason (str|None) — Name of the first failing check; None if all passed.
             checks       (dict)     — Per-check result dicts, each with at minimum {passed: bool}
                                       plus the raw data used to make the decision.
+
+    Prints:
+        One line to stdout with the verdict — this is the `[gate1] …` line you see in logs:
+            `[gate1] <ticker>: passed all N checks`   — cleared every check.
+            `[gate1] <ticker>: BLOCKED — <reason>`    — <reason> is the first failing check
+                                                        (e.g. sector, vix, premarket_gap).
     """
     ticker = candidate['ticker']
     sector = candidate['sector']

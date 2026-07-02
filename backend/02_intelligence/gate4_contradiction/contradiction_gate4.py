@@ -152,6 +152,13 @@ def detect_gate4_contradiction(candidate: dict, gate3_result: dict, market_conte
             reason                 (str)       — one-sentence reason, or 'NONE' / 'llm_unavailable'.
             action                 (str)       — 'PASS' / 'FLAG_FOR_REVIEW' / 'BLOCK'.
             market_context         (dict)      — the context assessed, echoed for the audit log.
+
+    Prints:
+        One line to stdout with the verdict — this is the `[gate4] …` line you see in logs:
+            `[gate4] <ticker>: passed — no contradiction (risk=<level>)` — cleared.
+            `[gate4] <ticker>: <ACTION> — <type>: <reason>`             — <ACTION> is BLOCK or
+                                                                          FLAG_FOR_REVIEW.
+            `[gate4] <ticker>: LLM unavailable — blocking …`            — no API key → blocks by design.
     """
     ticker = candidate['ticker']
     sector = candidate['sector']
