@@ -30,7 +30,7 @@
 ### 🏦 Alpaca
 
 - **Role:** Brokerage — places and manages all orders
-- **Used for:** bracket orders, portfolio value, open positions, daily P&L
+- **Used for:** bracket orders (not yet built), portfolio value, open positions, daily P&L, drawdown from peak (`alpaca_executor.py`)
 - **Paper trading URL:** `https://paper-api.alpaca.markets`
 - **Live trading URL:** `https://api.alpaca.markets`
 - **Cost:** Free account; no commission on trades
@@ -189,9 +189,11 @@ trading-bot/
 │   │   ├── gate4_contradiction/contradiction_gate4.py
 │   │   └── gate5_signal/signal_gate5.py
 │   ├── 03_risk/
-│   │   └── risk_gate.py          # Validates every trade before execution
+│   │   └── risk_gate.py          # Validates every trade before execution (Quarter-Kelly sizing +
+│   │                             #   open-positions/daily-loss/drawdown/reward:risk checks)
 │   ├── 04_execution/
-│   │   └── alpaca_executor.py    # Places bracket orders via Alpaca
+│   │   └── alpaca_executor.py    # Live account state (portfolio value, positions, daily P&L,
+│   │                             #   drawdown); bracket order placement not yet built
 │   └── 05_learning/
 │       ├── trade_logger.py       # Logs trades + gate audit trail, Brier score
 │       └── threat_memory.py      # Exogenous shock memory + post-loss review
@@ -207,7 +209,7 @@ trading-bot/
 ## 🔐 Key Configuration Variables
 
 Configuration is split in two: **strategy dials** live on the documented board
-`backend/config.py`; **secrets** and the not-yet-wired Phase 5 risk params live in `.env`.
+`backend/config.py`; **secrets** live in `.env`.
 
 ### 🎛️ Strategy dials — `backend/config.py`
 
@@ -223,10 +225,16 @@ The single place to tune the pipeline (each constant is annotated in the file). 
 | `MIN_EDGE_PCT`          | 0.04      | Gate 5 — minimum 4% EV required to BUY      |
 | `MAX_POSITION_SIZE_PCT` | 0.08      | Max 8% of portfolio per trade              |
 | `TRADE_LEVEL_PARAMS`    | dict      | Gate 5 / Phase 5 — ATR stop × 1.5, R:R × 2.0 |
+| `MAX_OPEN_POSITIONS`    | 5         | Phase 5 risk gate — max concurrent positions |
+| `MAX_DAILY_LOSS_PCT`    | 0.03      | Phase 5 risk gate — daily loss hard stop (re-checks Gate 1's rule with live P&L) |
+| `MAX_DRAWDOWN_PCT`      | 0.08      | Phase 5 risk gate — drawdown kill switch    |
+| `KELLY_FRACTION`        | 0.25      | Phase 5 risk gate — Quarter-Kelly sizing    |
+| `MIN_REWARD_RISK`       | 2.0       | Phase 5 risk gate — final reward:risk guard |
 
 > `BLOCK_THRESHOLDS` and `TRADE_LEVEL_PARAMS` moved here from `constants.py`;
-> `MAX_POSITION_SIZE_PCT` and `MIN_EDGE_PCT` moved here from `.env`. Reference **maps**
-> (`SECTOR_ETF_MAP`, `SOURCE_RELIABILITY_TIERS`) stay in `02_intelligence/constants.py`.
+> `MAX_POSITION_SIZE_PCT`, `MIN_EDGE_PCT`, and the Phase 5 risk dials moved here from
+> `.env`. Reference **maps** (`SECTOR_ETF_MAP`, `SOURCE_RELIABILITY_TIERS`) stay in
+> `02_intelligence/constants.py`.
 
 ### 🔑 Secrets & runtime — `.env`
 
@@ -237,8 +245,8 @@ The single place to tune the pipeline (each constant is annotated in the file). 
 | `ANTHROPIC_API_KEY`     | —         | Claude API (Gates 2–4)                     |
 | `FINNHUB_API_KEY`       | —         | Earnings calendar + news fallback          |
 | `NEWS_API_KEY`          | —         | NewsAPI fallback                           |
-| `MAX_OPEN_POSITIONS`    | 5         | Phase 5 risk gate — concurrent positions (not yet wired) |
-| `MAX_DAILY_LOSS_PCT`    | 0.03      | Phase 5 risk gate — daily loss stop (not yet wired) |
-| `MAX_DRAWDOWN_PCT`      | 0.08      | Phase 5 risk gate — drawdown kill switch (not yet wired) |
-| `KELLY_FRACTION`        | 0.25      | Phase 5 risk gate — Quarter-Kelly sizing (not yet wired) |
-| `MAX_HOLD_DAYS`         | 5         | Phase 5 risk gate — max hold (not yet wired) |
+
+> `MAX_HOLD_DAYS` is not yet wired anywhere — it belongs to position-management logic
+> that hasn't been built (a later phase's exit-timing rule, not part of the Phase 5 risk
+> gate's five checks). Left as a commented-out placeholder in `.env.example` until a
+> module actually reads it.
