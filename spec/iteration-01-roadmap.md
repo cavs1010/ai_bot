@@ -654,6 +654,22 @@ daily_pnl = 0.0
 > remaining gap between "the gates work" (proven via the playground notebook) and "the
 > gates work through the actual `run_pipeline()` entry point every other phase will call."
 
+> **Blocked on environment, not code:** `run_pipeline_playground.ipynb` now has cells that
+> source real candidates from `run_scan()` (building the watchlist live via
+> `run_universe_filter()` if needed) and push them through `run_pipeline()` with live
+> portfolio state — the actual 4.7 ask, no duplicated logic. But it could not be executed
+> to completion in the sandbox this was written in:
+> 1. `ANTHROPIC_API_KEY` isn't set there, so Gates 2–4 fail at import (`gate2_news_threat.py`
+>    builds its Claude agent at module load, not lazily).
+> 2. That sandbox's outbound network only allowlists some domains — Alpaca works, but
+>    `yfinance`, TradingView's screener, and the FairEconomy calendar feed all get `403`
+>    from the proxy. Even Gate 1 (no Claude needed) can't fetch VIX/SPY there.
+>
+> The code is written and believed correct (it only composes existing, already-tested
+> functions) but is **unverified** — run it wherever `.env` has a real `ANTHROPIC_API_KEY`
+> and network access to Yahoo Finance / TradingView, confirm one PASS and one BLOCK case,
+> then check the boxes above.
+
 **Phase 4 exit criteria:** Intelligence layer runs end-to-end on real momentum candidates. Only `final_decision == "BUY"` proceeds to the risk gate. **Not yet met** — 4.7 above is still open, so this is formally unverified even though Phase 5/6 work has proceeded past it.
 
 **⚠️ Important:** Claude is never asked one big question. Each gate asks one focused question with a structured answer. Hedging is not acceptable.
