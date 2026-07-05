@@ -645,7 +645,32 @@ daily_pnl = 0.0
 > It **inlines** the orchestration loop rather than calling `run_pipeline()`, so it does not
 > complete Phase 4.6 — but it verifies the wiring works and is a useful manual test harness.
 
-**Phase 4 exit criteria:** Intelligence layer runs end-to-end on real momentum candidates. Only `final_decision == "BUY"` proceeds to the risk gate.
+> **Deliberately deferred, not dropped:** when Phase 5 (risk gate) started, this task was
+> still open. It was left unchecked on purpose — Phase 5 doesn't need a real
+> `run_pipeline()` call to build against, only a Gate-5-shaped `signal` dict, which the
+> mock in `risk_gate.py`'s own smoke test supplies. So Phase 5 was built and verified
+> (against the live paper account) ahead of 4.7 rather than blocking on it. This task is
+> still open and should be closed out before Phase 4 is called done — it's the one
+> remaining gap between "the gates work" (proven via the playground notebook) and "the
+> gates work through the actual `run_pipeline()` entry point every other phase will call."
+
+> **Blocked on environment, not code:** `run_pipeline_playground.ipynb` now has cells that
+> source real candidates from `run_scan()` (building the watchlist live via
+> `run_universe_filter()` if needed) and push them through `run_pipeline()` with live
+> portfolio state — the actual 4.7 ask, no duplicated logic. But it could not be executed
+> to completion in the sandbox this was written in:
+> 1. `ANTHROPIC_API_KEY` isn't set there, so Gates 2–4 fail at import (`gate2_news_threat.py`
+>    builds its Claude agent at module load, not lazily).
+> 2. That sandbox's outbound network only allowlists some domains — Alpaca works, but
+>    `yfinance`, TradingView's screener, and the FairEconomy calendar feed all get `403`
+>    from the proxy. Even Gate 1 (no Claude needed) can't fetch VIX/SPY there.
+>
+> The code is written and believed correct (it only composes existing, already-tested
+> functions) but is **unverified** — run it wherever `.env` has a real `ANTHROPIC_API_KEY`
+> and network access to Yahoo Finance / TradingView, confirm one PASS and one BLOCK case,
+> then check the boxes above.
+
+**Phase 4 exit criteria:** Intelligence layer runs end-to-end on real momentum candidates. Only `final_decision == "BUY"` proceeds to the risk gate. **Not yet met** — 4.7 above is still open, so this is formally unverified even though Phase 5/6 work has proceeded past it.
 
 **⚠️ Important:** Claude is never asked one big question. Each gate asks one focused question with a structured answer. Hedging is not acceptable.
 
@@ -657,18 +682,40 @@ daily_pnl = 0.0
 
 **Goal:** Build the bouncer. Every trade must pass all checks or it does not happen. Runs **after** the intelligence layer returns `BUY`.
 
-- [ ] Build `calculate_position_size(signal, portfolio_value)` — Quarter-Kelly formula, capped at 8%
-- [ ] Build `calculate_stops(signal)` — stop at entry − (1.5 × ATR), target at 2× stop distance
-- [ ] Build `validate_trade(...)` — runs five sequential checks:
-  - [ ] Edge above minimum threshold
-  - [ ] Open positions below maximum
-  - [ ] Daily loss limit not hit
-  - [ ] Drawdown kill switch not triggered
-  - [ ] Reward-to-risk ratio ≥ 2:1
-- [ ] Test: run against a mock Gate 5 BUY output and confirm approved trades include correct share count and stops
-- [ ] Create `backend/03_risk/risk_gate_playground.ipynb`
+> **Slimmed scope (deviation from the original spec above the line, kept here for history):**
+> the original Phase 5 spec was written before Gate 1 and Gate 5 got their lean-build
+> redesigns (see their addendums earlier in this doc). It's now largely redundant with
+> what those gates already compute:
+> - **Daily loss limit** — already enforced in Gate 1 via `check_daily_loss_limit()`.
+>   Reused here (not reimplemented) with fresh, execution-time `daily_pnl`.
+> - **Reward:risk ≥ 2:1** — already computed by Gate 5's `build_trade_levels()` and is
+>   guaranteed by construction (`atr_stop_multiplier=1.5`, `target_rr_multiple=2.0`).
+>   Reused as a final guard, not recomputed.
+> - **Edge above minimum threshold** — already gated by Gate 5's `apply_edge_rules()`
+>   against `MIN_EDGE_PCT`. Reused via `signal['decision'] == 'BUY'`, not recomputed.
+> - **`calculate_stops(signal)`** — dropped entirely. Stop/target math lives in one place
+>   (`trade_levels.py`); this gate reads `signal['trade_levels']`, it doesn't reimplement it.
+>
+> What's genuinely net-new and actually built: **Quarter-Kelly position sizing**, the
+> **open-positions-count check**, and the **drawdown kill switch**. `validate_trade()`
+> needed live open-position count, portfolio value, and daily P&L from Alpaca — nothing
+> fetched that yet (nominally Phase 6's job) — so `get_portfolio_value()`,
+> `get_open_positions()`, `get_daily_pnl()`, and `get_drawdown_pct()` were pulled forward
+> into `backend/04_execution/alpaca_executor.py` now. Phase 6 below is scoped down
+> accordingly — see its note.
 
-**Exit criteria:** Risk gate correctly approves valid trades and rejects trades that fail any single check.
+- [x] Build `calculate_position_size(signal, portfolio_value)` — Quarter-Kelly formula (`KELLY_FRACTION` × full Kelly), capped at `MAX_POSITION_SIZE_PCT`
+- [x] Build `validate_trade(ticker, signal, portfolio_value, daily_pnl, open_positions_count, drawdown_pct)` — runs five checks, returns full audit `checks` dict:
+  - [x] Edge above minimum threshold (reused from Gate 5's `signal['decision']`)
+  - [x] Open positions below `MAX_OPEN_POSITIONS` (new)
+  - [x] Daily loss limit not hit (reused from Gate 1's `check_daily_loss_limit()`)
+  - [x] Drawdown kill switch not triggered against `MAX_DRAWDOWN_PCT` (new)
+  - [x] Reward-to-risk ratio ≥ `MIN_REWARD_RISK` (reused from Gate 5's `trade_levels`)
+- [x] Test: `python backend/03_risk/risk_gate.py` — mock Gate 5 BUY signal, happy path + one failure path per check
+- [x] Create `backend/03_risk/risk_gate_playground.ipynb`
+- [x] End-to-end test against the live paper account (real `portfolio_value`/`open_positions`/`daily_pnl`/`drawdown_pct` from `alpaca_executor.py` through `validate_trade()`) — approved trade with correct share count
+
+**Exit criteria:** Risk gate correctly approves valid trades and rejects trades that fail any single check. ✅ Met.
 
 **⚠️ Important:** Never modify the risk gate to allow trades that fail its checks. The whole point is that it is non-negotiable.
 
@@ -680,12 +727,17 @@ daily_pnl = 0.0
 
 **Goal:** Place bracket orders through Alpaca — buy, stop-loss, and take-profit in one instruction.
 
-- [ ] Build `get_portfolio_value()`, `get_open_positions()`, `get_daily_pnl()` — live account state
-- [ ] Build `place_bracket_order(trade_details)` — submits a bracket order to Alpaca
-- [ ] Test: run the file and confirm it connects to your paper account and prints portfolio value (no orders placed at this stage)
-- [ ] Create `backend/04_execution/alpaca_executor_playground.ipynb`
+> **Note:** the account-state getters below were pulled forward into Phase 5 (see that
+> phase's note) because the risk gate needed live data, not mocks. What's left here is
+> just order placement.
 
-**Exit criteria:** Portfolio value prints correctly. Alpaca connection confirmed.
+- [x] Build `get_portfolio_value()`, `get_open_positions()`, `get_daily_pnl()` — live account state (pulled forward, done in Phase 5)
+- [x] Build `get_drawdown_pct()` — equity drawdown from peak via Alpaca portfolio history (pulled forward, done in Phase 5; not in the original spec but needed for the Phase 5 drawdown kill switch)
+- [ ] Build `place_bracket_order(trade_details)` — submits a bracket order to Alpaca
+- [x] Test: run the file and confirm it connects to your paper account and prints portfolio value (no orders placed at this stage)
+- [x] Create `backend/04_execution/alpaca_executor_playground.ipynb`
+
+**Exit criteria:** Portfolio value prints correctly. Alpaca connection confirmed. ✅ Met for account-state getters — `place_bracket_order()` still open.
 
 ---
 

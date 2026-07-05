@@ -222,3 +222,35 @@ TRADE_LEVEL_PARAMS: dict[str, float] = {
     'target_rr_multiple':  2.0,   # target distance = this × stop distance → ~2:1 reward:risk.
                                   # Raise → demand more reward per unit risk; lower → closer targets.
 }
+
+
+# -----------------------------------------------------------------------------
+# PHASE 5 — RISK GATE  (backend/03_risk/risk_gate.py)
+# -----------------------------------------------------------------------------
+# Final gate before execution. Sizes the position (Quarter-Kelly) and runs the
+# last-mile checks right before an order would be placed: open-position count,
+# daily loss limit, and drawdown kill switch. Reuses Gate 1's loss-limit helper
+# and Gate 5's trade_levels/EV output rather than recomputing them — this gate
+# adds only what those upstream gates don't already cover.
+# (Moved here from .env so these live on the board, same as MAX_POSITION_SIZE_PCT
+# and MIN_EDGE_PCT above.)
+# -----------------------------------------------------------------------------
+
+MAX_OPEN_POSITIONS = 5            # max concurrent open positions across the whole portfolio.
+                                  # Raise → more diversification, more names tracked; lower →
+                                  # more concentrated, easier to monitor.
+
+MAX_DAILY_LOSS_PCT = 0.03         # portfolio down ≥ 3% today = hard stop on new buys. Mirrors
+                                  # BLOCK_THRESHOLDS['loss_limit_pct'] above (same 3% rule,
+                                  # re-checked here with live P&L right before execution).
+
+MAX_DRAWDOWN_PCT = 0.08           # halt all new buys if equity is down ≥ 8% from its peak.
+                                  # Raise → tolerate deeper drawdowns before halting; lower →
+                                  # halt sooner.
+
+KELLY_FRACTION = 0.25             # fraction of full Kelly used for sizing (Quarter-Kelly).
+                                  # Raise → bigger bets, more variance; lower → smaller, steadier.
+
+MIN_REWARD_RISK = 2.0             # minimum reward:risk ratio required to approve a trade.
+                                  # TRADE_LEVEL_PARAMS already targets ~2:1 by construction; this
+                                  # is the final guard, not a recompute.
