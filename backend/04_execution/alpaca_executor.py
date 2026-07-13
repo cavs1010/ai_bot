@@ -143,6 +143,9 @@ def position_trade(trade_details: dict, fill_timeout_s: int = 60) -> dict | None
     Kelly sizing were computed from (`trade_levels['stop_pct']`), so the order placed in the
     market describes the same trade that was authorised.
 
+    Market must be open. Outside regular hours a market order sits as `accepted` (queued, not
+    filled), so this function refuses to submit when Alpaca's clock says closed.
+
     Args:
         trade_details: Required keys:
             'ticker'       (str)  — symbol to buy.
@@ -157,8 +160,8 @@ def position_trade(trade_details: dict, fill_timeout_s: int = 60) -> dict | None
         Order audit dict with keys:
             ticker, entry_order_id, filled_qty, filled_avg_price, trail_percent,
             stop_order_id, stop_attached, initial_stop_price, hwm
-        None when no position was opened — bad input, no client, entry rejected, or entry
-        never filled (the unfilled entry is cancelled in that case).
+        None when no position was opened — bad input, no client, market closed, entry
+        rejected, or entry never filled (the unfilled entry is cancelled in that case).
 
         If the entry FILLS but the trailing stop fails to attach, returns the audit with
         stop_attached=False — never None. A None return must always mean "no position
@@ -174,6 +177,11 @@ def position_trade(trade_details: dict, fill_timeout_s: int = 60) -> dict | None
 
     api = _get_alpaca_client()
     if api is None:
+        return None
+
+    clock = api.get_clock()
+    if not clock.is_open:
+        print(f'[executor] {ticker}: market closed — not submitting (next open {clock.next_open})')
         return None
 
     trail_percent = round(stop_pct * 100, 2)  # stop_pct is a fraction; Alpaca wants a percent
@@ -282,30 +290,28 @@ if __name__ == '__main__':
     else:
         print('[executor] get_drawdown_pct returned None')
 
-    # position_trade — needs an open market to fill; a market order placed while closed
-    # just queues, which proves nothing.
+    # position_trade — refuses to submit when the market is closed (queued `accepted`
+    # orders never fill inside fill_timeout).
     client = _get_alpaca_client()
-    if client is not None and client.get_clock().is_open:
-        # stop_pct 0.0211 is the NVDA reference candidate (price 875.50, atr 12.30):
-        # 1.5 × 12.30 / 875.50 → a 2.11% trail, not the flat 1.5% the roadmap first assumed.
-        audit = position_trade({
-            'ticker': 'AAPL',
-            'shares': 1,
-            'trade_levels': {'stop_pct': 0.0211},
-        })
-        if audit:
-            print(f'[executor] audit: {audit}')
-            assert audit['trail_percent'] == 2.11, 'stop_pct must convert to a percent'
-            assert audit['stop_attached'], 'entry filled but trailing stop did not attach'
-            print('[executor] entry + trailing stop placed ✅')
+    # stop_pct 0.0211 is the NVDA reference candidate (price 875.50, atr 12.30):
+    # 1.5 × 12.30 / 875.50 → a 2.11% trail, not the flat 1.5% the roadmap first assumed.
+    audit = position_trade({
+        'ticker': 'AAPL',
+        'shares': 1,
+        'trade_levels': {'stop_pct': 0.0211},
+    })
+    if audit:
+        print(f'[executor] audit: {audit}')
+        assert audit['trail_percent'] == 2.11, 'stop_pct must convert to a percent'
+        assert audit['stop_attached'], 'entry filled but trailing stop did not attach'
+        print('[executor] entry + trailing stop placed ✅')
 
-            client.cancel_all_orders()
-            client.close_position(audit['ticker'])
-            print(f'[executor] cleaned up test position in {audit["ticker"]}')
-        else:
-            print('[executor] position_trade returned None')
+        client.cancel_all_orders()
+        client.close_position(audit['ticker'])
+        print(f'[executor] cleaned up test position in {audit["ticker"]}')
     else:
-        print('[executor] market closed — skipping the live entry + trailing stop test')
+        print('[executor] position_trade returned None '
+              '(market closed, or entry did not fill — expected outside RTH)')
 
     # Failure path — no shares to place should return None before any order is sent
     nothing = position_trade({'ticker': 'AAPL', 'shares': 0, 'trade_levels': {'stop_pct': 0.0211}})
