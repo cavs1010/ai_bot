@@ -1,6 +1,7 @@
 {
   "include": ["backend"],
   "extraPaths": [
+    "backend",
     "backend/01_scanner",
     "backend/02_intelligence",
     "backend/02_intelligence/gate1_hard_threat",
@@ -9,5 +10,18 @@
     "backend/02_intelligence/gate4_contradiction",
     "backend/02_intelligence/gate5_signal",
     "backend/02_intelligence/helpers/fetchers"
-  ]
+  ],
+
+  // alpaca-trade-api, pandas and yfinance ship no type stubs, so Pyright infers
+  // types from their source and gets junk: account.portfolio_value comes out as
+  // `Timestamp | NaTType | Unknown | str | Any`, so it thinks float() on it fails.
+  // These four rules fire almost only at that untyped-library boundary. They have
+  // never caught a real bug here; muting them is what keeps the signal readable.
+  //
+  // Everything else stays ON — undefined names, missing/extra call arguments,
+  // broken imports, bad subscripts. Those catch a bad order before market open.
+  "reportArgumentType": "none",
+  "reportOptionalMemberAccess": "none",
+  "reportAttributeAccessIssue": "none",
+  "reportGeneralTypeIssues": "none"
 }

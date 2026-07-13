@@ -148,6 +148,23 @@ Every public function must have:
 | Pure logic | Concrete value | Only `None` if documented |
 | Degradation fetcher | Data or documented fallback | Fallback value, never silent failure |
 
+**Typing dict payloads — keep the union on the outside:**
+
+Data moves between layers as heterogeneous dicts. Type them as bare `dict` and describe
+the keys in the docstring. Do not push a union *inside* the value type.
+
+```python
+# Good — the docstring carries the shape; `| None` marks success vs failure
+def get_shared_market_data() -> dict | None:
+
+# Bad — type checker now thinks every value might be a float, so every
+# shared['vix']['level'] errors with: "__getitem__" not defined on type "float"
+def get_shared_market_data() -> dict[str, dict[str, float] | float | None] | None:
+```
+
+The precise version buys nothing (it never says *which* key holds which type) and costs
+an error at every read site. Never silence those with `# type: ignore` — fix the annotation.
+
 ---
 
 ## 5. Comments
