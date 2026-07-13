@@ -1,14 +1,17 @@
-# alpaca_executor.py — live Alpaca account state (portfolio value, positions, daily P&L)
-# Phase 6 | Execution Layer (pulled forward for Phase 5 risk gate)
+# alpaca_executor.py — Alpaca execution layer: live account state + order placement
+# Phase 6 | Execution Layer
 #
 # Functions:
 #   get_portfolio_value() -> float | None
 #   get_open_positions()  -> list[dict] | None
 #   get_daily_pnl()       -> float | None
+#   get_drawdown_pct()    -> float | None
+#   position_trade()      -> dict | None
 #
 # Test: python backend/04_execution/alpaca_executor.py
 
 import os
+import time
 
 from dotenv import load_dotenv
 
@@ -128,6 +131,130 @@ def get_drawdown_pct(period: str = '1M') -> float | None:
         return None
 
 
+def position_trade(trade_details: dict, fill_timeout_s: int = 60) -> dict | None:
+    """
+    Places an entry order and attaches a native Alpaca trailing stop to protect it.
+
+    Two orders, not a bracket: Alpaca supports trailing stops only as single orders, so the
+    stop is submitted separately once the entry fills. Alpaca then ratchets the stop against
+    the high-water mark broker-side — there is no monitoring loop to run.
+
+    The trail is derived from the same ATR stop distance that Gate 5's EV and the risk gate's
+    Kelly sizing were computed from (`trade_levels['stop_pct']`), so the order placed in the
+    market describes the same trade that was authorised.
+
+    Args:
+        trade_details: Required keys:
+            'ticker'       (str)  — symbol to buy.
+            'shares'       (int)  — share count from the risk gate (position['shares']).
+            'trade_levels' (dict) — Gate 5 levels; must contain 'stop_pct', a fraction
+                                    (0.0211 → a 2.11% trail).
+        fill_timeout_s: Seconds to wait for the entry to fill before giving up and cancelling
+                        it. Default 60 — a market order in regular hours fills in seconds, so
+                        a longer wait means the order is not going to fill.
+
+    Returns:
+        Order audit dict with keys:
+            ticker, entry_order_id, filled_qty, filled_avg_price, trail_percent,
+            stop_order_id, stop_attached, initial_stop_price, hwm
+        None when no position was opened — bad input, no client, entry rejected, or entry
+        never filled (the unfilled entry is cancelled in that case).
+
+        If the entry FILLS but the trailing stop fails to attach, returns the audit with
+        stop_attached=False — never None. A None return must always mean "no position
+        exists", so an open but unprotected position stays visible to the caller.
+    """
+    ticker = trade_details.get('ticker')
+    shares = trade_details.get('shares', 0)
+    stop_pct = (trade_details.get('trade_levels') or {}).get('stop_pct')
+
+    if not ticker or shares <= 0 or not stop_pct:
+        print(f'[executor] {ticker or "?"}: nothing to place — shares={shares}, stop_pct={stop_pct}')
+        return None
+
+    api = _get_alpaca_client()
+    if api is None:
+        return None
+
+    trail_percent = round(stop_pct * 100, 2)  # stop_pct is a fraction; Alpaca wants a percent
+
+    try:
+        entry = api.submit_order(
+            symbol=ticker, qty=shares, side='buy', type='market', time_in_force='day'
+        )
+    except Exception as e:
+        print(f'[executor] {ticker}: entry order rejected — {e}')
+        return None
+
+    filled = _wait_for_fill(api, entry.id, fill_timeout_s)
+    if filled is None:
+        print(f'[executor] {ticker}: entry did not fill within {fill_timeout_s}s — cancelling')
+        try:
+            api.cancel_order(entry.id)
+        except Exception as e:
+            print(f'[executor] {ticker}: cancel of unfilled entry failed — {e}')
+        return None
+
+    filled_qty = int(float(filled.filled_qty))
+    audit = {
+        'ticker': ticker,
+        'entry_order_id': str(entry.id),
+        'filled_qty': filled_qty,
+        'filled_avg_price': float(filled.filled_avg_price),
+        'trail_percent': trail_percent,
+        'stop_order_id': None,
+        'stop_attached': False,
+        'initial_stop_price': None,
+        'hwm': None,
+    }
+
+    try:
+        # 'gtc', not 'day': Alpaca allows only those two for trailing stops, and 'day' would
+        # cancel the stop at the close and leave the position unprotected overnight.
+        stop = api.submit_order(
+            symbol=ticker, qty=filled_qty, side='sell', type='trailing_stop',
+            trail_percent=str(trail_percent), time_in_force='gtc',
+        )
+    except Exception as e:
+        print(f'[executor] {ticker}: POSITION UNPROTECTED — entry filled ({filled_qty} sh) '
+              f'but trailing stop failed: {e}')
+        return audit
+
+    audit['stop_order_id'] = str(stop.id)
+    audit['stop_attached'] = True
+    audit['initial_stop_price'] = float(stop.stop_price) if stop.stop_price else None
+    audit['hwm'] = float(stop.hwm) if stop.hwm else None
+
+    print(f'[executor] {ticker}: {filled_qty} sh @ ${audit["filled_avg_price"]:,.2f}, '
+          f'trailing stop {trail_percent}%')
+    return audit
+
+
+def _wait_for_fill(api, order_id: str, timeout_s: int):
+    """
+    Polls an order until it fills.
+
+    Args:
+        api: Authenticated Alpaca REST client.
+        order_id: Order to poll.
+        timeout_s: Give up after this many seconds.
+
+    Returns:
+        The filled order object, or None if it timed out or reached a terminal
+        non-filled state (rejected, canceled, expired).
+    """
+    deadline = time.time() + timeout_s
+    while time.time() < deadline:
+        order = api.get_order(order_id)
+        if order.status == 'filled':
+            return order
+        if order.status in ('rejected', 'canceled', 'expired'):
+            print(f'[executor] entry order {order.status}')
+            return None
+        time.sleep(1)
+    return None
+
+
 if __name__ == '__main__':
     value = get_portfolio_value()
     if value is not None:
@@ -154,6 +281,36 @@ if __name__ == '__main__':
         print(f'[executor] drawdown from peak: {drawdown:.2%}')
     else:
         print('[executor] get_drawdown_pct returned None')
+
+    # position_trade — needs an open market to fill; a market order placed while closed
+    # just queues, which proves nothing.
+    client = _get_alpaca_client()
+    if client is not None and client.get_clock().is_open:
+        # stop_pct 0.0211 is the NVDA reference candidate (price 875.50, atr 12.30):
+        # 1.5 × 12.30 / 875.50 → a 2.11% trail, not the flat 1.5% the roadmap first assumed.
+        audit = position_trade({
+            'ticker': 'AAPL',
+            'shares': 1,
+            'trade_levels': {'stop_pct': 0.0211},
+        })
+        if audit:
+            print(f'[executor] audit: {audit}')
+            assert audit['trail_percent'] == 2.11, 'stop_pct must convert to a percent'
+            assert audit['stop_attached'], 'entry filled but trailing stop did not attach'
+            print('[executor] entry + trailing stop placed ✅')
+
+            client.cancel_all_orders()
+            client.close_position(audit['ticker'])
+            print(f'[executor] cleaned up test position in {audit["ticker"]}')
+        else:
+            print('[executor] position_trade returned None')
+    else:
+        print('[executor] market closed — skipping the live entry + trailing stop test')
+
+    # Failure path — no shares to place should return None before any order is sent
+    nothing = position_trade({'ticker': 'AAPL', 'shares': 0, 'trade_levels': {'stop_pct': 0.0211}})
+    assert nothing is None
+    print('[executor] zero shares correctly returned None ✅')
 
     # Failure path — bad credentials should return None, not raise
     os.environ['ALPACA_API_KEY'] = 'invalid'

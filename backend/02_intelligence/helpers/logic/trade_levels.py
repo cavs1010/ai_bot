@@ -12,13 +12,14 @@
 
 import sys
 import pathlib
+from collections.abc import Mapping
 
 # TRADE_LEVEL_PARAMS lives on the central board — backend/config.py.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3]))   # → backend/
 from config import TRADE_LEVEL_PARAMS
 
 
-def build_trade_levels(candidate: dict) -> dict:
+def build_trade_levels(candidate: Mapping[str, float]) -> dict[str, float]:
     """
     Computes entry, stop, target, and reward:risk from price and ATR.
 
@@ -57,7 +58,7 @@ def build_trade_levels(candidate: dict) -> dict:
     }
 
 
-def build_gate_summary(gate_results: dict) -> str:
+def build_gate_summary(gate_results: Mapping[str, Mapping[str, object]]) -> str:
     """
     Formats Gate 1–4 outputs into a readable audit block for logging.
 
@@ -81,7 +82,7 @@ def build_gate_summary(gate_results: dict) -> str:
         else:
             lines.append(
                 f"Gate 2 (news threat): BLOCK — {gate2.get('threat_type', '?')}: "
-                f"{gate2.get('reason', '')}"
+                + f"{gate2.get('reason', '')}"
             )
 
     gate3 = gate_results.get('gate3')
@@ -89,15 +90,15 @@ def build_gate_summary(gate_results: dict) -> str:
         caution = ' (caution)' if gate3.get('caution') else ''
         lines.append(
             f"Gate 3 (sentiment): {gate3.get('direction', '?')} "
-            f"conf={gate3.get('confidence', '?')}{caution} — {gate3.get('key_reason', '')}"
+            + f"conf={gate3.get('confidence', '?')}{caution} — {gate3.get('key_reason', '')}"
         )
 
     gate4 = gate_results.get('gate4')
     if gate4 is not None:
         lines.append(
             f"Gate 4 (contradiction): {gate4.get('action', '?')} — "
-            f"{gate4.get('contradiction_type', 'none')} / {gate4.get('risk_level', 'NONE')}: "
-            f"{gate4.get('reason', '')}"
+            + f"{gate4.get('contradiction_type', 'none')} / {gate4.get('risk_level', 'NONE')}: "
+            + f"{gate4.get('reason', '')}"
         )
 
     return '\n'.join(lines) if lines else '(no prior gate results)'
@@ -109,8 +110,10 @@ if __name__ == '__main__':
     assert levels['reward_risk'] == 2.0
     atr_mult = TRADE_LEVEL_PARAMS['atr_stop_multiplier']
     assert levels['stop'] == round(875.50 - atr_mult * 12.30, 4)
-    print(f'[trade_levels] NVDA levels: stop={levels["stop"]}, target={levels["target"]}, '
-          f'R:R={levels["reward_risk"]}')
+    print(
+        f'[trade_levels] NVDA levels: stop={levels["stop"]}, target={levels["target"]}, '
+        + f'R:R={levels["reward_risk"]}'
+    )
 
     summary = build_gate_summary({
         'gate1': {'passed': True},

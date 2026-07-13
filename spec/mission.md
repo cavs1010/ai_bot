@@ -32,7 +32,7 @@ The bot runs a five-stage pipeline every night:
 | 1 | 🔍 Scan | **Weekly:** filters the S&P 500 to a 60–80 stock watchlist (liquidity, price, volatility, earnings). **Nightly:** ranks that watchlist to 10–15 momentum candidates |
 | 2 | 🧠 Assess | Each candidate passes through a sequential intelligence layer — hard threat checks, news analysis, market context, and expected-value scoring. Only candidates that clear every step proceed |
 | 3 | 🛡️ Risk Gate | Applies Kelly sizing, exposure limits, and drawdown checks |
-| 4 | ⚡ Execute | Places bracket orders (buy + stop-loss + take-profit) via Alpaca |
+| 4 | ⚡ Execute | Places the entry, then attaches a native Alpaca trailing stop that ratchets broker-side |
 | 5 | 📝 Compound | Logs every trade, gate decision, and prediction accuracy (Brier score) |
 
 A trade only reaches execution when technical momentum and the intelligence assessment agree. The stock must be trending with volume, pass all threat and news checks, and show sufficient expected edge. If any layer fails, the bot does nothing.
@@ -58,11 +58,17 @@ The weekly review asks: what did the losing trades have in common? Was sentiment
 |------|-------|---------|
 | Minimum edge per trade | > 4% | Only trade when the math says we have an advantage |
 | Position size | Quarter-Kelly formula | Never overexpose on a single bet |
-| Stop-loss | Entry − (1.5 × ATR) | Automatic floor on every loss |
-| Take-profit | Entry + (2 × stop distance) | Always target at least 2:1 reward-to-risk |
+| Exit | Trailing stop, trail % = (1.5 × ATR) ÷ entry | Starts at the ATR stop and ratchets up as price rises — a floor on every loss that lets winners run |
+| Reward-to-risk | 2:1 **assumed** for EV + Kelly sizing | An assumption the math consumes, **not an order that gets placed** — validate against realized winners in paper trading |
 | Max open positions | 5 | Concentrated enough to matter, diversified enough to survive |
 | Daily loss limit | 3% of portfolio | Hard stop on a bad day |
 | Drawdown kill switch | 8% from peak | Full halt if the system is underperforming |
+
+> **Why there is no take-profit order.** Alpaca supports a trailing stop only as a single order — it cannot be one leg of a bracket alongside a fixed take-profit. Pairing the two as unlinked orders is unsafe (nothing cancels the other, so a filled target followed by a triggered stop would sell a position that no longer exists and flip the account short). The trailing stop is therefore the whole exit: it begins at Entry − (1.5 × ATR) and only ever moves up.
+>
+> The consequence to keep honest: the 2:1 reward-to-risk ratio has not disappeared from the system — it is still the `R` in `EV = (p × R) − (1 − p)` and the divisor in the Kelly position size. It is now an **assumption about an exit we no longer place**, and it stays on the dial board (`TRADE_LEVEL_PARAMS`) precisely so it remains visible and tunable.
+>
+> Trailing stops also do **not** trigger outside regular market hours: a stock that gaps down overnight exits at the open, wherever the open lands — not at the trail.
 
 ---
 

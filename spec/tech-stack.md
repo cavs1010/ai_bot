@@ -30,11 +30,19 @@
 ### 🏦 Alpaca
 
 - **Role:** Brokerage — places and manages all orders
-- **Used for:** bracket orders (not yet built), portfolio value, open positions, daily P&L, drawdown from peak (`alpaca_executor.py`)
+- **Used for:** entry order + native `trailing_stop` exit; portfolio value, open positions, daily P&L, drawdown from peak (`alpaca_executor.py`)
 - **Paper trading URL:** `https://paper-api.alpaca.markets`
 - **Live trading URL:** `https://api.alpaca.markets`
 - **Cost:** Free account; no commission on trades
 - **Library:** `alpaca-trade-api`
+
+**Order constraints that shape the execution design:**
+
+- A `trailing_stop` is supported **only as a single order** — it cannot be the stop leg of a `bracket`/`oco`/`oto`. Execution is therefore two orders: entry, then a standalone trailing stop once the entry fills.
+- `time_in_force` for a trailing stop must be `day` or `gtc`. We use **`gtc`** — `day` would cancel the stop at the close and leave the position unprotected overnight.
+- `trail_percent` is a **percent** (`'2.11'`), while `trade_levels['stop_pct']` is a **fraction** (`0.0211`). The executor multiplies by 100.
+- Alpaca tracks the high-water mark and ratchets the stop broker-side, so there is **no monitoring loop** to run.
+- A trailing stop does **not trigger outside regular market hours** — overnight gaps exit at the open, not at the trail.
 
 ### 🧠 Claude AI (Anthropic)
 
@@ -193,7 +201,7 @@ trading-bot/
 │   │                             #   open-positions/daily-loss/drawdown/reward:risk checks)
 │   ├── 04_execution/
 │   │   └── alpaca_executor.py    # Live account state (portfolio value, positions, daily P&L,
-│   │                             #   drawdown); bracket order placement not yet built
+│   │                             #   drawdown) + position_trade(): entry + native trailing stop
 │   └── 05_learning/
 │       ├── trade_logger.py       # Logs trades + gate audit trail, Brier score
 │       └── threat_memory.py      # Exogenous shock memory + post-loss review
@@ -224,7 +232,7 @@ The single place to tune the pipeline (each constant is annotated in the file). 
 | `MIN_CONFIDENCE`        | 6         | Gate 3 — sentiment conviction floor        |
 | `MIN_EDGE_PCT`          | 0.04      | Gate 5 — minimum 4% EV required to BUY      |
 | `MAX_POSITION_SIZE_PCT` | 0.08      | Max 8% of portfolio per trade              |
-| `TRADE_LEVEL_PARAMS`    | dict      | Gate 5 / Phase 5 — ATR stop × 1.5, R:R × 2.0 |
+| `TRADE_LEVEL_PARAMS`    | dict      | Gate 5 / Phase 5 / Phase 6 — ATR stop × 1.5, R:R × 2.0. `atr_stop_multiplier` also sets the trailing stop's `trail_percent` (via `stop_pct`) — there is deliberately **no** separate `TRAIL_PERCENT` dial, so the stop that gets placed can never drift from the one the EV and Kelly math assumed |
 | `MAX_OPEN_POSITIONS`    | 5         | Phase 5 risk gate — max concurrent positions |
 | `MAX_DAILY_LOSS_PCT`    | 0.03      | Phase 5 risk gate — daily loss hard stop (re-checks Gate 1's rule with live P&L) |
 | `MAX_DRAWDOWN_PCT`      | 0.08      | Phase 5 risk gate — drawdown kill switch    |

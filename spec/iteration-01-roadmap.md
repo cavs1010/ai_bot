@@ -10,18 +10,17 @@ First full lap of the project (Phase 0 → Phase 11). Work **only** from this fi
 
 ## 📍 Where we are & what's next
 
-Phases 0–5 are ✅ done (Phase 4 fully met — see 4.7). Then:
+Phases 0–5 are ✅ done (Phase 4 fully met — see 4.7). **Phase 6 is built** — `position_trade()` places an entry and attaches a native trailing stop — but its exit criteria are ⏳ pending one live run once the market is open (see the verification note in Phase 6). Then:
 
-1. **Phase 6** — position trades: entry + native Alpaca trailing stop (last execution piece).
-2. **Phase 7** — integration (`bot.py`): wire scan → gates → risk → execute → log.
-3. **Phase 8** — dashboard: observe / debug / tune the bot in the browser.
-4. **Phase 9** learning → **Phase 10** paper → **Phase 11** live.
+1. **Phase 7** — integration (`bot.py`): wire scan → gates → risk → execute → log.
+2. **Phase 8** — dashboard: observe / debug / tune the bot in the browser.
+3. **Phase 9** learning → **Phase 10** paper → **Phase 11** live.
 
 > **Restructure (2026-07-06):** dashboard added as a new phase; exit strategy switched to a native trailing stop. Integration moved ahead of the dashboard (a debug cockpit needs a runnable pipeline to show); learning moved after it, with its two log-writers pulled into integration. Old Phase 8→7, 7→9, 9→10, 10→11.
 
 ## 🛠️ Development Standards
 
-Every function and module must follow the rules in `.agent_rules/README.md`:
+Every function and module must follow the rules in `.agent_rules/function_definition_rules.md`:
 - Type hints, docstring, `None` return on failure, `[module]` print style
 - Terminal test via `python backend/<layer_folder>/<module>.py` (e.g. `backend/00_data/data_fetcher.py`)
 - Companion Jupyter notebook: `<module>_playground.ipynb` in the same folder
@@ -698,6 +697,21 @@ daily_pnl = 0.0
 - [x] Create `backend/03_risk/risk_gate_playground.ipynb`
 - [x] End-to-end test against the live paper account (real `portfolio_value`/`open_positions`/`daily_pnl`/`drawdown_pct` from `alpaca_executor.py` through `validate_trade()`) — approved trade with correct share count
 
+> **Addendum (Phase 6 follow-on caveat) — `reward_risk = 2.0` is now an assumption, not an order.**
+> The "Slimmed scope" note above says reward:risk ≥ 2:1 is "guaranteed by construction" because
+> `build_trade_levels()` computes `target = entry + 2 × stop_distance`. That was true when the exit
+> was a bracket with a fixed take-profit. **Phase 6 replaced the take-profit with a trailing stop, so
+> the target price is never placed as an order** — the trade exits when it retraces from its high,
+> and the realized reward is open-ended and unknown in advance.
+>
+> The 2.0 has not left the system, though. It is still the `R` in Gate 5's `EV = (p × R) − (1 − p)`
+> (`ev_rules.py`), the divisor in this gate's Kelly sizing (`full_kelly = p − (1 − p) / R`), and the
+> value `MIN_REWARD_RISK` guards against. So both the BUY decision and the bet size are computed from
+> a reward we no longer contract for. The **risk** side is now honest (the trail is placed at exactly
+> the stop distance the sizing assumed — see Phase 6); the **reward** side is an inherited assumption.
+> Phase 10 makes it measurable: compare realized winners against the assumed 2.0 and feed the result
+> back into the EV coefficients.
+
 **Exit criteria:** Risk gate correctly approves valid trades and rejects trades that fail any single check. ✅ Met.
 
 **⚠️ Important:** Never modify the risk gate to allow trades that fail its checks. The whole point is that it is non-negotiable.
@@ -710,16 +724,58 @@ daily_pnl = 0.0
 
 **Goal:** Position a trade — place the entry and a broker-side exit that protects it. The last execution piece before the bot can trade.
 
-**Exit strategy — native trailing stop** (decision pulled forward from [iteration-02-ideas.md](iteration-02-ideas.md)): Alpaca can't pair a trailing stop with a fixed take-profit in one bracket, so execution is **two orders** — entry, then a standalone `trailing_stop` (`trail_percent` from config). Alpaca ratchets the stop broker-side, so there is **no monitoring loop** to build. `target` / `reward_risk` from `trade_levels.py` stay for EV/sizing only.
+**Exit strategy — native trailing stop** (decision pulled forward from [iteration-02-ideas.md](iteration-02-ideas.md)): Alpaca can't pair a trailing stop with a fixed take-profit in one bracket, so execution is **two orders** — entry, then a standalone `trailing_stop` whose `trail_percent` is derived from `trade_levels['stop_pct']`, so the stop placed in the market is the same distance the EV and Kelly sizing assumed. Alpaca ratchets the stop broker-side, so there is **no monitoring loop** to build. `target` / `reward_risk` from `trade_levels.py` stay for EV/sizing only.
 
 > Already built (pulled forward into Phase 5): `get_portfolio_value()`, `get_open_positions()`, `get_daily_pnl()`, `get_drawdown_pct()`. Only order placement remains.
 
-- [ ] Add `TRAIL_PERCENT` dial to `config.py` (e.g. 1.5)
-- [ ] Build `position_trade(trade_details)` — place entry (share count from risk gate), confirm fill, attach a standalone `trailing_stop`; return an order audit
-- [ ] Test: place a paper entry + trailing stop on one ticker; confirm both orders appear in the Alpaca paper dashboard
+- [x] ~~Add `TRAIL_PERCENT` dial to `config.py` (e.g. 1.5)~~ — **dropped on purpose**, see addendum below
+- [x] Build `position_trade(trade_details)` — place entry (share count from risk gate), confirm fill, attach a standalone `trailing_stop`; return an order audit
+- [ ] Test: place a paper entry + trailing stop on one ticker; confirm both orders appear in the Alpaca paper dashboard — **⏳ blocked on market open (09:30 ET)**, see verification note below
 - [x] Create `backend/04_execution/alpaca_executor_playground.ipynb`
 
-**Exit criteria:** The bot positions a real paper trade — entry filled, trailing stop attached — returning a full order audit. No monitoring loop.
+> **Addendum (build deviation) — no `TRAIL_PERCENT` dial; the trail is derived from `stop_pct`.**
+> The fixed `TRAIL_PERCENT = 1.5` this phase originally specified would have put the decision layer and
+> the execution layer in disagreement. Gate 5's EV and the risk gate's Kelly sizing are both computed
+> from a stop at `1.5 × ATR`, and the universe filter admits stocks with ATR between 1% and 5% of price
+> (`MIN_ATR_PCT` / `MAX_ATR_PCT`) — so the assumed stop distance is **1.5%–7.5%** depending on the stock.
+> A flat 1.5% trail matches only the calmest name in the universe; for a 5%-ATR stock the math assumed a
+> 7.5% stop while the broker got a 1.5% one, five times tighter — stopping out on ordinary noise, at a
+> distance the position was never sized for.
+>
+> So no new dial: the executor derives `trail_percent` from `trade_levels['stop_pct']` (×100 — `stop_pct`
+> is a fraction, Alpaca wants a percent). `TRADE_LEVEL_PARAMS['atr_stop_multiplier']` stays the single
+> source of truth for stop distance; a second dial could only drift from the first.
+
+> **Addendum (known caveat) — overnight gaps are unprotected.**
+> Alpaca trailing stops do **not** trigger outside regular market hours. A stock that gaps down overnight
+> exits at the open, wherever the open lands — not at the trail. The loss actually taken is therefore not
+> the stop distance the position was sized on. Gate 1's earnings and 8-K blocks reduce the exposure but do
+> not remove it; this is inherent to any swing strategy holding overnight. To be measured in Phase 10, not
+> engineered around now.
+
+> **Implementation note — the return contract.** `position_trade()` returns `None` only when **no position
+> was opened** (bad input, entry rejected, or entry never filled — the unfilled entry is cancelled). If the
+> entry fills but the trailing stop fails to attach, it returns the audit with `stop_attached: False`, never
+> `None` — a `None` there would tell the caller nothing happened while a live, unprotected long sits in the
+> account. The stop uses `time_in_force='gtc'`; `day` would cancel it at the close and leave the position
+> naked overnight.
+
+> **Verification status — what is and isn't proven.** Built and verified against the live paper account
+> while the market was **closed**, so these paths are confirmed: input guard (`shares=0` → `None`, no order
+> sent), entry rejection → `None`, entry submitted but unfilled → cancelled, `None` returned, nothing left
+> behind. The **fill → attach happy path has not yet been exercised through `position_trade()`** — a market
+> order placed outside regular hours only queues.
+>
+> The underlying mechanism *was* proven live and manually during the build (market buy of AAPL filled at
+> $317.03; a standalone `trailing_stop` sell with `trail_percent='2.11'` attached, and Alpaca computed
+> `hwm=316.97` → `stop_price=310.28`, i.e. exactly 2.11% below the high-water mark). `position_trade()`
+> issues those same two calls — but "issues the same calls" is an argument, not a test.
+>
+> **To close this out:** run `python backend/04_execution/alpaca_executor.py` once the market is open. The
+> smoke test gates on `get_clock().is_open`, places 1 share + the trailing stop, asserts
+> `trail_percent == 2.11` and `stop_attached`, then cleans up after itself.
+
+**Exit criteria:** The bot positions a real paper trade — entry filled, trailing stop attached — returning a full order audit. No monitoring loop. ⏳ Pending the market-open run above.
 
 ---
 

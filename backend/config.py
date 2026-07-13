@@ -19,6 +19,9 @@
 #   Gate 3   Sentiment         Claude   direction + confidence → pass/block/caution
 #   Gate 4   Contradiction     Claude   stock-vs-market divergence       (no dials here)
 #   Gate 5   Edge / EV         rules    win-probability + expected value → BUY / SKIP
+#   Risk Gate                   rules    Kelly sizing, exposure + drawdown limits
+#   Execution                   broker   entry + native trailing stop     (no dials here —
+#                                        the trail is derived from atr_stop_multiplier)
 #
 # NOT here (on purpose):
 #   • Reference lookup tables — SECTOR_ETF_MAP and SOURCE_RELIABILITY_TIERS — live in
@@ -206,7 +209,7 @@ MIN_EDGE_PCT = 0.04               # minimum expected value to issue a BUY (4%). 
 
 
 # -----------------------------------------------------------------------------
-# TRADE LEVELS — shared by Gate 5 and the Phase 5 risk gate
+# TRADE LEVELS — shared by Gate 5, the Phase 5 risk gate, and the Phase 6 executor
 # (backend/02_intelligence/helpers/logic/trade_levels.py)
 # -----------------------------------------------------------------------------
 # Stop/target geometry applied once a BUY is decided. Kept as a dict because the
@@ -214,13 +217,24 @@ MIN_EDGE_PCT = 0.04               # minimum expected value to issue a BUY (4%). 
 #
 #   stop   = entry − (atr_stop_multiplier × ATR)
 #   target = entry + (target_rr_multiple × stop_distance)   → reward:risk ratio
+#
+# There is no separate TRAIL_PERCENT dial. The broker-side trailing stop is derived
+# from stop_pct (= atr_stop_multiplier × ATR / entry), so the stop that gets placed is
+# the same distance the EV and Kelly sizing were computed from. A second dial would let
+# the two drift apart — the decision layer and the execution layer describing different
+# trades. Tune the trail by tuning atr_stop_multiplier.
 # -----------------------------------------------------------------------------
 
 TRADE_LEVEL_PARAMS: dict[str, float] = {
     'atr_stop_multiplier': 1.5,   # stop distance = this × ATR. Raise → wider stops (more room,
-                                  # bigger risk per share); lower → tighter stops.
+                                  # bigger risk per share); lower → tighter stops. Also sets the
+                                  # trailing stop's trail_percent — see note above.
     'target_rr_multiple':  2.0,   # target distance = this × stop distance → ~2:1 reward:risk.
                                   # Raise → demand more reward per unit risk; lower → closer targets.
+                                  # No take-profit order is placed (the trailing stop replaced it),
+                                  # so this is now an ASSUMPTION feeding EV (ev_rules.py) and Kelly
+                                  # sizing (risk_gate.py) — validate it against realized winners in
+                                  # paper trading rather than trusting the 2.0.
 }
 
 
