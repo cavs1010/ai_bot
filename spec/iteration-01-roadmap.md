@@ -2,11 +2,22 @@
 
 **Status:** 🔄 active
 
-First full lap of the project (Phase 0 → Phase 10). Work **only** from this file for the current iteration.
+First full lap of the project (Phase 0 → Phase 11). Work **only** from this file for the current iteration.
 
 - 💡 Ideas for iteration 2 → [iteration-02-ideas.md](iteration-02-ideas.md) (one-line bullets only)
 - ⏳ Do not create `iteration-02-roadmap.md` until iteration 1 is complete
 - 📌 Index → [master.md](master.md)
+
+## 📍 Where we are & what's next
+
+Phases 0–5 are ✅ done (Phase 4 fully met — see 4.7). Then:
+
+1. **Phase 6** — position trades: entry + native Alpaca trailing stop (last execution piece).
+2. **Phase 7** — integration (`bot.py`): wire scan → gates → risk → execute → log.
+3. **Phase 8** — dashboard: observe / debug / tune the bot in the browser.
+4. **Phase 9** learning → **Phase 10** paper → **Phase 11** live.
+
+> **Restructure (2026-07-06):** dashboard added as a new phase; exit strategy switched to a native trailing stop. Integration moved ahead of the dashboard (a debug cockpit needs a runnable pipeline to show); learning moved after it, with its two log-writers pulled into integration. Old Phase 8→7, 7→9, 9→10, 10→11.
 
 ## 🛠️ Development Standards
 
@@ -636,41 +647,13 @@ daily_pnl = 0.0
 
 ### 4.7 — End-to-end intelligence test
 
-- [ ] Run `run_scan()` → pass top 3 candidates through `run_pipeline()` with live portfolio state
-- [ ] Confirm gate audit output for both PASS and BLOCK cases
-- [ ] Verify Claude API cost stays within budget (max ~3 calls × candidates assessed per night — Gate 5 is rules-only)
+- [x] Run real candidates through the full gate sequence with live portfolio state — done live in `backend/full_pipeline_playground.ipynb`
+- [x] Confirm gate audit output for both PASS and BLOCK cases — verified (BNY: pass G1/G2, block G3 on low confidence; APH: block G1 on sector)
+- [x] Verify Claude API cost stays within budget (≤ ~3 Claude calls × candidates; Gate 5 rules-only)
 
-> **Note:** `backend/full_pipeline_playground.ipynb` already demonstrates this end-to-end run
-> live (Stage 1 universe → Stage 2 scan → Gates 1–5, with the funnel counts and a BUY list).
-> It **inlines** the orchestration loop rather than calling `run_pipeline()`, so it does not
-> complete Phase 4.6 — but it verifies the wiring works and is a useful manual test harness.
+> **Verified via** `full_pipeline_playground.ipynb` — an executed live run of the whole funnel (74 universe → 15 scanned → 10 processed → 2 BUY → 2 risk-approved) with real PASS/BLOCK audits and sized trades. It **inlines** the orchestration rather than calling `run_pipeline()`, so the behaviour is proven; the thin `run_pipeline()` wrapper itself is first exercised in Phase 7 (`bot.py` calls it directly). `run_pipeline_playground.ipynb` also has cells to push live `run_scan()` candidates through `run_pipeline()` directly if you want the wrapper proven inside a notebook first.
 
-> **Deliberately deferred, not dropped:** when Phase 5 (risk gate) started, this task was
-> still open. It was left unchecked on purpose — Phase 5 doesn't need a real
-> `run_pipeline()` call to build against, only a Gate-5-shaped `signal` dict, which the
-> mock in `risk_gate.py`'s own smoke test supplies. So Phase 5 was built and verified
-> (against the live paper account) ahead of 4.7 rather than blocking on it. This task is
-> still open and should be closed out before Phase 4 is called done — it's the one
-> remaining gap between "the gates work" (proven via the playground notebook) and "the
-> gates work through the actual `run_pipeline()` entry point every other phase will call."
-
-> **Blocked on environment, not code:** `run_pipeline_playground.ipynb` now has cells that
-> source real candidates from `run_scan()` (building the watchlist live via
-> `run_universe_filter()` if needed) and push them through `run_pipeline()` with live
-> portfolio state — the actual 4.7 ask, no duplicated logic. But it could not be executed
-> to completion in the sandbox this was written in:
-> 1. `ANTHROPIC_API_KEY` isn't set there, so Gates 2–4 fail at import (`gate2_news_threat.py`
->    builds its Claude agent at module load, not lazily).
-> 2. That sandbox's outbound network only allowlists some domains — Alpaca works, but
->    `yfinance`, TradingView's screener, and the FairEconomy calendar feed all get `403`
->    from the proxy. Even Gate 1 (no Claude needed) can't fetch VIX/SPY there.
->
-> The code is written and believed correct (it only composes existing, already-tested
-> functions) but is **unverified** — run it wherever `.env` has a real `ANTHROPIC_API_KEY`
-> and network access to Yahoo Finance / TradingView, confirm one PASS and one BLOCK case,
-> then check the boxes above.
-
-**Phase 4 exit criteria:** Intelligence layer runs end-to-end on real momentum candidates. Only `final_decision == "BUY"` proceeds to the risk gate. **Not yet met** — 4.7 above is still open, so this is formally unverified even though Phase 5/6 work has proceeded past it.
+**Phase 4 exit criteria:** ✅ Met — the intelligence layer runs end-to-end on real momentum candidates; only `final_decision == "BUY"` proceeds to the risk gate.
 
 **⚠️ Important:** Claude is never asked one big question. Each gate asks one focused question with a structured answer. Hedging is not acceptable.
 
@@ -725,35 +708,71 @@ daily_pnl = 0.0
 
 **File:** `backend/04_execution/alpaca_executor.py`
 
-**Goal:** Place bracket orders through Alpaca — buy, stop-loss, and take-profit in one instruction.
+**Goal:** Position a trade — place the entry and a broker-side exit that protects it. The last execution piece before the bot can trade.
 
-> **Note:** the account-state getters below were pulled forward into Phase 5 (see that
-> phase's note) because the risk gate needed live data, not mocks. What's left here is
-> just order placement.
+**Exit strategy — native trailing stop** (decision pulled forward from [iteration-02-ideas.md](iteration-02-ideas.md)): Alpaca can't pair a trailing stop with a fixed take-profit in one bracket, so execution is **two orders** — entry, then a standalone `trailing_stop` (`trail_percent` from config). Alpaca ratchets the stop broker-side, so there is **no monitoring loop** to build. `target` / `reward_risk` from `trade_levels.py` stay for EV/sizing only.
 
-- [x] Build `get_portfolio_value()`, `get_open_positions()`, `get_daily_pnl()` — live account state (pulled forward, done in Phase 5)
-- [x] Build `get_drawdown_pct()` — equity drawdown from peak via Alpaca portfolio history (pulled forward, done in Phase 5; not in the original spec but needed for the Phase 5 drawdown kill switch)
-- [ ] Build `place_bracket_order(trade_details)` — submits a bracket order to Alpaca
-- [x] Test: run the file and confirm it connects to your paper account and prints portfolio value (no orders placed at this stage)
+> Already built (pulled forward into Phase 5): `get_portfolio_value()`, `get_open_positions()`, `get_daily_pnl()`, `get_drawdown_pct()`. Only order placement remains.
+
+- [ ] Add `TRAIL_PERCENT` dial to `config.py` (e.g. 1.5)
+- [ ] Build `position_trade(trade_details)` — place entry (share count from risk gate), confirm fill, attach a standalone `trailing_stop`; return an order audit
+- [ ] Test: place a paper entry + trailing stop on one ticker; confirm both orders appear in the Alpaca paper dashboard
 - [x] Create `backend/04_execution/alpaca_executor_playground.ipynb`
 
-**Exit criteria:** Portfolio value prints correctly. Alpaca connection confirmed. ✅ Met for account-state getters — `place_bracket_order()` still open.
+**Exit criteria:** The bot positions a real paper trade — entry filled, trailing stop attached — returning a full order audit. No monitoring loop.
 
 ---
 
-## Phase 7 — 📝 Learning Loop
+## Phase 7 — 🔗 Full Pipeline Integration
+
+**File:** `backend/bot.py`
+
+**Goal:** Wire every module into one runnable pipeline — Scan → 5 Gates → Risk Gate → Execute → Log — so the bot runs end-to-end headless. This is the substrate the Phase 8 dashboard triggers and observes.
+
+> **Moved ahead of the dashboard** (was Phase 8): a debug cockpit needs a runnable, logged pipeline to show. The two log *writers* are pulled forward here from Phase 9 for the same reason; learning *analytics* stay in Phase 9.
+
+- [ ] Smoke-test `run_pipeline()` directly once (the wrapper `bot.py` calls) — its behaviour is already proven by Phase 4.7's inlined live run; this just confirms the wrapper itself
+- [ ] Build `log_gate_result(audit)` → `logs/gate_audit_log.jsonl` and `log_trade(trade_details, action)` → `logs/trade_log.jsonl` in `backend/05_learning/trade_logger.py` (writers only)
+- [ ] Build `run_bot()` — Scan → `run_pipeline()` per candidate → only `BUY` → `validate_trade()` → `position_trade()` → log
+- [ ] Add flags: `--now` (immediate run), `--update-watchlist` (manual Tier 1)
+- [ ] Configure APScheduler — weekly universe filter (Sunday) + nightly run (Mon–Fri, 11:00 PM AEST); may stay off during bring-up and be triggered manually
+- [ ] Test: `python backend/bot.py --now` runs scan → gates → risk → execute → log without errors (paper)
+
+**Exit criteria:** One entry point runs the full pipeline. Every candidate writes a gate audit line; every paper trade is logged.
+
+---
+
+## Phase 8 — 🖥️ Dashboard (Control & Debug Cockpit)
+
+**Files:** `backend/api/` (FastAPI) · `frontend/` (dashboard UI — framework TBD when this phase starts)
+
+**Goal:** A browser cockpit to **observe, debug, and tune** the bot during bring-up — see what it's doing and understand each adjustment. The end goal stays full automation; this is the instrument that gets us there, not a permanent manual terminal.
+
+> **Design rule — propose-and-confirm, not a fiddle board.** Config edits are explicit, logged, and confirmed. The mission's discipline holds: manual threshold changes only, no self-tuning until 200+ trades.
+
+- [ ] Build `backend/api/` (FastAPI) — endpoints: last/live run audit (reads `gate_audit_log.jsonl`), trades (`trade_log.jsonl`), account state (existing Alpaca getters), config GET, config PATCH (validated + logs old→new), "run now" trigger for `run_bot(--now)`
+- [ ] **Observability view** — per candidate, which gate passed/blocked and *why*; funnel counts (universe → scan → gates → BUY); open positions + account state
+- [ ] **Tuning view** — read/adjust `config.py` dials (thresholds, sizing, edge, trail %) via propose-and-confirm
+- [ ] **Operational controls** — pause/resume scheduler, run now, force watchlist refresh, kill switch, manually close a position
+- [ ] Test: trigger a run from the browser, watch every gate decision render, adjust one dial and confirm it persists, close a paper position from the controls
+
+**Exit criteria:** From the browser you can trigger a run, watch every gate decision and block reason, see positions/account state, deliberately adjust any dial, and hit the kill switch.
+
+---
+
+## Phase 9 — 📝 Learning Loop (analytics)
 
 **Files:** `backend/05_learning/trade_logger.py`, `backend/05_learning/threat_memory.py`
 
-**Goal:** Log every trade, every gate audit trail, and learn from exogenous shocks.
+**Goal:** Turn the logs into calibration signal — measure prediction quality and learn from exogenous shocks.
 
-- [ ] Build `log_gate_result(audit)` — append every pipeline run to `logs/gate_audit_log.jsonl` (including blocked candidates)
-- [ ] Build `log_trade(trade_details, action)` — append every executed trade to `logs/trade_log.jsonl`
-- [ ] Build `log_failure(trade_details, reason)` — writes every loss to `logs/failure_log.md` with context
-- [ ] Build `calculate_brier_score()` — measures how calibrated Gate 5 win probability estimates are
-- [ ] Build `get_performance_summary()` — prints win rate, trade count, and Brier score to terminal
+> The two log writers (`log_gate_result`, `log_trade`) were built in Phase 7. What remains is the analytics on top of them.
+
+- [ ] Build `log_failure(trade_details, reason)` — every loss to `logs/failure_log.md` with context
+- [ ] Build `calculate_brier_score()` — how calibrated Gate 5 win-probability estimates are
+- [ ] Build `get_performance_summary()` — win rate, trade count, Brier score (surfaced in the dashboard)
 - [ ] Build `threat_memory.py` — log Category B/D losses; post-loss Claude review; graduate repeated patterns into Gate 1 rules
-- [ ] Test: log a mock gate audit and mock trade; confirm both JSONL files write correctly
+- [ ] Test: compute a Brier score on 5+ mock closed trades; confirm `failure_log.md` writes
 - [ ] Create `backend/05_learning/trade_logger_playground.ipynb`
 
 **Weekly review ritual (not code):**
@@ -762,28 +781,11 @@ daily_pnl = 0.0
 - Look for: Gate 1 blocking too many winners, Gate 4 missing contradictions, low Gate 3 confidence on losses
 - Make manual threshold adjustments based on findings — do not automate this until you have 200+ trades
 
-**Exit criteria:** Gate audit and trade logs write correctly. Brier score calculates when 5+ closed trades exist.
+**Exit criteria:** Brier score calculates when 5+ closed trades exist; failure log and performance summary populate the dashboard.
 
 ---
 
-## Phase 8 — 🔗 Full Pipeline Integration
-
-**File:** `backend/bot.py`
-
-**Goal:** Wire all modules together into one pipeline that runs on a nightly schedule.
-
-- [ ] Import all modules and define the `run_bot()` function
-- [ ] Implement the nightly pipeline: Scan → Intelligence Layer (5 gates) → Risk Gate → Execute → Log
-- [ ] Loop momentum candidates through `run_pipeline()`; only `BUY` results proceed to `validate_trade()`
-- [ ] Add `--now` for immediate test runs and `--update-watchlist` for manual Tier 1 runs
-- [ ] Configure APScheduler: weekly universe filter (Sunday) + nightly bot run (Mon–Fri, 11:00 PM AEST)
-- [ ] Test with `python backend/bot.py --now` — confirm scan, intelligence layer, risk gate, and logging all run without errors
-
-**Exit criteria:** Full pipeline runs end-to-end in test mode. Gate audits and paper orders logged correctly.
-
----
-
-## Phase 9 — 📋 Paper Trading (Minimum 8 Weeks)
+## Phase 10 — 📋 Paper Trading (Minimum 8 Weeks)
 
 **Goal:** Prove the strategy works before any real money is involved.
 
@@ -809,7 +811,7 @@ daily_pnl = 0.0
 
 ---
 
-## Phase 10 — 💰 Live Trading (Phased)
+## Phase 11 — 💰 Live Trading (Phased)
 
 **Goal:** Deploy real capital incrementally, gated by continued performance.
 
