@@ -6,23 +6,39 @@ import pandas as pd
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))   # → backend/
 from config import TOP_N, MIN_SCORE, RSI_MIN, RSI_MAX
 
-WATCHLIST_PATH = 'data/watchlist.csv'   # plumbing path, not a strategy dial
+UNIVERSE_PATH = pathlib.Path(__file__).resolve().parent / 'data' / 'universe.json'
+WATCHLIST_PATH = str(UNIVERSE_PATH)   # plumbing path, not a strategy dial
 
 
-def load_watchlist() -> pd.DataFrame | None:
+def load_watchlist(file_path: str | pathlib.Path | None = None) -> pd.DataFrame | None:
     """
-    Reads the Tier 1 watchlist CSV produced by universe_filter.py.
+    Reads the Tier 1 universe JSON produced by universe_filter.py.
 
     Returns:
         DataFrame with columns ticker, price, volume, atr, atr_pct, rsi, sma20, sma50, sector,
         or None on failure.
     """
+    target_path = pathlib.Path(file_path if file_path is not None else WATCHLIST_PATH)
     try:
-        df = pd.read_csv(WATCHLIST_PATH)
-        print(f'[scanner] loaded {len(df)} stocks from {WATCHLIST_PATH}')
+        if not target_path.exists():
+            # Fallback check for csv extension if json does not exist
+            csv_path = target_path.with_suffix('.csv')
+            if csv_path.exists():
+                df = pd.read_csv(csv_path)
+                print(f'[scanner] loaded {len(df)} stocks from fallback {csv_path}')
+                return df
+            print(f'[scanner] universe file not found at {target_path}')
+            return None
+
+        if target_path.suffix == '.csv':
+            df = pd.read_csv(target_path)
+        else:
+            df = pd.read_json(target_path)
+
+        print(f'[scanner] loaded {len(df)} stocks from {target_path}')
         return df
     except Exception as e:
-        print(f'[scanner] failed to load watchlist: {e}')
+        print(f'[scanner] failed to load watchlist from {target_path}: {e}')
         return None
 
 

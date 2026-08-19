@@ -18,7 +18,8 @@ from config import (
     EARNINGS_WINDOW_DAYS, SCREENER_LIMIT, MAX_POSITION_SIZE_PCT, PRICE_CEILING_BUFFER,
 )
 
-WATCHLIST_PATH = 'data/watchlist.csv'   # plumbing path, not a strategy dial
+UNIVERSE_PATH = pathlib.Path(__file__).resolve().parent / 'data' / 'universe.json'
+WATCHLIST_PATH = str(UNIVERSE_PATH)   # plumbing path, not a strategy dial
 
 
 def get_max_share_price() -> float:
@@ -76,7 +77,7 @@ def get_earnings_tickers(days_ahead: int = EARNINGS_WINDOW_DAYS) -> set[str] | N
 
 def save_watchlist(df: pd.DataFrame) -> None:
     """
-    Saves the filtered stock universe to data/watchlist.csv.
+    Saves the filtered stock universe to backend/01_scanner/data/universe.json.
 
     Args:
         df: DataFrame with columns ticker, price, volume, atr, atr_pct, rsi, sma20, sma50, sector.
@@ -84,14 +85,15 @@ def save_watchlist(df: pd.DataFrame) -> None:
     Returns:
         None
     """
-    os.makedirs('data', exist_ok=True)
-    df.to_csv(WATCHLIST_PATH, index=False)
-    print(f'[universe] saved {len(df)} tickers to {WATCHLIST_PATH}')
+    p = pathlib.Path(WATCHLIST_PATH)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    df.to_json(p, orient='records', indent=2)
+    print(f'[universe] saved {len(df)} tickers to {p}')
 
 
 def run_universe_filter(max_price: float | None = None, limit: int = SCREENER_LIMIT) -> int | None:
     """
-    Runs the Tier 1 universe filter: large-cap US stocks → watchlist.csv.
+    Runs the Tier 1 universe filter: large-cap US stocks → universe.json.
 
     Args:
         max_price: Upper share-price bound for the screener. When None (default), it is
@@ -166,4 +168,23 @@ def run_universe_filter(max_price: float | None = None, limit: int = SCREENER_LI
 if __name__ == '__main__':
     result = run_universe_filter()
     if result is not None:
-        print(f'[universe] complete: {result} stocks saved to data/watchlist.csv')
+        p = pathlib.Path(WATCHLIST_PATH)
+        tickers = []
+        if p.exists():
+            try:
+                import json
+                data = json.loads(p.read_text())
+                tickers = [item['ticker'] for item in data if 'ticker' in item]
+            except Exception:
+                pass
+        output = {
+            "success": True,
+            "count": result,
+            "tickers": tickers
+        }
+        import json
+        print("__JSON_OUTPUT_START__")
+        print(json.dumps(output, indent=2))
+        print("__JSON_OUTPUT_END__")
+        print(f'[universe] complete: {result} stocks saved to {WATCHLIST_PATH}')
+

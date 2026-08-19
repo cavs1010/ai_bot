@@ -1,0 +1,38 @@
+# Git & version control
+.git
+.gitignore
+
+# Environment secrets
+.env
+.env.*
+!.env.example
+
+# Node dependencies and build artifacts
+node_modules
+dist
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python virtual environments & bytecode
+.venv
+venv
+ENV
+__pycache__
+*.py[cod]
+*$py.class
+.pytest_cache
+.coverage
+htmlcov
+
+# IDEs & OS files
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Local logs and temporary caches
+*.log
+logs
+.cache
+backend/02_intelligence/helpers/fetchers/.cache

@@ -250,7 +250,7 @@ TRADE_LEVEL_PARAMS: dict[str, float] = {
 # and MIN_EDGE_PCT above.)
 # -----------------------------------------------------------------------------
 
-MAX_OPEN_POSITIONS = 5            # max concurrent open positions across the whole portfolio.
+MAX_OPEN_POSITIONS = 10           # max concurrent open positions across the whole portfolio.
                                   # Raise → more diversification, more names tracked; lower →
                                   # more concentrated, easier to monitor.
 

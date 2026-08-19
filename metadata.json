@@ -1,0 +1,8 @@
+{
+  "name": "AI Trading Bot Cockpit",
+  "description": "Autonomous AI Stock Trading Bot Dashboard & Simulator with 5-Gate Intelligence, Strategy Dials, and Alpaca Integration",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

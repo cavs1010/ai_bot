@@ -12,6 +12,7 @@
 # Test: python backend/02_intelligence/helpers/llm/client.py
 
 import os
+import time
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import TypeVar
@@ -82,19 +83,34 @@ def run_agent(agent: Agent[None, OutputT], user_prompt: str) -> OutputT | None:
     Returns:
         The agent's output_type instance, or None on any failure.
     """
-    try:
+    max_retries = 5
+    backoff = 2
+    for attempt in range(max_retries):
         try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            # No running loop (plain script) — the simple sync path.
-            return agent.run_sync(user_prompt).output
-        # A loop is already running (Jupyter notebook / async caller). run_sync would raise,
-        # so run the async call in a worker thread that owns a fresh loop.
-        with ThreadPoolExecutor(max_workers=1) as pool:
-            return pool.submit(lambda: asyncio.run(agent.run(user_prompt)).output).result()
-    except Exception as e:
-        print(f'[llm] call failed — {e}')
-        return None
+            try:
+                asyncio.get_running_loop()
+                loop_exists = True
+            except RuntimeError:
+                # No running loop (plain script) — the simple sync path.
+                loop_exists = False
+            
+            if not loop_exists:
+                return agent.run_sync(user_prompt).output
+            
+            # A loop is already running (Jupyter notebook / async caller). run_sync would raise,
+            # so run the async call in a worker thread that owns a fresh loop.
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                return pool.submit(lambda: asyncio.run(agent.run(user_prompt)).output).result()
+        except Exception as e:
+            err_msg = str(e)
+            is_rate_limit = any(x in err_msg.upper() for x in ['429', 'RESOURCE_EXHAUSTED', 'QUOTA', 'RATE_LIMIT', 'RATE LIMIT'])
+            if is_rate_limit and attempt < max_retries - 1:
+                sleep_time = backoff * (2 ** attempt)
+                print(f"[llm] Rate limited (429/RESOURCE_EXHAUSTED). Retrying in {sleep_time} seconds (attempt {attempt + 1}/{max_retries})...")
+                time.sleep(sleep_time)
+                continue
+            print(f'[llm] call failed — {e}')
+            return None
 
 
 if __name__ == '__main__':
