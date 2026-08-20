@@ -23,9 +23,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 1. Install Node.js dependencies
+# 1. Install Node.js dependencies (including dev tools required for compilation)
 COPY package*.json ./
-RUN npm install
+RUN npm install --include=dev
 
 # 2. Setup Python isolated virtual environment (.venv) and install quant dependencies
 COPY requirements.txt ./
@@ -37,7 +37,7 @@ RUN python3 -m venv .venv && \
 COPY . .
 
 # 4. Compile frontend with Vite and bundle Express server with esbuild into /dist
-RUN npm run build
+RUN npm run build && npm prune --production
 
 # 5. Ensure persistent data directory exists
 RUN mkdir -p /app/backend/01_scanner/data
