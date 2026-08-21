@@ -12,6 +12,7 @@ mplfinance
 alpaca-py
 alpaca-trade-api
 requests
+finnhub-python
 feedparser
 newsapi-python
 anthropic

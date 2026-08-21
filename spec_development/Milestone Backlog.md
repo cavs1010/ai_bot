@@ -10,16 +10,21 @@
 
 ## 💡 Candidates
 
-### Database Integration for Pipeline Execution History & Telemetry
+### Relational Run History & Audit Data Architecture (Portfolio, Scans, Gates & Executions)
 
 **Why it appeared:**  
-Currently, universe watchlists, pipeline telemetry, candidate decisions, and execution results exist ephemerally in memory or intermediate JSON files without durable long-term storage across sessions or restarts.
+Currently, universe watchlists, gate decisions, price zones, and execution results exist ephemerally in memory or runtime logs. Debugging why a stock was included in the universe or rejected by a specific gate requires re-running expensive LLM calls or APIs. Furthermore, there is no historical link between portfolio capital state at run time, scanner metric thresholds, gate evaluations, and broker order execution.
 
 **Potential Outcome:**  
-Connect the trading system to a dedicated persistent database to record every pipeline execution run, snapshot candidate status across all 5 intelligence gates, store risk metrics, and maintain a queryable audit log of historical trade orders.
+Implement a clean 5-table relational schema designed for deterministic auditing and run history:
+1. `pipeline_runs`: Root execution record (run ID, start/end timestamps, trigger type, status, environment).
+2. `portfolio_snapshots`: Financial & risk context at run start (cash balance, buying power, active positions).
+3. `scanned_stocks`: Candidate stocks passing universe & momentum scanner with exact debug filter metrics (price, 20d avg volume, relative volume, market cap, rank).
+4. `gate_evaluations`: Granular decisions per gate (Gates 1–5) storing exact evaluated inputs, thresholds, scores (threat prob, sentiment score, EV ratio, trade zones), and LLM reasoning.
+5. `order_executions`: Broker execution lifecycle linked directly to approved candidate stocks (Alpaca order ID, qty, limit price, fill price, status).
 
 **Why it might matter:**  
-Enables historical run comparison, performance tracking over time, post-trade audits, data resilience across server restarts, and a future historical runs analytics view in the UI.
+Provides 100% deterministic auditing and instant historical run analysis in the UI without re-querying APIs. Allows historical threshold tuning, risk review, and complete explainability from scanner discovery to trade execution.
 
 **Related to:**  
 [[Watchlist Generation & Dry-Run Pipeline Execution with Real-Time Funnel Telemetry]]

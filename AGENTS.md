@@ -37,6 +37,8 @@ Before starting any turn or task, verify these core constraints:
 10. ✋ **[Authorization / Queries]** **Answer First & Wait for Authorization**: When the user asks a conceptual question, clarification, or asks "does it make sense?", answer directly and NEVER modify code prematurely without explicit authorization to proceed.
 11. 🧠 **[Architecture / Simplicity]** **Deep Thinking Over Reflexive Complexity**: Never default to the first reflex idea. Step back, evaluate first principles, and seek the simplest, most efficient, and cleanest solution before proposing or coding.
 12. ❓ **[Specs / Context]** **Clarify Unknown Context First**: At any development stage, if critical context, requirements, or user preferences are unspecified, ask clarifying questions before proposing specs or solutions.
+13. 🎯 **[Architecture / Contracts]** **Strict Single Source of Truth & Zero Speculative Fallbacks**: Never use speculative fallback operators (e.g. `A || B`), duplicate aliases, or defensive guessing across contracts, schemas, or configs. Enforce one authoritative definition directly.
+14. 📦 **[Runtime / Dependencies]** **Explicit User Authorization & Justification for New Python Dependencies**: Never install new Python packages or modify dependency declarations without first explaining what the package is, what it does, and why it is required, and waiting for explicit user authorization.
 
 ---
 
@@ -118,5 +120,19 @@ When a new preference, lesson, or rule is identified during a session:
 - **Category**: Specs / Collaboration
 - **Rule**: At any stage of development, if critical context, requirements, constraints, or user preferences are unspecified, you MUST stop and ask clarifying questions first. NEVER assume requirements or jump straight into detailed speculative proposals.
 - **Guideline**: Building specifications or solutions on unverified assumptions wastes iterations and leads to misaligned architecture. Always identify missing context and align with the user first.
+
+### Lesson 13: Strict Single Source of Truth & Zero Speculative Fallback Branches
+- **Category**: Architecture / Simplicity
+- **Rule**: Never introduce speculative fallback chains, secondary aliases, or defensive "just-in-case" branch operators (`||`, dual-naming, or loose conditional fallbacks) across any contract, schema, configuration, or API interface. Every parameter, identifier, and contract MUST have exactly ONE authoritative definition.
+- **Guideline**: Defensive fallbacks blur system contracts, hide misconfigurations, create multiple competing paths of truth, and produce downstream noise. When an interface or key is defined, enforce that exact contract directly and fail explicitly if missing.
+
+### Lesson 14: Explicit User Authorization & Justification for New Python Dependencies
+- **Category**: Runtime / Dependencies
+- **Rule**: Never install or introduce new Python packages or modify dependency declarations without first explaining to the user:
+  1. What the package is
+  2. What capability it provides
+  3. Why it is strictly required
+  And waiting for explicit user authorization before running any installation commands.
+- **Guideline**: Speculative or unannounced package installations introduce dependency conflicts, bloat runtime environments, and undermine deployment predictability. Explicit human control must govern all runtime dependencies.
 
 
