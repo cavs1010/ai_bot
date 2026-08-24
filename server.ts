@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
 import { PATHS } from './server/config/paths';
 import { scannerRouter } from './server/routes/scannerRoutes';
 import { portfolioRouter } from './server/routes/portfolioRoutes';
@@ -36,6 +35,7 @@ async function startServer() {
     });
   } else {
     const frontendDir = path.resolve(process.cwd(), 'frontend');
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       configFile: path.resolve(frontendDir, 'vite.config.ts'),
       root: frontendDir,

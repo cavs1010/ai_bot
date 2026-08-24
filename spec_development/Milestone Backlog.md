@@ -10,21 +10,27 @@
 
 ## 💡 Candidates
 
-### Relational Run History & Audit Data Architecture (Portfolio, Scans, Gates & Executions)
+### Relational Run History, Parameter Configuration & Audit Data Architecture (Portfolio, Configs, Scans, Gates & Executions)
 
 **Why it appeared:**  
-Currently, universe watchlists, gate decisions, price zones, and execution results exist ephemerally in memory or runtime logs. Debugging why a stock was included in the universe or rejected by a specific gate requires re-running expensive LLM calls or APIs. Furthermore, there is no historical link between portfolio capital state at run time, scanner metric thresholds, gate evaluations, and broker order execution.
+Currently, universe watchlists, gate decisions, price zones, execution results, and runtime parameter thresholds exist ephemerally in memory or runtime logs. Debugging why a stock was included in the universe or rejected by a specific gate requires re-running expensive LLM calls or APIs. Furthermore, parameter adjustments (scanner thresholds, sentiment cutoffs, EV ratios, risk percentages) must be dynamically customizable yet strictly tied to historical runs so past executions remain 100% reproducible and explainable.
 
 **Potential Outcome:**  
-Implement a clean 5-table relational schema designed for deterministic auditing and run history:
-1. `pipeline_runs`: Root execution record (run ID, start/end timestamps, trigger type, status, environment).
-2. `portfolio_snapshots`: Financial & risk context at run start (cash balance, buying power, active positions).
-3. `scanned_stocks`: Candidate stocks passing universe & momentum scanner with exact debug filter metrics (price, 20d avg volume, relative volume, market cap, rank).
-4. `gate_evaluations`: Granular decisions per gate (Gates 1–5) storing exact evaluated inputs, thresholds, scores (threat prob, sentiment score, EV ratio, trade zones), and LLM reasoning.
-5. `order_executions`: Broker execution lifecycle linked directly to approved candidate stocks (Alpaca order ID, qty, limit price, fill price, status).
+Implement a clean relational schema with parameter configuration management designed for deterministic auditing and run history:
+1. `pipeline_configs`: Parameter presets and profiles (config ID, name, version, is_active/is_default, top-level risk columns, and structured `parameters_json` for fine-grained scanner & Gate 1–5 threshold tuning).
+2. `pipeline_runs`: Root execution record (run ID, foreign key `config_id`, immutable `config_snapshot` JSON freezing parameters at execution time, start/end timestamps, trigger type, status, environment).
+3. `portfolio_snapshots`: Financial & risk context at run start (cash balance, buying power, active positions).
+4. `scanned_stocks`: Candidate stocks passing universe & momentum scanner with exact debug filter metrics (price, 20d avg volume, relative volume, market cap, rank).
+5. `gate_evaluations`: Granular decisions per gate (Gates 1–5) storing exact evaluated inputs, thresholds, scores (threat prob, sentiment score, EV ratio, trade zones), and LLM reasoning.
+6. `order_executions`: Broker execution lifecycle linked directly to approved candidate stocks (Alpaca order ID, qty, limit price, fill price, status).
+
+**Architectural Decision (Hybrid Column + JSON Pattern):**
+- **Typed Columns**: Use for top-level identifiers, indexing, and high-level risk bounds (`config_id`, `name`, `version`, `risk_per_trade_pct`, `max_position_size_pct`).
+- **Structured JSON (`parameters_json` / `config_snapshot`)**: Use for nested, evolving scanner thresholds and Gate 1–5 parameters (`min_rvol_20d`, `min_momentum_score`, `gate2_threat_cutoff`, `gate3_sentiment_cutoff`, `gate5_min_ev_ratio`), validated via Pydantic/Zod schemas at the application boundary.
+- **Immutable Freezing**: Freezes the exact parameter snapshot into `pipeline_runs.config_snapshot` at the moment of execution so modifying a preset profile tomorrow never retroactively alters past audit trails.
 
 **Why it might matter:**  
-Provides 100% deterministic auditing and instant historical run analysis in the UI without re-querying APIs. Allows historical threshold tuning, risk review, and complete explainability from scanner discovery to trade execution.
+Provides 100% deterministic auditing and instant historical run analysis in the UI without re-querying APIs. Allows historical threshold tuning, A/B parameter performance comparisons, risk review, and complete explainability from parameter configuration to broker order execution.
 
 **Related to:**  
 [[Watchlist Generation & Dry-Run Pipeline Execution with Real-Time Funnel Telemetry]]
