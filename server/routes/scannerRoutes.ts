@@ -130,27 +130,47 @@ scannerRouter.get('/run/pipeline-fast', (req: Request, res: Response) => {
   });
 });
 
-// GET /api/run/live (SSE Stream for Full Scan with AI Gate 4)
-scannerRouter.get('/run/live', (req: Request, res: Response) => {
-  const symbol = (req.query.symbol as string) || '';
+// GET /api/run/trigger (SSE Stream for Full Scanner Pipeline)
+let isPipelineRunning = false;
 
+scannerRouter.get('/run/trigger', (req: Request, res: Response) => {
+  const runUniverse = req.query.runUniverse === 'true';
+  const placeOrders = req.query.placeOrders === 'true';
+  const ignoreMarketHours = req.query.ignoreMarketHours === 'true';
+  const livePortfolio = req.query.livePortfolio === 'true';
+
+  // Setup Server-Sent Events headers
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
+    'Cache-Control': 'no-cache, no-transform',
     Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
     'Access-Control-Allow-Origin': '*',
   });
 
-  const sendEvent = (event: string, data: unknown) => {
-    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  const sendEvent = (data: Record<string, unknown>) => {
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
   };
 
-  sendEvent('log', { message: '🚀 Starting Full Pipeline Run (AI Gate 4 Active)...' });
+  // Concurrency Guard: Prevent multiple concurrent runs
+  if (isPipelineRunning) {
+    sendEvent({
+      error: 'A scanner pipeline run is already in progress. Please wait for it to complete.',
+      done: true,
+    });
+    res.end();
+    return;
+  }
+
+  isPipelineRunning = true;
+
+  sendEvent({ log: '🚀 Initializing Momentum Scanner Pipeline...' });
 
   const args: string[] = [];
-  if (symbol) {
-    args.push('--symbol', symbol);
-  }
+  if (runUniverse) args.push('--run-universe');
+  if (placeOrders) args.push('--place-orders');
+  if (ignoreMarketHours) args.push('--ignore-market-hours');
+  if (livePortfolio) args.push('--live-portfolio');
 
   const child = PythonRunner.spawnProcess({
     scriptPath: PATHS.pipelineFullScript,
@@ -159,38 +179,59 @@ scannerRouter.get('/run/live', (req: Request, res: Response) => {
     onStdout: (chunk) => {
       const lines = chunk.split('\n');
       for (const line of lines) {
-        if (line.trim()) {
-          sendEvent('log', { message: line });
+        if (!line.trim()) continue;
+
+        // Check if stdout contains candidate or result JSON
+        if (line.startsWith('__CANDIDATE_UPDATE_JSON_START__')) {
+          try {
+            const jsonStr = line.replace('__CANDIDATE_UPDATE_JSON_START__', '').replace('__CANDIDATE_UPDATE_JSON_END__', '').trim();
+            const candidate = JSON.parse(jsonStr);
+            sendEvent({ candidate });
+            continue;
+          } catch {
+            // ignore json parse error on partial line
+          }
         }
+
+        sendEvent({ log: line });
       }
     },
     onStderr: (chunk) => {
       const lines = chunk.split('\n');
       for (const line of lines) {
         if (line.trim()) {
-          sendEvent('error', { message: line });
+          sendEvent({ log: `[stderr] ${line}` });
         }
       }
     },
   });
 
   child.on('close', (code) => {
+    isPipelineRunning = false;
+    const latest = ScannerService.getLatestRun();
+
     if (code === 0) {
-      const latest = ScannerService.getLatestRun();
-      sendEvent('complete', {
-        status: 'success',
-        results: latest.results || [],
+      sendEvent({
+        result: latest,
+        log: '✅ Pipeline execution completed successfully.',
+        done: true,
       });
     } else {
-      sendEvent('complete', {
-        status: 'error',
-        message: `Pipeline exited with code ${code}`,
+      sendEvent({
+        error: `Pipeline exited with non-zero exit code: ${code}`,
+        result: latest.status === 'success' ? latest : undefined,
+        done: true,
       });
     }
     res.end();
   });
 
   req.on('close', () => {
-    child.kill();
+    if (isPipelineRunning) {
+      console.log('[scannerRouter] Client disconnected, terminating pipeline subprocess...');
+      child.kill('SIGTERM');
+      isPipelineRunning = false;
+    }
   });
 });
+
