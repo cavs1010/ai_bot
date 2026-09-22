@@ -1,6 +1,7 @@
 # 🗺️ NOW — Active Milestone & Execution Plan
 
-> **Archived snapshot** of the completed Dokploy deployment milestone. Original working copy: `spec_development/NOW.md`.
+> **Archived snapshot** of the completed Dokploy deployment milestone.
+> Active work lives in [`spec_development/NOW.md`](../NOW.md).
 
 ---
 
@@ -20,10 +21,33 @@
 
 ## 🧩 Milestone Features
 
+### 🔵 Active Feature
+- *(None — Milestone complete.)*
+
+---
+
+### ⏭️ Next Features
+- *(None — Milestone complete.)*
+
+---
+
 ### ✅ Completed Features
 - **Feature 1: Production Build Pipeline & Standalone Server Verification** (Completed ✅ — Verified `npm run build` generates `dist/index.html` and `dist/server.cjs`, and `node dist/server.cjs` serves `/api/health` and static frontend).
 - **Feature 2: Multi-Runtime Production Dockerfile & .dockerignore** (Completed ✅ — Verified Debian Node 20 + Python 3.11 with `.venv`, layer caching, healthcheck, and AST validation).
 - **Feature 3: GitHub Auto-Deploy, Dokploy Configuration & Secrets Protocol** (Completed ✅ — Created `.env.example`, persistent volume mount spec for `/app/backend/01_scanner/data`, and step-by-step `DOKPLOY_DEPLOYMENT_GUIDE.md` for GitHub webhook auto-deploy on `main`, secrets, domain, and Let's Encrypt SSL).
+
+---
+
+## 🧠 Current Focus — Human Work
+
+- **Current Objective:** Milestone complete.
+- **Questions to Resolve:** None remaining for this milestone.
+- **Decisions Made:**
+  - Deployment target is Dokploy self-hosted PaaS on Hostinger VPS.
+  - Hybrid containerization using Debian-based Node 20 + Python 3.11 with `.venv`.
+  - Dokploy Auto-Deploy tracking `main` branch.
+  - Persistent volume mount for `/app/backend/01_scanner/data`.
+- **When This Is Finished:** The app is ready for live deployment on Dokploy with automatic CI/CD on every push to `main`.
 
 ---
 
@@ -38,6 +62,18 @@
 
 ---
 
+## 💡 Discovered Ideas
+- *Autonomous Execution Daemon (APScheduler / cron for pre-market and market open runs) → Captured in Milestone Backlog.*
+- *Discord / Telegram Webhook Notifications for trade execution alerts → Captured in Milestone Backlog.*
+
+---
+
+## 🚧 Blockers & Enabling Milestones
+- **Enabling Milestone:** `01_UI.md` (Completed ✅).
+- **Current Blockers:** None.
+
+---
+
 ## 🔍 Review
 - **Current Status:** `🟢 Approved` (All 3 features completed).
 - **Reviewer:** Human Lead.
@@ -45,27 +81,10 @@
 ---
 
 ## ✅ Milestone Closure
+- [x] All 3 features implemented and verified with tests.
+- [x] Production build and Dokploy deployment guide validated.
+- [x] Human review confirmed and approved.
 
 **Status:** 🟢 Completed
 
 **Completion Date:** 2026-09-22
-
-### Final Outcome
-
-Production build pipeline (`npm run build` → `dist/index.html` + `dist/server.cjs`), unified Node 20 + Python 3.11 Docker image with `.venv`, `.env.example` secrets protocol, persistent volume spec for `/app/backend/01_scanner/data`, and a step-by-step Dokploy guide for GitHub `main` auto-deploy, domain, and Let's Encrypt SSL.
-
-### Important Decisions
-
-- Deployment target is Dokploy self-hosted PaaS on Hostinger VPS.
-- Hybrid containerization using Debian-based Node 20 + Python 3.11 with `.venv`.
-- Dokploy Auto-Deploy tracking `main` branch.
-- Persistent volume mount for `/app/backend/01_scanner/data`.
-
-### Technical Debt / Intentionally Deferred Work
-
-- Autonomous Execution Daemon (APScheduler / cron) → Milestone Backlog.
-- Discord / Telegram webhook notifications → Milestone Backlog.
-
-### Next Milestone
-
-Not yet selected. Review `spec_development/Milestone Backlog.md` before creating the next `NOW.md`.

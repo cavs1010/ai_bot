@@ -6,84 +6,108 @@
 
 ## 🎯 Milestone
 
-- **Name:** `Dokploy Deployment & Production Containerization for Hostinger VPS`
-- **Expected Outcome:** The trading platform builds a clean, standalone production bundle (`npm run build`), packages into a unified Node.js 20 + Python 3.11 Docker container with isolated `.venv` dependencies, and is configured for automated GitHub CI/CD deployments on merge to `main` via Dokploy on Hostinger VPS with persistent volume mounts and verified health checks.
+- **Name:** `Repo Hygiene, Dead Code Removal & Frontend Split`
+- **Expected Outcome:** The repo has one spec system (`spec_development/`), no Jupyter notebooks, no leftover root junk or unused npm packages, a split dashboard UI instead of a monolithic `App.tsx`, one UI token file so a single color/type/radius/button change cascades everywhere, and a repeatable `npm run check` hygiene command so later changes cannot silently grow files, reintroduce notebooks, or leave dead dependencies.
 
 ### ✅ Completion Criteria
-- [x] **1. Production Build Pipeline (`npm run build`):** `vite build` generates the React frontend in `dist/` and `esbuild` bundles `server.ts` into `dist/server.cjs` with zero errors.
-- [x] **2. Standalone Server Lifecycle Test:** Server boots cleanly with `NODE_ENV=production node dist/server.cjs` on port 3000, serving static assets and API routes without development dependencies (`tsx`).
-- [x] **3. Unified Multi-Runtime `Dockerfile` & `.dockerignore`:** Debian-based container (Node 20 + Python 3.11) that installs `.venv` requirements, runs the production build, and exposes port 3000.
-- [x] **4. GitHub CI/CD & Auto-Deploy on `main`:** Clear branch and webhook deployment workflow defined for Dokploy on Hostinger VPS.
-- [x] **5. Persistent Storage & Secrets Protocol:** Persistent volume mapping for `/app/backend/01_scanner/data` (to persist watchlists and telemetry across redeploys) and complete `.env.example` secrets documentation.
+- [ ] **1. Inventory confirmed:** A written list of dead files, unused npm packages, and notebooks is presented and the human confirms what may be deleted.
+- [ ] **2. Dead artifacts removed:** All `*.ipynb` files are deleted from the repo. Root leftovers (`get-pip.py`, `metadata.json`, dual lockfiles) and unused npm packages are gone. No notebooks folder is kept.
+- [ ] **3. Spec unification:** `spec_development/` is the only spec source of truth. Docs and agent rules no longer point at the non-existent `spec/master.md` / iteration-roadmap workflow.
+- [ ] **4. UI tokens:** All visual properties are named once in `frontend/src/index.css` (`@theme`): color, type, radius, buttons, badges, inputs, three spacings. No second token file, no UI kit.
+- [ ] **5. Frontend split:** `frontend/src/App.tsx` is broken into dashboard components (header/portfolio, funnel, results, settings/dials, API hooks, types) that **only** use those token names. Changing a token (e.g. primary button color) updates every control that uses it. No leftover palette classes (`bg-teal-500`, `bg-rose-900`, mixed `red`/`rose`). No backend numbered-folder reshuffle.
+- [ ] **6. Hygiene CLI:** `npm run check` fails on leftover notebooks, unused declared JS deps, TypeScript compile errors, and any `.py` / `.ts` / `.tsx` over **400 lines** except the allowlisted dial board `backend/config.py`. `npm audit` is a separate optional security command, not this check.
 
 ---
 
 ## 🧩 Milestone Features
 
+> Execute **in this order**. Do not start the next feature until the active one is approved.
+
 ### 🔵 Active Feature
-- *(None — Milestone complete. Select the next milestone from the backlog.)*
+
+### Feature 1: Inventory (confirm before any delete)
+
+**Expected Outcome:**  
+A concrete inventory of: unused npm packages, root junk, every `*.ipynb`, docs/rules that still mention `spec/master.md`, and source files over 400 lines. Human replies that the list is the deletion set (or amends it). **No files are deleted in this feature.**
+
+**Status:** ⏳ Not started
 
 ---
 
 ### ⏭️ Next Features
-- *(None — Milestone complete.)*
+
+In the expected execution order:
+
+1. **Feature 2: Delete notebooks, root junk, unused npm packages** — Remove all Jupyter notebooks from the repo (no archive folder). Remove confirmed root leftovers and unused npm dependencies. Keep a single JS lockfile.
+2. **Feature 3: Spec unification** — Point `README.md`, `AGENTS.md`, `.agent_rules/`, and `.cursor/rules/` at `spec_development/NOW.md` only. Stop instructing agents to read `spec/master.md`.
+3. **Feature 4: UI token file** — Define the locked token set in `frontend/src/index.css` (`@theme`) only. Do not add `tokens.ts` or a design-system package. Do not split `App.tsx` in this feature.
+
+   **Token file contains only:**
+   - **Color:** `canvas`, `surface`, `border`, `text`, `text-muted`, `text-faint`, `accent`, `positive`, `danger`, `warning` (one danger hue; no mixing `red` and `rose`).
+   - **Type:** sans (UI) + mono (data). Same family for H1 and H2. Scale: H1 18/bold, H2 14/semibold, H3/card label 12/medium muted, eyebrow/badge 10/bold uppercase, display number 24/mono/bold, body 12–14.
+   - **Radius:** `sm` (chips), `md` (cards, buttons), `full` (toggles only).
+   - **Buttons (three roles, consume color/type/radius):** Primary (`accent` fill, dark text), Secondary (`surface` + `border`), Danger (`danger` fill). States: rest, hover, pressed, disabled/loading. Tabs = Secondary selected (`surface` + `accent` text). Toggles are not buttons (off = track; on = `danger` / `warning` / `accent`).
+   - **Badges:** eyebrow type + semantic color + tinted fill (`LIVE`/`SIM`, `BUY`/`SKIP`/`BLOCKED`, P&L). Not a fourth button role.
+   - **Inputs:** `surface` + `border`, mono for numbers, focus ring = `accent`, disabled = same as disabled buttons.
+   - **Spacing (three only):** page gutter, card padding, stack gap. No full spacing scale.
+   - **Not in the file:** extra fonts, shadow/z-index/animation scales, breakpoints, icon-size scale.
+4. **Feature 5: Split the dashboard (`App.tsx`)** — Modularize the cockpit (header/portfolio, funnel, candidate table, settings/dials, API hooks, types) so every component **references Feature 4 token names**. A leftover hardcoded `bg-teal-500` does not cascade — that is a Feature 5 failure. Do not rename `backend/00_data`–`04_execution`.
+5. **Feature 6: Hygiene CLI (`npm run check`)** — One command covering both JS and Python trees: no `*.ipynb`, line-count cap (400; allowlist `backend/config.py`), unused JS deps, `tsc`. Do not mix in `npm audit`. Do not add new npm packages without explicit authorization.
 
 ---
 
 ### ✅ Completed Features
-- **Feature 1: Production Build Pipeline & Standalone Server Verification** (Completed ✅ — Verified `npm run build` generates `dist/index.html` and `dist/server.cjs`, and `node dist/server.cjs` serves `/api/health` and static frontend).
-- **Feature 2: Multi-Runtime Production Dockerfile & .dockerignore** (Completed ✅ — Verified Debian Node 20 + Python 3.11 with `.venv`, layer caching, healthcheck, and AST validation).
-- **Feature 3: GitHub Auto-Deploy, Dokploy Configuration & Secrets Protocol** (Completed ✅ — Created `.env.example`, persistent volume mount spec for `/app/backend/01_scanner/data`, and step-by-step `DOKPLOY_DEPLOYMENT_GUIDE.md` for GitHub webhook auto-deploy on `main`, secrets, domain, and Let's Encrypt SSL).
+- *(None yet.)*
 
 ---
 
 ## 🧠 Current Focus — Human Work
 
-- **Current Objective:** Milestone complete. Review the backlog and choose the next milestone before starting new work.
-- **Questions to Resolve:** Which backlog candidate becomes the next milestone?
+- **Current Objective:** Approve Feature 1 (inventory) as the first execution step. No code or deletions until that list is confirmed.
+- **Questions to Resolve:** None.
 - **Decisions Made:**
-  - Deployment target is Dokploy self-hosted PaaS on Hostinger VPS.
-  - Hybrid containerization using Debian-based Node 20 + Python 3.11 with `.venv`.
-  - Dokploy Auto-Deploy tracking `main` branch.
-  - Persistent volume mount for `/app/backend/01_scanner/data`.
-- **When This Is Finished:** The app is ready for live deployment on Dokploy with automatic CI/CD on every push to `main`.
+  - Delete every Jupyter notebook from the repo. No `notebooks/` keep-folder.
+  - Completed Dokploy work stays archived as `02_Dokploy_Deployment.md`.
+  - Spec unification is in this milestone. Live spec system is `spec_development/` only.
+  - Line-count cap is **400** for `.py` / `.ts` / `.tsx`. `backend/config.py` is allowlisted as the strategy dial board.
+  - Do not reshuffle backend pipeline folders.
+  - Do not mix this milestone with the relational audit-history or autonomous-daemon backlog items.
+  - `npm audit` is not the cleanliness check.
+  - No in-app hygiene dashboard. Cleanliness is the CLI (`npm run check`) only.
+  - One UI token file: `frontend/src/index.css` (`@theme`). Named properties: color, type, radius, buttons, badges, inputs, three spacings. Change a token once → every component that uses that name updates. Components must not hardcode palette classes.
+- **When This Is Finished:** The repo is smaller, one-spec, modular on the UI side, and a single CLI check guards those rules.
 
 ---
 
 ## 🤖 AI Queue
 
-### AI Task 03: Create .env.example, Persistent Volume Specs & Step-by-Step Dokploy Guide
-- **Status:** ✅ Completed
-- **Results:**
-  - Created `.env.example` documenting all configuration keys (`APCA_API_KEY_ID`, `APCA_API_SECRET_KEY`, `APCA_API_BASE_URL`, `GEMINI_API_KEY`, fallbacks, and port settings) with zero committed secrets.
-  - Created comprehensive `DOKPLOY_DEPLOYMENT_GUIDE.md` detailing step-by-step instructions for GitHub connection, branch auto-deploy, persistent volume mount (`/app/backend/01_scanner/data`), environment secrets entry, domain configuration, and automated Let's Encrypt SSL.
-  - Verified compilation build with `compile_applet` (exit code 0).
+### AI Task 01: Produce the deletion/hygiene inventory
+- **Status:** ⏳ Not started — wait for human to say to start Feature 1.
+- **Scope:** List unused npm packages, root junk, all notebooks, `spec/master.md` references, and files over 400 lines. Present for confirmation. Do not delete.
 
 ---
 
 ## 💡 Discovered Ideas
-- *Autonomous Execution Daemon (APScheduler / cron for pre-market and market open runs) → Captured for the next milestone.*
-- *Discord / Telegram Webhook Notifications for trade execution alerts → Captured in Milestone Backlog.*
+- *Autonomous Execution Daemon → already in Milestone Backlog.*
+- *Discord / Telegram webhooks → already in Milestone Backlog.*
 
 ---
 
 ## 🚧 Blockers & Enabling Milestones
-- **Enabling Milestone:** `01_UI.md` (Completed ✅).
-- **Current Blockers:** None.
+- **Enabling Milestone:** `02_Dokploy_Deployment.md` (Completed ✅).
+- **Current Blockers:** None. Waiting for human go-ahead to run Feature 1 (inventory only).
 
 ---
 
 ## 🔍 Review
-- **Current Status:** `🟢 Approved` (All 3 features completed).
+- **Current Status:** `⏳ Spec ready` (not started).
 - **Reviewer:** Human Lead.
 
 ---
 
 ## ✅ Milestone Closure
-- [x] All 3 features implemented and verified with tests.
-- [x] Production build and Dokploy deployment guide validated.
-- [x] Human review confirmed and approved.
+- [ ] All 6 features implemented and verified.
+- [ ] `npm run check` passes on the cleaned tree.
+- [ ] Human review confirmed and approved.
 
-**Status:** 🟢 Completed
-
-**Completion Date:** 2026-09-22
+**Status:** ⏳ Not started
