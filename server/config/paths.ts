@@ -15,19 +15,33 @@ export const PATHS = {
   latestRunJson: path.join(PROJECT_ROOT, 'backend', '01_scanner', 'data', 'latest_run.json'),
   pipelineFullScript: path.join(PROJECT_ROOT, 'backend', 'run_pipeline_full.py'),
   pipelineFastScript: path.join(PROJECT_ROOT, 'backend', '01_scanner', 'run_pipeline_fast.py'),
-  venvPython: path.join(PROJECT_ROOT, '.venv', 'bin', 'python3'),
   dist: path.join(PROJECT_ROOT, 'dist'),
 } as const;
 
 /**
- * Returns the verified Python executable path (.venv/bin/python3).
- * Ensures compliance with AGENTS.md Lesson 9.
+ * Returns the project venv Python executable.
+ * Local README uses `venv/`; Docker production uses `.venv/`.
+ * Never falls back to system python (AGENTS.md Lesson 9).
  */
 export function getPythonExecutable(): string {
-  const venvPython = PATHS.venvPython;
-  if (fs.existsSync(venvPython)) {
-    return venvPython;
+  const candidates =
+    process.platform === 'win32'
+      ? [
+          path.join(PROJECT_ROOT, 'venv', 'Scripts', 'python.exe'),
+          path.join(PROJECT_ROOT, '.venv', 'Scripts', 'python.exe'),
+        ]
+      : [
+          path.join(PROJECT_ROOT, '.venv', 'bin', 'python3'),
+          path.join(PROJECT_ROOT, 'venv', 'bin', 'python3'),
+        ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
   }
-  // Fallback if running outside virtual environment
-  return 'python3';
+
+  throw new Error(
+    `Project venv Python not found. Checked:\n${candidates.join('\n')}`
+  );
 }
