@@ -16,8 +16,6 @@ import {
   ChevronDown,
   ChevronUp,
   Database,
-  ArrowUpRight,
-  ArrowDownRight,
   DollarSign,
   Layers,
   Sparkles,
@@ -30,8 +28,8 @@ import {
   Clock,
   Copy
 } from 'lucide-react';
-import { MarketClockBadge } from './components/MarketClockBadge';
 import { OrderToggles } from './cockpit/OrderToggles';
+import { PortfolioSummary } from './cockpit/PortfolioSummary';
 
 // Initial Mock Telemetry Data
 const initialTelemetry = {
@@ -1063,21 +1061,16 @@ export default function App() {
           {/* Right: Portfolio Summary Badge + Tab Switcher + Drawer Toggle */}
           <div className="flex items-center gap-1.5 shrink-0">
             {/* Quick Portfolio Badge (Clicking toggles drawer) */}
-            <button 
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-mono border transition-colors ${
-                portfolioError 
-                  ? 'bg-rose-950/50 border-rose-500/50 text-rose-300' 
-                  : 'bg-slate-900 border-slate-800'
-              }`}
-              title={portfolioError ? `Alpaca Error: ${portfolioError}` : "Toggle portfolio & settings detail"}
-            >
-              {portfolioError && <XCircle className="h-3 w-3 text-rose-400 shrink-0" />}
-              <span className="text-slate-200 font-semibold">${(telemetry.portfolio.value / 1000).toFixed(1)}k</span>
-              <span className={`text-[10px] ${telemetry.portfolio.daily_pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {telemetry.portfolio.daily_pnl >= 0 ? '+' : ''}{telemetry.portfolio.daily_pnl_pct}%
-              </span>
-            </button>
+            <PortfolioSummary
+              layout="compact"
+              portfolio={telemetry.portfolio}
+              maxPositions={dials.risk.MAX_OPEN_POSITIONS}
+              isFetching={isFetchingPortfolio}
+              lastSync={portfolioLastSync}
+              error={portfolioError}
+              onSync={() => fetchLivePortfolio(true)}
+              onOpen={() => setMobileMenuOpen(!mobileMenuOpen)}
+            />
 
             {/* Mobile Tab Switcher */}
             <div className="flex items-center bg-slate-900 p-0.5 rounded border border-slate-800">
@@ -1139,103 +1132,15 @@ export default function App() {
               showToast={showToast}
             />
 
-            {/* Portfolio Details Card */}
-            <div className="bg-slate-900/90 rounded-lg p-2.5 border border-slate-800 text-xs space-y-2">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-slate-400 pb-2 border-b border-slate-800">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                    <span className="font-semibold text-slate-200">Portfolio Overview</span>
-                    {portfolioLastSync && (
-                      <div className="text-[9px] text-slate-400 font-mono flex items-center gap-1 whitespace-nowrap bg-slate-950/70 px-1.5 py-0.5 rounded border border-slate-800">
-                        <Clock className="h-2.5 w-2.5 text-teal-400 shrink-0" />
-                        <span className="text-slate-500">Updated:</span>
-                        <span className="text-slate-300 font-semibold">{portfolioLastSync}</span>
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    id="btn_sync_alpaca_mobile_mini"
-                    onClick={() => fetchLivePortfolio(true)}
-                    className="sm:hidden flex items-center gap-1 text-[10px] text-teal-400 hover:text-teal-300 bg-slate-800 px-2 py-0.5 rounded border border-slate-700 cursor-pointer active:scale-95 transition-all shrink-0"
-                    title="Sync Alpaca Portfolio"
-                  >
-                    <RefreshCw className={`h-2.5 w-2.5 ${isFetchingPortfolio ? 'animate-spin' : ''}`} />
-                    Sync
-                  </button>
-                </div>
-                <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto overflow-hidden">
-                  <MarketClockBadge lastSyncTime={portfolioLastSync} />
-                  <button
-                    id="btn_sync_alpaca_mobile"
-                    onClick={() => fetchLivePortfolio(true)}
-                    className="hidden sm:flex items-center gap-1 text-[11px] text-teal-400 hover:text-teal-300 bg-slate-800 px-2 py-0.5 rounded border border-slate-700 cursor-pointer active:scale-95 transition-all shrink-0"
-                  >
-                    <RefreshCw className={`h-3 w-3 ${isFetchingPortfolio ? 'animate-spin' : ''}`} />
-                    Sync Alpaca
-                  </button>
-                </div>
-              </div>
-
-              {portfolioError && (
-                <div className="p-2 bg-rose-950/80 border border-rose-800/80 rounded text-[11px] text-rose-200 flex items-start gap-1.5 min-w-0">
-                  <XCircle className="h-3.5 w-3.5 text-rose-400 shrink-0 mt-0.5" />
-                  <div className="min-w-0 flex-1 break-words">
-                    <span className="font-bold text-rose-300">Alpaca Error: </span>
-                    <span className="font-mono text-rose-200 text-[10px] leading-tight">{portfolioError}</span>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-2 font-mono">
-                <div>
-                  <div className="text-[10px] text-slate-500 font-sans">Portfolio Value</div>
-                  {isFetchingPortfolio ? (
-                    <div className="flex items-center gap-1.5 text-teal-400 font-mono text-xs mt-0.5 animate-pulse">
-                      <Loader2 className="h-3 w-3 animate-spin shrink-0" />
-                      <span className="text-[10px] text-slate-400 font-sans font-medium">Updating...</span>
-                    </div>
-                  ) : (
-                    <div className="text-slate-100 font-bold">${telemetry.portfolio.value.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
-                  )}
-                </div>
-                <div>
-                  <div className="text-[10px] text-slate-500 font-sans">Daily P&L</div>
-                  {isFetchingPortfolio ? (
-                    <div className="flex items-center gap-1.5 text-teal-400 font-mono text-xs mt-0.5 animate-pulse">
-                      <Loader2 className="h-3 w-3 animate-spin shrink-0" />
-                      <span className="text-[10px] text-slate-400 font-sans font-medium">Updating...</span>
-                    </div>
-                  ) : (
-                    <div className={`font-bold ${telemetry.portfolio.daily_pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {telemetry.portfolio.daily_pnl >= 0 ? '+' : ''}${telemetry.portfolio.daily_pnl.toLocaleString(undefined, {minimumFractionDigits: 2})} ({telemetry.portfolio.daily_pnl_pct}%)
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <div className="text-[10px] text-slate-500 font-sans">Open Positions</div>
-                  {isFetchingPortfolio ? (
-                    <div className="flex items-center gap-1.5 text-teal-400 font-mono text-xs mt-0.5 animate-pulse">
-                      <Loader2 className="h-3 w-3 animate-spin shrink-0" />
-                      <span className="text-[10px] text-slate-400 font-sans font-medium">Updating...</span>
-                    </div>
-                  ) : (
-                    <div className="text-slate-200 font-semibold">{telemetry.portfolio.open_positions} / {dials.risk.MAX_OPEN_POSITIONS} max</div>
-                  )}
-                </div>
-                <div>
-                  <div className="text-[10px] text-slate-500 font-sans">VIX Level</div>
-                  <div className="text-slate-200 font-semibold">{telemetry.portfolio.vix_level} <span className="text-[9px] text-emerald-400 font-sans">(Calm)</span></div>
-                </div>
-                <div>
-                  <div className="text-[10px] text-slate-500 font-sans">SPY Change</div>
-                  <div className="text-emerald-400 font-semibold">+{telemetry.portfolio.spy_change_pct}%</div>
-                </div>
-                <div>
-                  <div className="text-[10px] text-slate-500 font-sans">Macro Event</div>
-                  <div className="text-slate-300 font-semibold">{telemetry.portfolio.hours_to_next_macro} hrs</div>
-                </div>
-              </div>
-            </div>
+            <PortfolioSummary
+              layout="drawer"
+              portfolio={telemetry.portfolio}
+              maxPositions={dials.risk.MAX_OPEN_POSITIONS}
+              isFetching={isFetchingPortfolio}
+              lastSync={portfolioLastSync}
+              error={portfolioError}
+              onSync={() => fetchLivePortfolio(true)}
+            />
           </div>
         )}
 
@@ -1306,122 +1211,27 @@ export default function App() {
             </div>
           </div>
 
-          {/* Portfolio Live Indicators Banner (Desktop) */}
-          <div className={`border-t px-4 py-2.5 sm:px-6 lg:px-8 text-xs text-slate-300 transition-colors ${
-            placeOrders ? 'bg-red-950/20 border-red-900/30' : 'bg-slate-950/60 border-slate-850'
-          }`}>
-            <div className="max-w-7xl mx-auto flex flex-wrap gap-y-2 items-center justify-between">
-              <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
-                <span className="flex items-center gap-1.5">
-                  <span className="text-slate-500 font-medium">Portfolio value:</span>
-                  {isFetchingPortfolio ? (
-                    <span className="inline-flex items-center gap-1 text-teal-400 font-mono font-semibold animate-pulse">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      <span className="text-[11px] text-slate-400">Updating...</span>
-                    </span>
-                  ) : (
-                    <span className="text-slate-100 font-mono font-semibold">${telemetry.portfolio.value.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
-                  )}
-                  <button
-                    id="btn_sync_alpaca_desktop"
-                    onClick={() => fetchLivePortfolio(true)}
-                    title="Sync live portfolio from Alpaca"
-                    className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-teal-400 transition-colors cursor-pointer ml-0.5 active:scale-95"
-                  >
-                    <RefreshCw className={`h-3 w-3 ${isFetchingPortfolio ? 'animate-spin text-teal-400' : ''}`} />
-                  </button>
-                  {portfolioLastSync && !isFetchingPortfolio && (
-                    <span 
-                      id="portfolio_last_sync_badge"
-                      className="text-[10px] text-slate-400 font-mono flex items-center gap-1 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800 ml-1" 
-                      title="Alpaca portfolio last synchronized timestamp"
-                    >
-                      <Clock className="h-2.5 w-2.5 text-teal-400" />
-                      <span className="text-slate-500">Updated:</span>
-                      <span className="text-slate-300">{portfolioLastSync}</span>
-                    </span>
-                  )}
-                  <MarketClockBadge lastSyncTime={portfolioLastSync} className="ml-2" />
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="text-slate-500 font-medium">Daily P&L:</span>
-                  {isFetchingPortfolio ? (
-                    <span className="inline-flex items-center gap-1 text-teal-400 font-mono font-semibold animate-pulse">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      <span className="text-[11px] text-slate-400">Updating...</span>
-                    </span>
-                  ) : (
-                    <span className={`font-semibold font-mono flex items-center ${telemetry.portfolio.daily_pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {telemetry.portfolio.daily_pnl >= 0 ? '+' : ''}${telemetry.portfolio.daily_pnl.toLocaleString(undefined, {minimumFractionDigits: 2})} 
-                      <span className="text-[10px] ml-1">({telemetry.portfolio.daily_pnl_pct}%)</span>
-                      {telemetry.portfolio.daily_pnl >= 0 ? <ArrowUpRight className="h-3 w-3 ml-0.5" /> : <ArrowDownRight className="h-3 w-3 ml-0.5" />}
-                    </span>
-                  )}
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="text-slate-500 font-medium">Positions:</span>
-                  {isFetchingPortfolio ? (
-                    <span className="inline-flex items-center gap-1 text-teal-400 font-mono font-semibold animate-pulse">
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                      <span className="text-[11px] text-slate-400">Updating...</span>
-                    </span>
-                  ) : (
-                    <span className="text-slate-100 font-semibold">{telemetry.portfolio.open_positions} <span className="text-slate-500">/ {dials.risk.MAX_OPEN_POSITIONS} max</span></span>
-                  )}
-                </span>
-                <span className="flex items-center gap-1.5 border-l border-slate-800 pl-4">
-                  <span className="text-slate-500 font-medium">VIX:</span>
-                  <span className="text-slate-100 font-semibold">{telemetry.portfolio.vix_level}</span>
-                  <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1 py-0.2 rounded border border-emerald-500/10">Calm</span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="text-slate-500 font-medium">SPY Change:</span>
-                  <span className="text-emerald-400 font-semibold font-mono">+{telemetry.portfolio.spy_change_pct}%</span>
-                </span>
-              </div>
-              <div className="flex items-center gap-4 text-slate-400">
-                {placeOrders && (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1 animate-pulse">
-                    <AlertTriangle className="h-3 w-3" /> LIVE TRADES ACTIVE
-                  </span>
-                )}
-                <span className="flex items-center gap-1">
-                  <span className={`inline-block w-1.5 h-1.5 rounded-full ${
-                    telemetry.portfolio.hours_to_next_macro !== null && telemetry.portfolio.hours_to_next_macro <= 2.0 
-                      ? 'bg-amber-400 animate-ping' 
-                      : 'bg-emerald-500'
-                  }`}></span>
-                  <span className="text-slate-500">Macro Event:</span>
-                  <span className="text-slate-300 font-medium">
-                    {telemetry.portfolio.hours_to_next_macro !== null && telemetry.portfolio.hours_to_next_macro !== undefined
-                      ? `${telemetry.portfolio.hours_to_next_macro} hrs`
-                      : 'None (>24h)'}
-                  </span>
-                </span>
-              </div>
-            </div>
-          </div>
+          <PortfolioSummary
+            layout="banner"
+            portfolio={telemetry.portfolio}
+            maxPositions={dials.risk.MAX_OPEN_POSITIONS}
+            isFetching={isFetchingPortfolio}
+            lastSync={portfolioLastSync}
+            error={portfolioError}
+            onSync={() => fetchLivePortfolio(true)}
+            liveTrades={placeOrders}
+          />
         </div>
 
-        {/* Portfolio Connection Error Banner (Yells when API fails) */}
-        {portfolioError && (
-          <div className="bg-rose-950/95 border-t border-b border-rose-800 text-rose-200 px-3 py-2.5 sm:px-4 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-lg w-full">
-            <div className="flex items-start sm:items-center gap-2 min-w-0 flex-1">
-              <XCircle className="h-4 w-4 text-rose-400 shrink-0 mt-0.5 sm:mt-0" />
-              <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 min-w-0 flex-1">
-                <span className="font-bold text-rose-300 uppercase tracking-wide shrink-0 text-[11px] sm:text-xs">Alpaca API Error:</span>
-                <span className="font-mono text-rose-100 text-[11px] break-words leading-snug">{portfolioError}</span>
-              </div>
-            </div>
-            <button 
-              onClick={fetchLivePortfolio}
-              className="px-2.5 py-1 bg-rose-900 hover:bg-rose-800 text-rose-100 rounded text-[11px] font-semibold flex items-center justify-center gap-1.5 border border-rose-700 transition-all cursor-pointer shrink-0 w-full sm:w-auto mt-1 sm:mt-0"
-            >
-              <RefreshCw className={`h-3 w-3 ${isFetchingPortfolio ? 'animate-spin' : ''}`} />
-              Retry Connection
-            </button>
-          </div>
-        )}
+        <PortfolioSummary
+          layout="error"
+          portfolio={telemetry.portfolio}
+          maxPositions={dials.risk.MAX_OPEN_POSITIONS}
+          isFetching={isFetchingPortfolio}
+          lastSync={portfolioLastSync}
+          error={portfolioError}
+          onSync={() => fetchLivePortfolio(true)}
+        />
 
         {/* Pipeline Run Execution Error Banner */}
         {pipelineRunError && (
