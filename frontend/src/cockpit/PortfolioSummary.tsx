@@ -1,5 +1,5 @@
 import { XCircle } from 'lucide-react';
-import { MarketClockBadge } from '../components/MarketClockBadge';
+import { MarketClockBadge } from './MarketClockBadge';
 import { Badge } from '../components/ui/badge';
 import { ErrorNotice } from '../components/ui/error-notice';
 import { Stat, type StatMark, type StatTone } from '../components/ui/stat';
