@@ -11,10 +11,9 @@ Rules for every new function and module in this project. They keep the backend c
 
 **Before planning or coding:**
 
-1. Read [`spec/master.md`](../spec/master.md) → **Current iteration**
-2. Read the active `spec/iteration-NN-roadmap.md`
-3. Follow [`karpathy_rules.md`](./karpathy_rules.md) — simplicity, surgical changes, verifiable success criteria
-4. Follow [`spec-development.md`](./spec-development.md) when editing anything under `spec/`
+1. Read [`spec_development/NOW.md`](../spec_development/NOW.md) and work only on the active feature
+2. Follow [`karpathy_rules.md`](./karpathy_rules.md) — simplicity, surgical changes, verifiable success criteria
+3. Follow [`spec-development.md`](./spec-development.md) when editing anything under `spec_development/`
 
 ---
 
@@ -31,14 +30,13 @@ Before writing a function, decide:
 | Is this a fetcher or pure logic? | Fetchers wrap external I/O; pure functions don't |
 | Who calls it and what do they do on failure? | Callers should not need to guess |
 
-If the roadmap or caller contract is unclear, stop and ask — don't pick silently.
+If the active feature or caller contract is unclear, stop and ask — don't pick silently.
 
 State a brief plan for non-trivial functions:
 
 ```
 1. [Implement fetch / transform] → verify: python backend/<path>/<module>.py
 2. [Test failure path]           → verify: bad input → expected contract, no crash
-3. [Notebook smoke test]         → verify: companion *_playground.ipynb cells run
 ```
 
 ---
@@ -247,8 +245,7 @@ Before marking a function done, verify all checks:
 |-------|------------------|----------|
 | Happy path | `python backend/<layer>/<module>.py` | Correct output, no traceback |
 | Failure path | Invalid input or missing key in `__main__` | Warning printed, contract honored, no crash |
-| Import check | `from <module> import <function>` in notebook or REPL | No import errors |
-| Notebook | Run companion `*_playground.ipynb` cells | Setup → happy → variations → failure → free-play |
+| Import check | `from <module> import <function>` in a REPL | No import errors |
 
 Transform vague tasks into verifiable goals:
 
@@ -257,42 +254,9 @@ Transform vague tasks into verifiable goals:
 
 ---
 
-## 9. Companion Notebook — Required for Every Module
+## 9. Verify the Module
 
-Every module gets a companion notebook for exploration and manual verification.
-
-**Location:** same folder as the `.py` file  
-**Naming:** `<module_name>_playground.ipynb`
-
-```
-backend/
-├── 00_data/
-│   ├── data_fetcher.py
-│   └── data_fetcher_playground.ipynb
-├── 02_intelligence/helpers/
-│   ├── market.py
-│   └── market_playground.ipynb
-```
-
-**Required cells (in order):**
-
-| Cell | Purpose |
-|------|---------|
-| Setup & import | `sys.path` fix + import the function |
-| Happy path | Call with valid input, display output |
-| Parameter variations | Show what changes when args change |
-| Failure path | Call with bad input, confirm graceful failure |
-| Free-play | Empty cell for ad-hoc experimentation |
-
-**Import pattern** (Jupyter launched from project root):
-
-```python
-import sys
-sys.path.insert(0, 'backend/02_intelligence/helpers')
-from market import get_vix_snapshot
-```
-
-For modules under `02_intelligence/helpers/`, the notebook may also use the same `pathlib`/`sys.path` pattern as the `.py` file when importing sibling modules.
+Run `python backend/<layer>/<module>.py` from the project root. Confirm the happy path and the failure path. Do not add a Jupyter notebook.
 
 ---
 
@@ -304,8 +268,7 @@ A function is done when:
 - [ ] Type hints and docstring (Args + Returns) are complete
 - [ ] `python backend/<layer>/<module>.py` runs without errors
 - [ ] Failure path tested — return contract honored, no crash
-- [ ] Companion `*_playground.ipynb` created and cells execute
-- [ ] Roadmap item checked off in the active `spec/iteration-NN-roadmap.md`
+- [ ] Work stays inside the active feature in `spec_development/NOW.md`
 
 ---
 
