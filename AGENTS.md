@@ -39,6 +39,7 @@ Before starting any turn or task, verify these core constraints:
 12. ❓ **[Specs / Context]** **Clarify Unknown Context First**: At any development stage, if critical context, requirements, or user preferences are unspecified, ask clarifying questions before proposing specs or solutions.
 13. 🎯 **[Architecture / Contracts]** **Strict Single Source of Truth & Zero Speculative Fallbacks**: Never use speculative fallback operators (e.g. `A || B`), duplicate aliases, or defensive guessing across contracts, schemas, or configs. Enforce one authoritative definition directly.
 14. 📦 **[Runtime / Dependencies]** **Explicit User Authorization & Justification for New Python Dependencies**: Never install new Python packages or modify dependency declarations without first explaining what the package is, what it does, and why it is required, and waiting for explicit user authorization.
+15. 🎨 **[UI / Components]** **One File Per Reusable Control**: A reusable control (switch, button, input, badge) lives in its own file under `frontend/src/components/ui/`. The screen or pattern that uses it imports that file. Never define the control in the file that consumes it.
 
 ---
 
@@ -134,5 +135,10 @@ When a new preference, lesson, or rule is identified during a session:
   3. Why it is strictly required
   And waiting for explicit user authorization before running any installation commands.
 - **Guideline**: Speculative or unannounced package installations introduce dependency conflicts, bloat runtime environments, and undermine deployment predictability. Explicit human control must govern all runtime dependencies.
+
+### Lesson 15: One File Per Reusable UI Control
+- **Category**: UI
+- **Rule**: A reusable UI control (switch, button, input, badge) MUST live in its own file under `frontend/src/components/ui/`. The pattern or screen that uses it imports that file. Never define the control inside the file that consumes it.
+- **Guideline**: The control stays agnostic of the screen. It knows how the piece looks and how it turns on or off. The consumer supplies the labels, tone, and behavior. Example: `Switch` is `frontend/src/components/ui/switch.tsx`; `frontend/src/cockpit/OrderToggles.tsx` imports it twice and only passes the live-trades and market-hours cases.
 
 

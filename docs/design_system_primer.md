@@ -89,18 +89,35 @@ Each recurring piece of the interface is built **once**, from foundations only.
 A component has **variants** instead of copies: `<Button variant="primary">`,
 `<Button variant="danger">`. Change the component file once and every use changes.
 
+**The file rule.** Each control is its own file under `frontend/src/components/ui/`. That file
+knows how the control looks and how it turns on or off. It does not know which screen uses it.
+A pattern or a screen **imports** that file. It never defines the control again inside the file
+that uses it.
+
+The look (colours, radius, the `.toggle`, `.btn`, `.badge`, and `.input` classes) stays in
+`frontend/src/index.css`. The React file only applies those classes.
+
+Example: `frontend/src/components/ui/switch.tsx` exports `Switch`.
+
 ### Layer 3: Patterns (recurring combinations)
 
-Solutions to problems that come up again and again, built from components:
+Solutions to problems that come up again and again, built by **importing** layer 2 controls:
 
 - "Ask for confirmation before deleting something"
 - "A list with a search box and filters"
 - "A step-by-step flow with Back / Next"
 
+A pattern supplies the labels, the tone, and what happens on click. It does not redraw the
+control.
+
+Example: `frontend/src/cockpit/OrderToggles.tsx` imports `Switch` twice. One case is live
+trades. The other is market hours.
+
 ### Layer 4: Screens
 
 Screens **only assemble** layers 2 and 3: "a card with a title, two inputs and a primary
 button". A screen never decides what a button looks like; it just says "a button goes here".
+It imports the pattern or the control. It does not contain a private copy of either.
 
 ---
 
@@ -111,8 +128,8 @@ button". A screen never decides what a button looks like; it just says "a button
 3. **Document them** in a style guide, generated from the source where possible, so it cannot
    drift.
 4. **Build screens only from components.**
-5. **When something new is needed, add it to the system first**, then use it. Never make a
-   one-off.
+5. **When something new is needed, add it to the system first**, as its own file under
+   `frontend/src/components/ui/`, then import it. Never make a one-off inside the screen.
 
 Step 5 is the discipline that keeps an app consistent as it grows. Skipping it is how apps end up
 with 60 slightly different buttons.
@@ -165,16 +182,16 @@ Figma, a fully native Swift/Kotlin app, or email templates.
 
 ## 7. Map of this project
 
+This is the structure to follow. One file per control. Patterns and screens import it.
+
 | Layer | Where it lives |
 |---|---|
-| Colours | `src/theme/tokens.css`: shared colours in `:root`, per-theme in `@variant dark` / `@variant light` |
-| Fonts | `src/theme/tokens.css` `@theme` (`--font-sans`, `--font-mono`); downloaded in `src/index.css` (web only) |
-| Spacing, radius, type scale, shadows, motion | Tailwind's built-in defaults |
-| Icons | Lucide: `lucide-react` (web), `lucide-react-native` (phone) |
-| Components | `src/components/`; see `NOW.md` for the status of the shared component layer |
-| Style guide | `spec_development/STYLE_GUIDE.html`, **generated** by `npm run style-guide` from `tokens.css` and `style-guide.template.html`; never edited by hand |
-| Rules | `agent-rules/frontend.md` (§1–§4 appearance, §3 native theming) |
-| How it is wired | `docs/architecture.md`, *Appearance* |
+| Foundations (colour, type, radius, spacing) | `frontend/src/index.css`, the `@theme` block only. No second token file. |
+| Component look (button, badge, input, toggle classes) | `frontend/src/index.css`, the `@layer components` block. |
+| Components (the React controls) | One file each in `frontend/src/components/ui/`. Example: `switch.tsx` exports `Switch`. |
+| Patterns | `frontend/src/cockpit/`. They import controls and pass the labels and behaviour. Example: `OrderToggles.tsx` imports `Switch` twice. |
+| Screens | `frontend/src/App.tsx` assembles patterns and controls. It does not define them. |
+| Icons | Lucide (`lucide-react`) |
 
 ---
 
