@@ -31,6 +31,7 @@ import {
   Copy
 } from 'lucide-react';
 import { MarketClockBadge } from './components/MarketClockBadge';
+import { OrderToggles } from './cockpit/OrderToggles';
 
 // Initial Mock Telemetry Data
 const initialTelemetry = {
@@ -1130,82 +1131,13 @@ export default function App() {
         {/* MOBILE EXPANDABLE DRAWER SHEET (md:hidden) */}
         {mobileMenuOpen && (
           <div className="md:hidden bg-slate-950 border-t border-slate-800 p-3 space-y-3 animate-in slide-in-from-top duration-200 shadow-2xl max-h-[80vh] overflow-y-auto">
-            {/* Toggles Row */}
-            <div className="grid grid-cols-2 gap-2">
-              {/* Live Orders Switch */}
-              <div className={`p-2 rounded-lg border flex flex-col justify-between gap-1.5 ${
-                placeOrders 
-                  ? 'bg-red-950/40 border-red-500/50 text-red-300' 
-                  : 'bg-slate-900 border-slate-800 text-slate-400'
-              }`}>
-                <div className="flex items-center justify-between">
-                  <span className={`text-[10px] font-bold uppercase tracking-wider ${placeOrders ? 'text-red-400' : 'text-slate-300'}`}>
-                    {placeOrders ? 'LIVE TRADES ON' : 'SIMULATION'}
-                  </span>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={placeOrders}
-                    onClick={() => {
-                      const nextVal = !placeOrders;
-                      setPlaceOrders(nextVal);
-                      if (nextVal) {
-                        showToast("⚠️ Live Order Execution ENABLED! Real paper orders will be submitted to Alpaca.");
-                      } else {
-                        showToast("ℹ️ Returned to Simulation / Paper Mode (placeOrders=false).");
-                      }
-                    }}
-                    className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      placeOrders ? 'bg-red-500' : 'bg-slate-700'
-                    }`}
-                  >
-                    <span
-                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                        placeOrders ? 'translate-x-4' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                </div>
-                <span className="text-[9px] text-slate-500 font-mono">placeOrders={placeOrders ? 'true' : 'false'}</span>
-              </div>
-
-              {/* Force Closed Market Orders Switch */}
-              <div className={`p-2 rounded-lg border flex flex-col justify-between gap-1.5 ${
-                ignoreMarketHours 
-                  ? 'bg-amber-950/40 border-amber-500/50 text-amber-300' 
-                  : 'bg-slate-900 border-slate-800 text-slate-400'
-              }`}>
-                <div className="flex items-center justify-between">
-                  <span className={`text-[10px] font-bold uppercase tracking-wider ${ignoreMarketHours ? 'text-amber-400' : 'text-slate-300'}`}>
-                    {ignoreMarketHours ? 'FORCE CLOSED' : 'CLOCK ENFORCED'}
-                  </span>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={ignoreMarketHours}
-                    onClick={() => {
-                      const nextVal = !ignoreMarketHours;
-                      setIgnoreMarketHours(nextVal);
-                      if (nextVal) {
-                        showToast("⚠️ Force Closed Market Orders ENABLED! Orders will be placed/queued even when market is closed.");
-                      } else {
-                        showToast("ℹ️ Market Clock Enforcement ENABLED (Orders blocked outside market hours).");
-                      }
-                    }}
-                    className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      ignoreMarketHours ? 'bg-amber-500' : 'bg-slate-700'
-                    }`}
-                  >
-                    <span
-                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                        ignoreMarketHours ? 'translate-x-4' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                </div>
-                <span className="text-[9px] text-slate-500 font-mono">ignoreMarketHours={ignoreMarketHours ? 'true' : 'false'}</span>
-              </div>
-            </div>
+            <OrderToggles
+              placeOrders={placeOrders}
+              ignoreMarketHours={ignoreMarketHours}
+              setPlaceOrders={setPlaceOrders}
+              setIgnoreMarketHours={setIgnoreMarketHours}
+              showToast={showToast}
+            />
 
             {/* Portfolio Details Card */}
             <div className="bg-slate-900/90 rounded-lg p-2.5 border border-slate-800 text-xs space-y-2">
@@ -1336,106 +1268,14 @@ export default function App() {
 
             <div className="flex flex-wrap items-center gap-4">
               
-              {/* Live Order Execution Toggle Switch */}
-              <div 
-                id="live_orders_switch_container"
-                className={`flex items-center gap-3 px-3 py-1.5 rounded-lg border transition-all ${
-                  placeOrders 
-                    ? 'bg-red-950/40 border-red-500/50 text-red-300 shadow-md shadow-red-950/50 ring-1 ring-red-500/30' 
-                    : 'bg-slate-900 border-slate-800 text-slate-400'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  {placeOrders ? (
-                    <AlertTriangle className="h-4 w-4 text-red-400 animate-pulse" />
-                  ) : (
-                    <Activity className="h-4 w-4 text-slate-500" />
-                  )}
-                  <div className="flex flex-col">
-                    <span className={`text-[11px] font-bold leading-tight ${placeOrders ? 'text-red-400' : 'text-slate-300'}`}>
-                      {placeOrders ? 'LIVE TRADES ON' : 'SIMULATION MODE'}
-                    </span>
-                    <span className="text-[9px] text-slate-500 font-mono">
-                      placeOrders = {placeOrders ? 'true' : 'false'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Toggle Switch Button */}
-                <button
-                  id="toggle_place_orders_switch"
-                  type="button"
-                  role="switch"
-                  aria-checked={placeOrders}
-                  onClick={() => {
-                    const nextVal = !placeOrders;
-                    setPlaceOrders(nextVal);
-                    if (nextVal) {
-                      showToast("⚠️ Live Order Execution ENABLED! Real paper orders will be submitted to Alpaca.");
-                    } else {
-                      showToast("ℹ️ Returned to Simulation / Paper Mode (placeOrders=false).");
-                    }
-                  }}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                    placeOrders ? 'bg-red-500 focus:ring-red-500 ring-offset-slate-950' : 'bg-slate-700 focus:ring-teal-500 ring-offset-slate-950'
-                  }`}
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                      placeOrders ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {/* Force Closed Market Orders Toggle Switch */}
-              <div 
-                id="ignore_market_hours_switch_container"
-                className={`flex items-center gap-3 px-3 py-1.5 rounded-lg border transition-all ${
-                  ignoreMarketHours 
-                    ? 'bg-amber-950/40 border-amber-500/50 text-amber-300 shadow-md shadow-amber-950/50 ring-1 ring-amber-500/30' 
-                    : 'bg-slate-900 border-slate-800 text-slate-400'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Clock className={`h-4 w-4 ${ignoreMarketHours ? 'text-amber-400 animate-pulse' : 'text-slate-500'}`} />
-                  <div className="flex flex-col">
-                    <span className={`text-[11px] font-bold leading-tight ${ignoreMarketHours ? 'text-amber-400' : 'text-slate-300'}`}>
-                      {ignoreMarketHours ? 'FORCE CLOSED ORDERS' : 'CLOCK ENFORCED'}
-                    </span>
-                    <span className="text-[9px] text-slate-500 font-mono">
-                      ignoreMarketHours = {ignoreMarketHours ? 'true' : 'false'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Toggle Switch Button */}
-                <button
-                  id="toggle_ignore_market_hours_switch"
-                  type="button"
-                  role="switch"
-                  aria-checked={ignoreMarketHours}
-                  onClick={() => {
-                    const nextVal = !ignoreMarketHours;
-                    setIgnoreMarketHours(nextVal);
-                    if (nextVal) {
-                      showToast("⚠️ Force Closed Market Orders ENABLED! Orders will be placed/queued even when market is closed.");
-                    } else {
-                      showToast("ℹ️ Market Clock Enforcement ENABLED (Orders blocked outside market hours).");
-                    }
-                  }}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                    ignoreMarketHours ? 'bg-amber-500 focus:ring-amber-500 ring-offset-slate-950' : 'bg-slate-700 focus:ring-teal-500 ring-offset-slate-950'
-                  }`}
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                      ignoreMarketHours ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-              </div>
-
+              <OrderToggles
+                placeOrders={placeOrders}
+                ignoreMarketHours={ignoreMarketHours}
+                setPlaceOrders={setPlaceOrders}
+                setIgnoreMarketHours={setIgnoreMarketHours}
+                showToast={showToast}
+                withIds
+              />
               {/* Nav Tabs */}
               <nav className="flex items-center bg-slate-900 p-1 rounded-lg border border-slate-800">
                 <button 
