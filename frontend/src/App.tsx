@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { 
-  TrendingUp,
   Activity,
   CheckCircle,
   AlertTriangle,
@@ -10,9 +9,7 @@ import {
   ChevronDown,
   ChevronUp,
   Database,
-  DollarSign,
   Layers,
-  Sparkles,
   Loader2,
   RefreshCw,
   Search,
@@ -24,6 +21,8 @@ import { OrderToggles } from './cockpit/OrderToggles';
 import { PortfolioSummary } from './cockpit/PortfolioSummary';
 import type { Telemetry } from './types/telemetry';
 import { LastRun } from './screens/LastRun';
+import { StrategyDials } from './screens/StrategyDials';
+import type { Dials } from './types/dials';
 
 // Initial Mock Telemetry Data
 const initialTelemetry: Telemetry = {
@@ -153,7 +152,7 @@ const initialTelemetry: Telemetry = {
 };
 
 // Initial Strategy Dials directly mapped from backend/config.py
-const initialDials = {
+const initialDials: Dials = {
   universe: {
     MIN_PRICE: 10.0,
     MIN_MARKET_CAP_BILLIONS: 100.0, // represented in Billions for readability
@@ -805,7 +804,7 @@ export default function App() {
   };
 
   // Dial edit handler
-  const handleDialChange = (section: keyof typeof dials, field: string, value: number) => {
+  const handleDialChange = (section: keyof Dials, field: string, value: number) => {
     setTempDials(prev => ({
       ...prev,
       [section]: {
@@ -1230,411 +1229,13 @@ export default function App() {
           />
         )}
 
-        {/* TAB 2: CONFIGURATION DIALS */}
         {activeTab === 'config' && (
-          <div id="dials_view" className="space-y-6">
-            
-            <div className="bg-slate-950 p-5 rounded-xl border border-slate-800 shadow-md flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div>
-                <h2 className="text-sm font-semibold text-slate-200">Interactive Strategy Dials Configuration</h2>
-                <p className="text-xs text-slate-400 mt-1">
-                  Adjust parameter bounds below. Changes are saved with a strict <strong>Propose-and-Confirm</strong> old-to-new visual diff step before writing to <code className="bg-slate-900 px-1 py-0.5 rounded text-amber-400 text-[10px]">backend/config.py</code>.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button 
-                  id="btn_discard_config"
-                  onClick={discardDials}
-                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-xs font-semibold text-slate-300 cursor-pointer"
-                >
-                  Discard Changes
-                </button>
-                <button 
-                  id="btn_propose_config"
-                  onClick={proposeChanges}
-                  className="px-4 py-2 bg-teal-500 hover:bg-teal-400 text-slate-950 rounded-lg text-xs font-bold shadow-md cursor-pointer flex items-center gap-2"
-                >
-                  <Sliders className="h-3.5 w-3.5" />
-                  Propose Changes
-                </button>
-              </div>
-            </div>
-
-            {/* EDIT GRID */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              
-              {/* CARD 1: UNIVERSE FILTERS */}
-              <div className="bg-slate-950 rounded-xl border border-slate-800 p-5 shadow-sm space-y-4">
-                <div className="flex items-center gap-2 pb-2 border-b border-slate-850">
-                  <Database className="h-4 w-4 text-teal-400" />
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">1. Universe filter constraints</h3>
-                </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs text-slate-400 font-medium mb-1 flex items-center justify-between">
-                      <span>MIN_PRICE ($)</span>
-                      <span className="text-[10px] text-slate-500">Only trade liquid stocks</span>
-                    </label>
-                    <input 
-                      type="number" 
-                      step="1"
-                      value={tempDials.universe.MIN_PRICE}
-                      onChange={(e) => handleDialChange('universe', 'MIN_PRICE', parseFloat(e.target.value))}
-                      className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500" 
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs text-slate-400 font-medium mb-1 flex items-center justify-between">
-                      <span>MIN_MARKET_CAP (Billions $)</span>
-                      <span className="text-[10px] text-slate-500">Large & Mega caps only</span>
-                    </label>
-                    <input 
-                      type="number" 
-                      step="10"
-                      value={tempDials.universe.MIN_MARKET_CAP_BILLIONS}
-                      onChange={(e) => handleDialChange('universe', 'MIN_MARKET_CAP_BILLIONS', parseFloat(e.target.value))}
-                      className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500" 
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs text-slate-400 font-medium mb-1">
-                        <span>MIN ATR (%)</span>
-                      </label>
-                      <input 
-                        type="number" 
-                        step="0.1"
-                        value={tempDials.universe.MIN_ATR_PCT}
-                        onChange={(e) => handleDialChange('universe', 'MIN_ATR_PCT', parseFloat(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500" 
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-slate-400 font-medium mb-1">
-                        <span>MAX ATR (%)</span>
-                      </label>
-                      <input 
-                        type="number" 
-                        step="0.1"
-                        value={tempDials.universe.MAX_ATR_PCT}
-                        onChange={(e) => handleDialChange('universe', 'MAX_ATR_PCT', parseFloat(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500" 
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs text-slate-400 font-medium mb-1 flex items-center justify-between">
-                      <span>EARNINGS_WINDOW_DAYS</span>
-                      <span className="text-[10px] text-slate-500">Earnings avoid safety bounds</span>
-                    </label>
-                    <input 
-                      type="number" 
-                      step="1"
-                      value={tempDials.universe.EARNINGS_WINDOW_DAYS}
-                      onChange={(e) => handleDialChange('universe', 'EARNINGS_WINDOW_DAYS', parseInt(e.target.value))}
-                      className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500" 
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* CARD 2: MOMENTUM SCANNER */}
-              <div className="bg-slate-950 rounded-xl border border-slate-800 p-5 shadow-sm space-y-4">
-                <div className="flex items-center gap-2 pb-2 border-b border-slate-850">
-                  <TrendingUp className="h-4 w-4 text-teal-400" />
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">2. Momentum scanner thresholds</h3>
-                </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs text-slate-400 font-medium mb-1 flex items-center justify-between">
-                      <span>TOP_N Candidates limit</span>
-                      <span className="text-[10px] text-slate-500">Limits Claude API token usage</span>
-                    </label>
-                    <input 
-                      type="number" 
-                      step="1"
-                      value={tempDials.scanner.TOP_N}
-                      onChange={(e) => handleDialChange('scanner', 'TOP_N', parseInt(e.target.value))}
-                      className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500" 
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs text-slate-400 font-medium mb-1 flex items-center justify-between">
-                      <span>MIN_SCORE (0 - 3)</span>
-                      <span className="text-[10px] text-slate-500">Minimum momentum requirements</span>
-                    </label>
-                    <input 
-                      type="number" 
-                      step="1"
-                      min="0"
-                      max="3"
-                      value={tempDials.scanner.MIN_SCORE}
-                      onChange={(e) => handleDialChange('scanner', 'MIN_SCORE', parseInt(e.target.value))}
-                      className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500" 
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs text-slate-400 font-medium mb-1">
-                        <span>RSI_MIN</span>
-                      </label>
-                      <input 
-                        type="number" 
-                        step="1"
-                        value={tempDials.scanner.RSI_MIN}
-                        onChange={(e) => handleDialChange('scanner', 'RSI_MIN', parseInt(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500" 
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-slate-400 font-medium mb-1">
-                        <span>RSI_MAX</span>
-                      </label>
-                      <input 
-                        type="number" 
-                        step="1"
-                        value={tempDials.scanner.RSI_MAX}
-                        onChange={(e) => handleDialChange('scanner', 'RSI_MAX', parseInt(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500" 
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* CARD 3: GATE 1 HARD THREATS */}
-              <div className="bg-slate-950 rounded-xl border border-slate-800 p-5 shadow-sm space-y-4">
-                <div className="flex items-center gap-2 pb-2 border-b border-slate-850">
-                  <AlertTriangle className="h-4 w-4 text-rose-400" />
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">3. Gate 1 Hard stress boundaries</h3>
-                </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs text-slate-400 font-medium mb-1 flex items-center justify-between">
-                      <span>VIX Index limit</span>
-                      <span className="text-[10px] text-slate-500">Block trades if market VIX exceeds</span>
-                    </label>
-                    <input 
-                      type="number" 
-                      step="1"
-                      value={tempDials.gate1.vix_level_limit}
-                      onChange={(e) => handleDialChange('gate1', 'vix_level_limit', parseFloat(e.target.value))}
-                      className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500" 
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs text-slate-400 font-medium mb-1">
-                        <span>SPY Daily Min (%)</span>
-                      </label>
-                      <input 
-                        type="number" 
-                        step="0.1"
-                        value={tempDials.gate1.spy_change_pct_limit}
-                        onChange={(e) => handleDialChange('gate1', 'spy_change_pct_limit', parseFloat(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500" 
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-slate-400 font-medium mb-1">
-                        <span>Sector Daily Min (%)</span>
-                      </label>
-                      <input 
-                        type="number" 
-                        step="0.1"
-                        value={tempDials.gate1.sector_change_pct_limit}
-                        onChange={(e) => handleDialChange('gate1', 'sector_change_pct_limit', parseFloat(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500" 
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs text-slate-400 font-medium mb-1 flex items-center justify-between">
-                      <span>Premarket Gap Limit (%)</span>
-                      <span className="text-[10px] text-slate-500">Avoid earnings gaps</span>
-                    </label>
-                    <input 
-                      type="number" 
-                      step="0.5"
-                      value={tempDials.gate1.premarket_gap_pct_limit}
-                      onChange={(e) => handleDialChange('gate1', 'premarket_gap_pct_limit', parseFloat(e.target.value))}
-                      className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500" 
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* CARD 4: INTELLIGENCE AGENTS (GATE 3 & 5) */}
-              <div className="bg-slate-950 rounded-xl border border-slate-800 p-5 shadow-sm space-y-4">
-                <div className="flex items-center gap-2 pb-2 border-b border-slate-850">
-                  <Sparkles className="h-4 w-4 text-teal-400" />
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">4. LLM Gate & Edge thresholds</h3>
-                </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs text-slate-400 font-medium mb-1 flex items-center justify-between">
-                      <span>Gate 3 Min AI Confidence</span>
-                      <span className="text-[10px] text-slate-500">Reject Claude direction if score under</span>
-                    </label>
-                    <input 
-                      type="number" 
-                      step="1"
-                      min="1"
-                      max="10"
-                      value={tempDials.gate3.MIN_CONFIDENCE}
-                      onChange={(e) => handleDialChange('gate3', 'MIN_CONFIDENCE', parseInt(e.target.value))}
-                      className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500" 
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs text-slate-400 font-medium mb-1 flex items-center justify-between">
-                      <span>WIN_PROB_BASE (%)</span>
-                      <span className="text-[10px] text-slate-500">Starting baseline win expectation</span>
-                    </label>
-                    <input 
-                      type="number" 
-                      step="1"
-                      value={tempDials.gate5.WIN_PROB_BASE}
-                      onChange={(e) => handleDialChange('gate5', 'WIN_PROB_BASE', parseFloat(e.target.value))}
-                      className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500" 
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs text-slate-400 font-medium mb-1 flex items-center justify-between">
-                      <span>MIN_EDGE_PCT (%)</span>
-                      <span className="text-[10px] text-teal-400">Strict EV survival threshold</span>
-                    </label>
-                    <input 
-                      type="number" 
-                      step="0.5"
-                      value={tempDials.gate5.MIN_EDGE_PCT}
-                      onChange={(e) => handleDialChange('gate5', 'MIN_EDGE_PCT', parseFloat(e.target.value))}
-                      className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-teal-400 focus:outline-none focus:border-teal-500 border-teal-500/30" 
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* CARD 5: RISK CONTROLS */}
-              <div className="bg-slate-950 rounded-xl border border-slate-800 p-5 shadow-sm space-y-4">
-                <div className="flex items-center gap-2 pb-2 border-b border-slate-850">
-                  <Sliders className="h-4 w-4 text-teal-400" />
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">5. Sizing & Risk Controls</h3>
-                </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs text-slate-400 font-medium mb-1 flex items-center justify-between">
-                      <span>MAX_OPEN_POSITIONS</span>
-                      <span className="text-[10px] text-slate-500">Maximum concurrent open trades</span>
-                    </label>
-                    <input 
-                      type="number" 
-                      step="1"
-                      value={tempDials.risk.MAX_OPEN_POSITIONS}
-                      onChange={(e) => handleDialChange('risk', 'MAX_OPEN_POSITIONS', parseInt(e.target.value))}
-                      className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500" 
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs text-slate-400 font-medium mb-1">
-                        <span>Max Daily Loss (%)</span>
-                      </label>
-                      <input 
-                        type="number" 
-                        step="0.5"
-                        value={tempDials.risk.MAX_DAILY_LOSS_PCT}
-                        onChange={(e) => handleDialChange('risk', 'MAX_DAILY_LOSS_PCT', parseFloat(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500" 
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-slate-400 font-medium mb-1">
-                        <span>Max Drawdown (%)</span>
-                      </label>
-                      <input 
-                        type="number" 
-                        step="0.5"
-                        value={tempDials.risk.MAX_DRAWDOWN_PCT}
-                        onChange={(e) => handleDialChange('risk', 'MAX_DRAWDOWN_PCT', parseFloat(e.target.value))}
-                        className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500" 
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs text-slate-400 font-medium mb-1 flex items-center justify-between">
-                      <span>Kelly Fraction allocation multiplier</span>
-                      <span className="text-[10px] text-slate-500">Fractional Kelly sizing buffer</span>
-                    </label>
-                    <input 
-                      type="number" 
-                      step="0.05"
-                      value={tempDials.risk.KELLY_FRACTION}
-                      onChange={(e) => handleDialChange('risk', 'KELLY_FRACTION', parseFloat(e.target.value))}
-                      className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500" 
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* CARD 6: GEOMETRY LEVELS */}
-              <div className="bg-slate-950 rounded-xl border border-slate-800 p-5 shadow-sm space-y-4">
-                <div className="flex items-center gap-2 pb-2 border-b border-slate-850">
-                  <DollarSign className="h-4 w-4 text-teal-400" />
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">6. Trade Geometry Limits</h3>
-                </div>
-
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs text-slate-400 font-medium mb-1 flex items-center justify-between">
-                      <span>ATR stop multiplier</span>
-                      <span className="text-[10px] text-slate-500">Distance from entry to trailing stop</span>
-                    </label>
-                    <input 
-                      type="number" 
-                      step="0.1"
-                      value={tempDials.geometry.atr_stop_multiplier}
-                      onChange={(e) => handleDialChange('geometry', 'atr_stop_multiplier', parseFloat(e.target.value))}
-                      className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500" 
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs text-slate-400 font-medium mb-1 flex items-center justify-between">
-                      <span>Target RR multiple</span>
-                      <span className="text-[10px] text-slate-500">Target reward ratio (R:R ratio multiplier)</span>
-                    </label>
-                    <input 
-                      type="number" 
-                      step="0.5"
-                      value={tempDials.geometry.target_rr_multiple}
-                      onChange={(e) => handleDialChange('geometry', 'target_rr_multiple', parseFloat(e.target.value))}
-                      className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500" 
-                    />
-                  </div>
-                </div>
-              </div>
-
-            </div>
-
-          </div>
+          <StrategyDials
+            dials={tempDials}
+            onChange={handleDialChange}
+            onDiscard={discardDials}
+            onPropose={proposeChanges}
+          />
         )}
 
         {/* TAB 3: DESIGN SPECIFICATION VIEWER */}
