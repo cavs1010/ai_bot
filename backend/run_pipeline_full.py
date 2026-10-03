@@ -173,9 +173,56 @@ def main():
         payload = {"ticker": ticker, **delta}
         print_log(f"__CANDIDATE_UPDATE__ {json.dumps(payload)}")
 
-    def _row(ticker, decision, g3=None, g5=None, risk=None, exec_audit=None, exec_error=None):
+    def _row(ticker, decision, g1=None, g2=None, g3=None, g4=None, g5=None, risk=None, exec_audit=None, exec_error=None):
         tl = g5.get('trade_levels') if g5 else None
         pos = risk['position'] if risk else None
+
+        gate_evals = []
+        g1_passed = not str(decision).startswith('BLOCKED_G1')
+        gate_evals.append({
+            "gate_id": 1,
+            "passed": g1_passed,
+            "score": None,
+            "reasoning": f"Decision: {decision}" if not g1_passed else "Passed hard threat screen",
+            "sub_evaluations": g1 or {}
+        })
+        if g1_passed:
+            g2_passed = str(decision) != 'BLOCKED_G2'
+            gate_evals.append({
+                "gate_id": 2,
+                "passed": g2_passed,
+                "score": None,
+                "reasoning": "Catastrophic news event flagged" if not g2_passed else "Passed news safety checks",
+                "sub_evaluations": g2 or {}
+            })
+            if g2_passed:
+                g3_passed = str(decision) != 'BLOCKED_G3'
+                gate_evals.append({
+                    "gate_id": 3,
+                    "passed": g3_passed,
+                    "score": float(g3['confidence']) if g3 and g3.get('confidence') is not None else None,
+                    "reasoning": f"Sentiment {g3.get('direction')} ({g3.get('confidence')}/10)" if g3 else "AI sentiment check",
+                    "sub_evaluations": g3 or {}
+                })
+                if g3_passed:
+                    g4_passed = not str(decision).startswith('BLOCKED_G4')
+                    gate_evals.append({
+                        "gate_id": 4,
+                        "passed": g4_passed,
+                        "score": None,
+                        "reasoning": (g4.get('reason') if g4 else None) or ("Passed contradiction check" if g4_passed else "Blocked contradiction"),
+                        "sub_evaluations": g4 or {}
+                    })
+                    if g4_passed:
+                        g5_passed = str(decision) != 'SKIP'
+                        gate_evals.append({
+                            "gate_id": 5,
+                            "passed": g5_passed,
+                            "score": float(g5['expected_value']) if g5 and g5.get('expected_value') is not None else None,
+                            "reasoning": f"EV {g5.get('expected_value'):.1%}" if g5 and g5.get('expected_value') is not None else "Signal evaluation",
+                            "sub_evaluations": g5 or {}
+                        })
+
         return {
             'ticker': ticker,
             'final_decision': decision,
@@ -197,6 +244,8 @@ def main():
             'filled_avg_price': exec_audit.get('filled_avg_price') if exec_audit else None,
             'trail_percent': exec_audit.get('trail_percent') if exec_audit else None,
             'stop_attached': exec_audit.get('stop_attached') if exec_audit else None,
+            'exec_audit': exec_audit,
+            'gate_evaluations': gate_evals,
         }
 
     if not candidates_df.empty:
@@ -480,6 +529,11 @@ def main():
             } if r["shares"] else None,
             "risk_reject_reason": r["risk_reject"],
             "exec_error": r.get("exec_error"),
+            "execution_audit": r.get("exec_audit"),
+            "order_audit": r.get("exec_audit"),
+            "filled_qty": r.get("filled_qty"),
+            "filled_avg_price": r.get("filled_avg_price"),
+            "gate_evaluations": r.get("gate_evaluations", []),
             "notes": f"Decision: {r['final_decision']}" + (f" | Error: {r['exec_error']}" if r.get("exec_error") else "")
         }
         telemetry_payload["results"].append(formatted_row)

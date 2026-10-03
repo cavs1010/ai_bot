@@ -23,11 +23,9 @@ export const MarketClockBadge: React.FC<MarketClockBadgeProps> = ({
     isOpen, 
     statusText, 
     targetAction, 
-    formattedETTime, 
     formattedLocalTime, 
     relativeTimeText, 
     formattedNewYorkTime,
-    isLocalTimeDifferent,
     localTimezoneShort 
   } = status;
 
@@ -64,9 +62,9 @@ export const MarketClockBadge: React.FC<MarketClockBadgeProps> = ({
         </span>
         <span className="text-slate-500 font-sans">·</span>
 
-        {/* Target Action & ET Time */}
+        {/* Target Action & Local Time */}
         <span className="text-[10px] sm:text-[11px] text-slate-300 whitespace-nowrap">
-          {targetAction} <span className="font-semibold text-slate-100">{formattedETTime}</span>
+          {targetAction} <span className="font-semibold text-slate-100">{formattedLocalTime}</span>
         </span>
 
         {/* Relative time on desktop / tablet */}
@@ -81,27 +79,20 @@ export const MarketClockBadge: React.FC<MarketClockBadgeProps> = ({
       {showTooltip && (
         <div
           id="market_clock_tooltip"
-          className="absolute right-0 sm:left-1/2 sm:-translate-x-1/2 top-full mt-1.5 z-50 p-2.5 bg-slate-950 text-slate-100 text-xs rounded-lg shadow-2xl border border-slate-700 font-mono space-y-1 min-w-[220px] pointer-events-none animate-in fade-in zoom-in-95 duration-150"
+          className="absolute right-0 sm:left-1/2 sm:-translate-x-1/2 top-full mt-1.5 z-50 p-2.5 bg-slate-950 text-slate-100 text-xs rounded-lg shadow-2xl border border-slate-700 font-mono space-y-1.5 min-w-[240px] pointer-events-none animate-in fade-in zoom-in-95 duration-150"
         >
           <div className="flex items-center gap-1.5 text-teal-400 font-bold text-[11px] pb-1 border-b border-slate-800">
             <Clock className="h-3 w-3" />
             <span>US Market Schedule</span>
           </div>
           <div className="text-[10px] text-slate-300 pt-0.5">
-            <span className="text-slate-500 block">Exchange Time:</span>
+            <span className="text-slate-500 block">Your Local Target Time ({localTimezoneShort || 'Local'}):</span>
+            <span className="font-semibold text-teal-300">{formattedLocalTime} ({relativeTimeText})</span>
+          </div>
+          <div className="text-[10px] text-slate-300">
+            <span className="text-slate-500 block">Exchange Time (New York / ET):</span>
             <span className="font-semibold text-slate-100">{formattedNewYorkTime}</span>
           </div>
-          {isLocalTimeDifferent && (
-            <div className="text-[10px] text-slate-300">
-              <span className="text-slate-500 block">Your Local Time ({localTimezoneShort || 'Local'}):</span>
-              <span className="font-semibold text-amber-300">{formattedLocalTime} ({relativeTimeText})</span>
-            </div>
-          )}
-          {!isLocalTimeDifferent && (
-            <div className="text-[10px] text-slate-400">
-              <span>Target: {relativeTimeText}</span>
-            </div>
-          )}
         </div>
       )}
     </div>

@@ -14,7 +14,6 @@ export const PATHS = {
   universeScript: path.join(PROJECT_ROOT, 'backend', '01_scanner', 'universe_filter.py'),
   latestRunJson: path.join(PROJECT_ROOT, 'backend', '01_scanner', 'data', 'latest_run.json'),
   pipelineFullScript: path.join(PROJECT_ROOT, 'backend', 'run_pipeline_full.py'),
-  pipelineFastScript: path.join(PROJECT_ROOT, 'backend', '01_scanner', 'run_pipeline_fast.py'),
   venvPython: path.join(PROJECT_ROOT, '.venv', 'bin', 'python3'),
   dist: path.join(PROJECT_ROOT, 'dist'),
 } as const;

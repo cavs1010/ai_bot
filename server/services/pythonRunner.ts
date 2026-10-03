@@ -24,10 +24,19 @@ export class PythonRunner {
     const pythonExe = getPythonExecutable();
     const args = [options.scriptPath, ...(options.args || [])];
 
+    const extraPythonPath = [
+      '/usr/local/lib/python3.10/dist-packages',
+      '/root/.local/lib/python3.10/site-packages',
+      PATHS.root,
+      PATHS.backend,
+      process.env.PYTHONPATH || '',
+    ].filter(Boolean).join(':');
+
     const child = spawn(pythonExe, args, {
       cwd: options.cwd || PATHS.root,
       env: {
         ...process.env,
+        PYTHONPATH: extraPythonPath,
         PYTHONUNBUFFERED: '1',
         ...(options.env || {}),
       },

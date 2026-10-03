@@ -16,18 +16,17 @@
 Currently, universe watchlists, gate decisions, price zones, execution results, and runtime parameter thresholds exist ephemerally in memory or runtime logs. Debugging why a stock was included in the universe or rejected by a specific gate requires re-running expensive LLM calls or APIs. Furthermore, parameter adjustments (scanner thresholds, sentiment cutoffs, EV ratios, risk percentages) must be dynamically customizable yet strictly tied to historical runs so past executions remain 100% reproducible and explainable.
 
 **Potential Outcome:**  
-Implement a clean relational schema with parameter configuration management designed for deterministic auditing and run history:
-1. `pipeline_configs`: Parameter presets and profiles (config ID, name, version, is_active/is_default, top-level risk columns, and structured `parameters_json` for fine-grained scanner & Gate 1–5 threshold tuning).
-2. `pipeline_runs`: Root execution record (run ID, foreign key `config_id`, immutable `config_snapshot` JSON freezing parameters at execution time, start/end timestamps, trigger type, status, environment).
-3. `portfolio_snapshots`: Financial & risk context at run start (cash balance, buying power, active positions).
-4. `scanned_stocks`: Candidate stocks passing universe & momentum scanner with exact debug filter metrics (price, 20d avg volume, relative volume, market cap, rank).
-5. `gate_evaluations`: Granular decisions per gate (Gates 1–5) storing exact evaluated inputs, thresholds, scores (threat prob, sentiment score, EV ratio, trade zones), and LLM reasoning.
-6. `order_executions`: Broker execution lifecycle linked directly to approved candidate stocks (Alpaca order ID, qty, limit price, fill price, status).
+Implement a clean 6-table relational schema with parameter configuration management designed for deterministic auditing and run history:
+1. `pipeline_configs` *(Reusable Presets)*: Stores named parameter profiles and gate thresholds created in the UI (`config_id`, `name`, `version`, `is_default`, `risk_per_trade_pct`, `parameters_json`).
+2. `pipeline_runs` *(Execution Root)*: Anchors every scan run and freezes the exact parameters used (`run_id`, `config_id` FK, `config_snapshot` frozen JSON, `trigger_type`, `status`, `created_at`).
+3. `portfolio_snapshots` *(Financial Context)*: Captures account capital and risk state at the exact moment the scan started (`run_id` FK, `cash_balance`, `buying_power`, `portfolio_value`).
+4. `scanned_stocks` *(Passed Universe)*: Stores all candidate stocks that passed universe and momentum filtering (`run_id` FK, `ticker`, `price`, `rel_volume`, `rank`).
+5. `gate_evaluations` *(Gate Decisions & LLM Output)*: Records exact pass/fail verdicts, scores, and LLM reasoning for every candidate stock (`run_id` FK, `ticker`, `gate_number`, `passed`, `score`, `reasoning`).
+6. `order_executions` *(Broker Orders)*: Links final Alpaca orders and fills directly back to the originating pipeline run and gate reasoning (`run_id` FK, `ticker`, `alpaca_order_id`, `qty`, `limit_price`, `fill_price`, `status`).
 
-**Architectural Decision (Hybrid Column + JSON Pattern):**
-- **Typed Columns**: Use for top-level identifiers, indexing, and high-level risk bounds (`config_id`, `name`, `version`, `risk_per_trade_pct`, `max_position_size_pct`).
-- **Structured JSON (`parameters_json` / `config_snapshot`)**: Use for nested, evolving scanner thresholds and Gate 1–5 parameters (`min_rvol_20d`, `min_momentum_score`, `gate2_threat_cutoff`, `gate3_sentiment_cutoff`, `gate5_min_ev_ratio`), validated via Pydantic/Zod schemas at the application boundary.
-- **Immutable Freezing**: Freezes the exact parameter snapshot into `pipeline_runs.config_snapshot` at the moment of execution so modifying a preset profile tomorrow never retroactively alters past audit trails.
+**Architectural Decisions:**
+- **Hybrid Storage**: Relational columns for fast querying and indexing, combined with structured JSON (`parameters_json` / `config_snapshot`) for flexible scanner and Gate 1–5 threshold tuning.
+- **Immutable Freezing**: Parameters are permanently frozen at execution time into `pipeline_runs.config_snapshot`, guaranteeing 100% reproducible and tamper-proof historical audits even if preset profiles change later.
 
 **Why it might matter:**  
 Provides 100% deterministic auditing and instant historical run analysis in the UI without re-querying APIs. Allows historical threshold tuning, A/B parameter performance comparisons, risk review, and complete explainability from parameter configuration to broker order execution.
@@ -50,6 +49,25 @@ Fulfills the core objective of an autonomous, automated nightly trading system t
 
 **Related to:**  
 [[Watchlist Generation & Dry-Run Pipeline Execution with Real-Time Funnel Telemetry]]
+
+---
+
+### Multi-User Authentication, Role-Based Access, BYO API Keys & Scenario Isolation
+
+**Why it appeared:**  
+To support collaborative scenario evaluation and secure the platform, multiple users need dedicated accounts with isolated pipeline configs, separate risk parameters, and private broker/LLM credentials.
+
+**Potential Outcome:**  
+- **Authentication & Security Layer**: Secure user login, session management, and role-based access control (e.g., Admin vs. Trader/Viewer).
+- **BYO API Keys (Bring-Your-Own-Keys)**: Secure, encrypted per-user storage for external API credentials (Alpaca trading keys, Anthropic Claude, OpenAI, and other LLM/data provider keys).
+- **User-Scoped Data Isolation**: Complete partitioning of data via `user_id` foreign keys linking user configs, runs, snapshots, and execution logs.
+- **Scenario Evaluation**: Allows multiple users to independently test, run, and compare different parameter presets, gate thresholds, and risk models side-by-side without collision.
+
+**Why it might matter:**  
+Provides essential security for public/VPS deployments, guarantees zero credential sharing or API quota contention across users, and enables parallel scenario evaluation with user-isolated trading strategies and broker accounts.
+
+**Related to:**  
+Relational Run History, Parameter Configuration & Audit Data Architecture, Dokploy Deployment Security
 
 ---
 

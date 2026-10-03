@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 import pathlib
 import requests
 import pandas as pd
@@ -10,8 +11,7 @@ from tradingview_screener.column import col
 
 load_dotenv()
 
-# Strategy dials live on the central board — backend/config.py (see that file for
-# what each one does and how raising/lowering it changes the screen).
+# Strategy dials live on the central board — backend/config.py
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))   # → backend/
 from config import (
     MIN_AVG_VOLUME, MIN_PRICE, MIN_ATR_PCT, MAX_ATR_PCT, MIN_MARKET_CAP,
@@ -69,7 +69,7 @@ def get_earnings_tickers(days_ahead: int = EARNINGS_WINDOW_DAYS) -> set[str] | N
         url = f'https://finnhub.io/api/v1/calendar/earnings?from={today}&to={future}&token={key}'
         r = requests.get(url, timeout=10)
         r.raise_for_status()
-        return {e['symbol'] for e in r.json().get('earningsCalendar', [])}
+        return {e['symbol'] for e in r.json().get('earningsCalendar', []) if 'symbol' in e}
     except Exception as e:
         print(f'[universe] Finnhub unavailable, skipping earnings filter: {e}')
         return None
@@ -131,9 +131,12 @@ def run_universe_filter(max_price: float | None = None, limit: int = SCREENER_LI
         print(f'[universe] TradingView query failed: {e}')
         return None
 
+    if df.empty:
+        print('[universe] TradingView returned 0 records matching screener criteria')
+        return 0
+
     # ATR (Average True Range) = average daily price move in dollars, e.g. ATR=6.24 means AAPL moves ~$6/day.
     # We convert to a percentage of price so stocks at different price levels are comparable.
-    # A $300 stock with ATR $6 and a $30 stock with ATR $6 have very different risk profiles.
     df['atr_pct'] = (df['ATR'] / df['close'] * 100).round(2)
     df = pd.DataFrame(
         df[(df['atr_pct'] >= MIN_ATR_PCT) & (df['atr_pct'] <= MAX_ATR_PCT)].copy()
@@ -167,13 +170,12 @@ def run_universe_filter(max_price: float | None = None, limit: int = SCREENER_LI
 
 if __name__ == '__main__':
     result = run_universe_filter()
-    if result is not None:
+    if result is not None and result > 0:
         p = pathlib.Path(WATCHLIST_PATH)
         tickers = []
         if p.exists():
             try:
-                import json
-                data = json.loads(p.read_text())
+                data = json.loads(p.read_text(encoding='utf-8'))
                 tickers = [item['ticker'] for item in data if 'ticker' in item]
             except Exception:
                 pass
@@ -182,9 +184,13 @@ if __name__ == '__main__':
             "count": result,
             "tickers": tickers
         }
-        import json
         print("__JSON_OUTPUT_START__")
         print(json.dumps(output, indent=2))
         print("__JSON_OUTPUT_END__")
         print(f'[universe] complete: {result} stocks saved to {WATCHLIST_PATH}')
+        sys.exit(0)
+    else:
+        print(f'[universe] Failed to generate universe: screener returned {result}')
+        sys.exit(1)
+
 

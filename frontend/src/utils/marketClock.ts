@@ -308,14 +308,26 @@ export function calculateMarketStatus(now: Date = new Date()): MarketStatusInfo 
     }
   }
 
-  // Format Local Time (e.g. "Wed, 11:30 PM" or "Wed, 11:30 PM AEST")
-  const localFormatter = new Intl.DateTimeFormat(undefined, {
-    weekday: 'short',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true
-  });
-  const formattedLocalTime = localFormatter.format(targetDate);
+  // Format Local Time (e.g. "Thu 9:30 AM EDT" or "Thu 6:30 AM PDT" or "Thu 11:30 PM AEST")
+  let formattedLocalTime = '';
+  try {
+    const localFormatter = new Intl.DateTimeFormat(undefined, {
+      weekday: 'short',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+      timeZoneName: 'short'
+    });
+    formattedLocalTime = localFormatter.format(targetDate).replace(/,/g, '');
+  } catch {
+    const fallbackFormatter = new Intl.DateTimeFormat(undefined, {
+      weekday: 'short',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+    formattedLocalTime = fallbackFormatter.format(targetDate).replace(/,/g, '');
+  }
 
   // Format ET Short Time (e.g. "Wed 9:30 AM ET" or "Today 9:30 AM ET")
   const nyShortFormatter = new Intl.DateTimeFormat('en-US', {

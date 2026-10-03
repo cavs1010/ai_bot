@@ -1,0 +1,15 @@
+{
+  "status": "connected",
+  "tablesCount": 9,
+  "tables": [
+    "gate_evaluations",
+    "order_executions",
+    "pipeline_configs",
+    "pipeline_gates",
+    "pipeline_runs",
+    "portfolio_snapshots",
+    "scanned_stocks",
+    "universe_scan_batches",
+    "universe_watchlist_items"
+  ]
+}

@@ -1,113 +1,453 @@
-# 🗺️ NOW — Active Milestone & Execution Plan
+# ⚡ NOW — Active Milestone
 
-> **Single Source of Truth**: This document tracks the active milestone, feature execution order, and explicit verification test criteria.
-
----
-
-## 🎯 Milestone
-
-- **Name:** `Repo Hygiene, Dead Code Removal & Frontend Split`
-- **Expected Outcome:** The repo has one spec system (`spec_development/`), no Jupyter notebooks, no leftover root junk or unused npm packages, a split dashboard UI instead of a monolithic `App.tsx`, one UI token file so a single color/type/radius/button change cascades everywhere, and a repeatable `npm run check` hygiene command so later changes cannot silently grow files, reintroduce notebooks, or leave dead dependencies.
-
-### ✅ Completion Criteria
-- [ ] **1. Inventory confirmed:** A written list of dead files, unused npm packages, and notebooks is presented and the human confirms what may be deleted.
-- [ ] **2. Dead artifacts removed:** All `*.ipynb` files are deleted from the repo. Root leftovers (`get-pip.py`, `metadata.json`, dual lockfiles) and unused npm packages are gone. No notebooks folder is kept.
-- [ ] **3. Spec unification:** `spec_development/` is the only spec source of truth. Docs and agent rules no longer point at the non-existent `spec/master.md` / iteration-roadmap workflow.
-- [ ] **4. UI tokens:** All visual properties are named once in `frontend/src/index.css` (`@theme`): color, type, radius, buttons, badges, inputs, three spacings. No second token file, no UI kit.
-- [ ] **5. Frontend split:** `frontend/src/App.tsx` is broken into dashboard components (header/portfolio, funnel, results, settings/dials, API hooks, types) that **only** use those token names. Changing a token (e.g. primary button color) updates every control that uses it. No leftover palette classes (`bg-teal-500`, `bg-rose-900`, mixed `red`/`rose`). No backend numbered-folder reshuffle.
-- [ ] **6. Hygiene CLI:** `npm run check` fails on leftover notebooks, unused declared JS deps, TypeScript compile errors, and any `.py` / `.ts` / `.tsx` over **400 lines** except the allowlisted dial board `backend/config.py`. `npm audit` is a separate optional security command, not this check.
+> **Purpose:** This is the project's operational document.
+> 
+> It should immediately answer:
+> 
+> **What are we trying to achieve?**  
+> **What do I personally need to think through or work on now?**  
+> **What can the AI work on while I am away?**  
+> **What comes next?**
+> 
+> This document stays updated throughout the development of the milestone.
 
 ---
 
-## 🧩 Milestone Features
+# 🎯 Milestone
 
-> Execute **in this order**. Do not start the next feature until the active one is approved.
+## Name
 
-### 🔵 Active Feature
+Milestone 3 — Neon PostgreSQL Database & Trade Lifecycle Architecture
 
-### Feature 1: Inventory (confirm before any delete)
+## Expected Outcome
+
+A serverless PostgreSQL database (via Neon) storing the complete trading lifecycle across 8 relational tables (`universe_watchlist`, `portfolio_snapshots`, `pipeline_configs`, `pipeline_runs`, `scanned_stocks`, `gate_evaluations`, `order_executions`, and `trades`). Node.js/Express acts as the single data gatekeeper, recording data at explicit lifecycle triggers and verifying persistence directly in Neon.
+
+## Completion Criteria
+
+The milestone is completed when:
+
+- Neon PostgreSQL connection is established via centralized `DATABASE_URL` in the Node.js backend.
+- 8 relational tables are created with strongly typed core columns + `payload JSONB` for zero-overhead extensibility.
+- Explicit event triggers are implemented: "Load Watchlist" (watchlist sync), "Update Portfolio" (snapshot), "Save Config" (parameter preset), and automated continuous pipeline execution (runs, scans, gates, orders, trades).
+- Mandatory DB verification is completed for each individual feature, confirming exact row and column persistence in Neon.
+- End-to-end full pipeline execution is verified across all 8 relational tables with 100% data integrity.
+- The final review has been approved.
+
+---
+
+# 🧩 Milestone Features
+
+> These are the concrete capabilities required to achieve the milestone outcome.
+> 
+> Features can be discovered, removed, or changed while we build.
+
+## 🔵 Active Feature
+
+### Feature 04 — Continuous Pipeline Persistence (`pipeline_runs`, `scanned_stocks`, `gate_evaluations`, `order_executions`)
 
 **Expected Outcome:**  
-A concrete inventory of: unused npm packages, root junk, every `*.ipynb`, docs/rules that still mention `spec/master.md`, and source files over 400 lines. Human replies that the list is the deletion set (or amends it). **No files are deleted in this feature.**
+Persist run session metadata, scanned candidates, Gates 1–5 verdicts with LLM reasoning, and generated order tickets under a unified `run_id`.
 
-**Status:** ⏳ Not started
+**Status:** 🟡 In Progress
 
 ---
 
-### ⏭️ Next Features
+## ⏭️ Next Features
 
 In the expected execution order:
 
-1. **Feature 2: Delete notebooks, root junk, unused npm packages** — Remove all Jupyter notebooks from the repo (no archive folder). Remove confirmed root leftovers and unused npm dependencies. Keep a single JS lockfile.
-2. **Feature 3: Spec unification** — Point `README.md`, `AGENTS.md`, `.agent_rules/`, and `.cursor/rules/` at `spec_development/NOW.md` only. Stop instructing agents to read `spec/master.md`.
-3. **Feature 4: UI token file** — Define the locked token set in `frontend/src/index.css` (`@theme`) only. Do not add `tokens.ts` or a design-system package. Do not split `App.tsx` in this feature.
+1. **Feature 05 — `trades` Table & Position Lifecycle Reconciliation**  
+   Record order fills, track position lifecycle (`OPEN` to `CLOSED`), holding duration, and realized PnL.
 
-   **Token file contains only:**
-   - **Color:** `canvas`, `surface`, `border`, `text`, `text-muted`, `text-faint`, `accent`, `positive`, `danger`, `warning` (one danger hue; no mixing `red` and `rose`).
-   - **Type:** sans (UI) + mono (data). Same family for H1 and H2. Scale: H1 18/bold, H2 14/semibold, H3/card label 12/medium muted, eyebrow/badge 10/bold uppercase, display number 24/mono/bold, body 12–14.
-   - **Radius:** `sm` (chips), `md` (cards, buttons), `full` (toggles only).
-   - **Buttons (three roles, consume color/type/radius):** Primary (`accent` fill, dark text), Secondary (`surface` + `border`), Danger (`danger` fill). States: rest, hover, pressed, disabled/loading. Tabs = Secondary selected (`surface` + `accent` text). Toggles are not buttons (off = track; on = `danger` / `warning` / `accent`).
-   - **Badges:** eyebrow type + semantic color + tinted fill (`LIVE`/`SIM`, `BUY`/`SKIP`/`BLOCKED`, P&L). Not a fourth button role.
-   - **Inputs:** `surface` + `border`, mono for numbers, focus ring = `accent`, disabled = same as disabled buttons.
-   - **Spacing (three only):** page gutter, card padding, stack gap. No full spacing scale.
-   - **Not in the file:** extra fonts, shadow/z-index/animation scales, breakpoints, icon-size scale.
-4. **Feature 5: Split the dashboard (`App.tsx`)** — Modularize the cockpit (header/portfolio, funnel, candidate table, settings/dials, API hooks, types) so every component **references Feature 4 token names**. A leftover hardcoded `bg-teal-500` does not cascade — that is a Feature 5 failure. Do not rename `backend/00_data`–`04_execution`.
-5. **Feature 6: Hygiene CLI (`npm run check`)** — One command covering both JS and Python trees: no `*.ipynb`, line-count cap (400; allowlist `backend/config.py`), unused JS deps, `tsc`. Do not mix in `npm audit`. Do not add new npm packages without explicit authorization.
+2. **Feature 06 — Unified End-to-End Pipeline Verification**  
+   Execute full automated pipeline and verify complete relational integrity across all 8 tables in Neon with zero orphaned records.
+
+3. **Feature 07 — Config Version Management, Historical Profile Loader & Execution Run Traceability**  
+   Provide a mechanism to browse and load historical portfolio and strategy config presets from `pipeline_configs`, allow switching/activating specific configurations, and ensure strict traceability by explicitly linking the exact `config_id` / version used to each full workflow execution in `pipeline_runs`.
 
 ---
 
-### ✅ Completed Features
-- *(None yet.)*
+## ✅ Completed Features
+
+- **Feature 01 — Database Infrastructure & Historical Watchlist Tables (`universe_scan_batches` & `universe_watchlist_items`)**  
+  Established Node.js connection pool to Neon Database, created 2-table model with `scanned_at` timestamp in Brisbane local time (`Australia/Brisbane`), and implemented automated historical batching on "Load Watchlist". *(Approved by human on 2026-08-28)*
+
+- **Feature 02 — `portfolio_snapshots` Table & Change-Detection Gatekeeper**  
+  Created `portfolio_snapshots` table with typed financial columns and `positions_payload` JSONB in Brisbane local time (`Australia/Brisbane`, UTC+10). Implemented Option 1 Change-Detection Gatekeeper preventing duplicate entries when portfolio equity, cash, buying power, and positions remain unchanged. *(Approved by human on 2026-08-30)*
+
+- **Feature 03 — Strategy Tile "Save Config" Button & `pipeline_configs` Table**  
+  Created `pipeline_configs` table in Neon Database with Brisbane local timestamp (`Australia/Brisbane`, UTC+10), implemented `configDbService.ts` and Express routes (`GET /api/configs`, `GET /api/configs/active`, `POST /api/configs`), and wired the single "Save Config" button in the Strategy Tile with active preset synchronization. *(Approved by human on 2026-09-02)*
+
 
 ---
 
-## 🧠 Current Focus — Human Work
+# 🧠 Current Focus — Human Work
 
-- **Current Objective:** Approve Feature 1 (inventory) as the first execution step. No code or deletions until that list is confirmed.
-- **Questions to Resolve:** None.
-- **Decisions Made:**
-  - Delete every Jupyter notebook from the repo. No `notebooks/` keep-folder.
-  - Completed Dokploy work stays archived as `02_Dokploy_Deployment.md`.
-  - Spec unification is in this milestone. Live spec system is `spec_development/` only.
-  - Line-count cap is **400** for `.py` / `.ts` / `.tsx`. `backend/config.py` is allowlisted as the strategy dial board.
-  - Do not reshuffle backend pipeline folders.
-  - Do not mix this milestone with the relational audit-history or autonomous-daemon backlog items.
-  - `npm audit` is not the cleanliness check.
-  - No in-app hygiene dashboard. Cleanliness is the CLI (`npm run check`) only.
-  - One UI token file: `frontend/src/index.css` (`@theme`). Named properties: color, type, radius, buttons, badges, inputs, three spacings. Change a token once → every component that uses that name updates. Components must not hardcode palette classes.
-- **When This Is Finished:** The repo is smaller, one-spec, modular on the UI side, and a single CLI check guards those rules.
+> This section contains work that requires human reasoning: product decisions, architecture, complex debugging, trade-offs, or deep understanding.
+> 
+> During the focused work block, this section should tell me **exactly what I need to solve right now**.
+> 
+> Ideally, there should only be ONE Current Focus at a time.
 
----
+## Current Objective
 
-## 🤖 AI Queue
+Implement Feature 04: Continuous Pipeline Persistence. Create table schemas for `pipeline_runs`, `scanned_stocks`, `gate_evaluations`, and `order_executions` in Neon PostgreSQL (Brisbane local time UTC+10), implement pipeline database service in Node.js, and persist run session metadata, scanned candidates, Gates 1–5 verdicts with LLM reasoning, and generated order tickets under a unified `run_id`.
 
-### AI Task 01: Produce the deletion/hygiene inventory
-- **Status:** ⏳ Not started — wait for human to say to start Feature 1.
-- **Scope:** List unused npm packages, root junk, all notebooks, `spec/master.md` references, and files over 400 lines. Present for confirmation. Do not delete.
+## Questions to Resolve
 
----
+- Coordinate payload shapes from Python pipeline runner outputs with `scanned_stocks`, `gate_evaluations`, and `order_executions` schema records.
+- Ensure automated continuous pipeline executions store structured reasoning logs without blocking the live execution stream.
 
-## 💡 Discovered Ideas
-- *Autonomous Execution Daemon → already in Milestone Backlog.*
-- *Discord / Telegram webhooks → already in Milestone Backlog.*
+## Decisions Made
 
----
+- **Database Engine:** Neon Serverless PostgreSQL.
+- **Architecture:** Node.js/Express as single database gatekeeper (Approach A).
+- **Schema Design:** 8 relational tables with typed columns + `payload JSONB`.
+- **UI Controls:** Single new UI button added ("Save Config" in Strategy tile); all analysis/trading steps run as a continuous, automated sequence.
+- **Snapshot Change-Detection (Option 1):** Skips inserting duplicate rows if total equity, cash, buying power, and positions are unchanged.
+- **HTTP Idempotency (Rule 21):** `GET /api/portfolio/live` is strictly read-only; `POST /api/portfolio/snapshot` is used for snapshot recordings.
+- **Timezone:** All timestamps stored and formatted in Brisbane local time (`Australia/Brisbane`, UTC+10).
 
-## 🚧 Blockers & Enabling Milestones
-- **Enabling Milestone:** `02_Dokploy_Deployment.md` (Completed ✅).
-- **Current Blockers:** None. Waiting for human go-ahead to run Feature 1 (inventory only).
+## When This Is Finished...
 
----
+**Next Current Focus:**  
+Feature 05 (`trades` Table & Position Lifecycle Reconciliation).
 
-## 🔍 Review
-- **Current Status:** `⏳ Spec ready` (not started).
-- **Reviewer:** Human Lead.
+**Deep Session AI Tasks This Unlocks:**  
+Deep Session Task 05: Position lifecycle reconciliation & trade execution logging.
+
+**Mobile Iterations This Unlocks:**  
+[To be defined by user based on mobile availability and workflow.]
 
 ---
 
-## ✅ Milestone Closure
-- [ ] All 6 features implemented and verified.
-- [ ] `npm run check` passes on the cleaned tree.
-- [ ] Human review confirmed and approved.
+# 🤖 AI Work
 
-**Status:** ⏳ Not started
+> Tasks that can be delegated to AI after the necessary human decisions have been made.
+>
+> AI work is separated by where and how it can safely be executed.
+
+---
+
+## 🖥️ Deep Session AI Tasks
+
+> AI tasks that require me to be at the computer because they involve testing, database access, debugging, integrations, architecture, or active supervision.
+
+### Task 01 — Database Infrastructure Setup & `universe_watchlist` Table
+
+**Objective:**  
+Set up PostgreSQL client in Node.js, configure connection pooling with `DATABASE_URL`, create the `universe_watchlist` table schema, and wire the "Load Watchlist" backend route to sync tickers to Neon with direct verification.
+
+**Status:**  
+✅ Completed (Approved on 2026-08-28)
+
+---
+
+### Task 02 — `portfolio_snapshots` Table & Change-Detection Gatekeeper
+
+**Objective:**  
+Create `portfolio_snapshots` migration in Neon PostgreSQL, integrate snapshot recording via `POST /api/portfolio/snapshot`, enforce Brisbane local timezone (`Australia/Brisbane`, UTC+10), and implement Option 1 Change-Detection Gatekeeper to avoid redundant snapshot inserts.
+
+**Status:**  
+✅ Completed (Approved on 2026-08-30)
+
+---
+
+### Task 03 — `pipeline_configs` Table & Strategy Tile "Save Config"
+
+**Objective:**  
+Create `pipeline_configs` table in Neon PostgreSQL with Brisbane local timestamp (`Australia/Brisbane`, UTC+10), implement `configDbService.ts` and Express routes (`GET /api/configs`, `GET /api/configs/active`, `POST /api/configs`), and integrate the single "Save Config" button in the Strategy Tile.
+
+**Context / Human Decisions:**  
+- Store configuration presets in `pipeline_configs` table with versioning and `is_default` flag.
+- Default configuration preset seeded if table is empty.
+- Strategy Tile receives a clean, single "Save Config" button with immediate feedback.
+
+**Status:**  
+✅ Completed (Approved on 2026-09-02)
+
+---
+
+### Task 04 — Continuous Pipeline Persistence (`pipeline_runs`, `scanned_stocks`, `gate_evaluations`, `order_executions`)
+
+**Objective:**  
+Implement pipeline run persistence service in Node.js to record execution runs, scanned candidates, Gates 1–5 verdicts with full LLM reasoning payloads, and generated order tickets in Neon under a unified `run_id` with Brisbane local timestamps.
+
+**Status:**  
+🟡 In Progress
+
+---
+
+### Task 07 — Config Version Management, Historical Profile Loader & Execution Run Traceability
+
+**Objective:**  
+Provide API endpoints and UI workflow to browse, inspect, and load previous configuration versions/presets, and guarantee that whenever a full pipeline workflow is executed, the specific `config_id` / config version is permanently linked to the execution in `pipeline_runs`.
+
+**Status:**  
+⬜ Ready
+
+---
+
+## 📱 Mobile Iterations
+
+> Small, clearly defined tasks that I can safely send to AI from my phone while away from the computer.
+>
+> These tasks should not require database inspection, complex testing, architecture decisions, or active supervision.
+> *(User defines these tasks when working from mobile.)*
+
+### Iteration 01 — Dead Artifacts & Broken Route Cleanup
+
+**Objective:**  
+Remove dead files and broken endpoint references across the backend and root directory.
+
+**Instruction:**  
+1. Remove obsolete root files `get-pip.py` and `bun.lock`.
+2. Remove deprecated `backend/04_execution/get_live_portfolio.py` (migrated to TypeScript `AlpacaService.ts`).
+3. Remove non-existent script reference `PATHS.pipelineFastScript` in `server/config/paths.ts` and its associated Express route `GET /api/run/pipeline-fast` in `server/routes/scannerRoutes.ts`.
+
+**Status:**  
+✅ Completed
+
+### Iteration 02 — TypeScript Server Scope & Rule File Deduplication
+
+**Objective:**  
+Ensure full TypeScript compilation coverage for the backend and eliminate redundant rule files.
+
+**Instruction:**  
+1. Update root `tsconfig.json` to include `"server/**/*"` alongside `"server.ts"`.
+2. Clean up redundant rule files while explicitly preserving `.agent_rules/karpathy_rules.md` (and `AGENTS.md`).
+
+**Status:**  
+✅ Completed
+
+### Iteration 03 — Frontend Modularity & Component Architecture (Phased)
+
+**Objective:**  
+Decompose the monolithic `frontend/src/App.tsx` (3,250 lines) into a clean, modular architecture following Karpathy principles (surgical safety, simplicity first, zero-downtime refactoring) and establish reusable UI primitives.
+
+**Target Architecture:**
+```text
+frontend/src/
+├── App.tsx                          # Root shell & state orchestration (< 250 lines)
+├── types/                           # Shared TypeScript domain contracts
+│   ├── telemetry.ts
+│   ├── dials.ts
+│   └── portfolio.ts
+├── fixtures/                        # Static mock & default configuration data
+│   ├── mockTelemetry.ts
+│   └── defaultDials.ts
+├── components/
+│   ├── ui/                          # Reusable, domain-agnostic UI primitives
+│   │   ├── ToggleSwitch.tsx
+│   │   └── Modal.tsx
+│   ├── layout/                      # Shell & navigation
+│   │   ├── Header.tsx
+│   │   ├── MobileDrawer.tsx
+│   │   └── PortfolioBanner.tsx
+│   ├── telemetry/                   # Tab 1: Last Run Telemetry
+│   │   ├── FunnelStageCard.tsx
+│   │   ├── FunnelRoadBar.tsx
+│   │   ├── CandidateTable.tsx
+│   │   ├── CandidateRowDetails.tsx
+│   │   └── SimulatorTerminal.tsx
+│   ├── config/                      # Tab 2: Strategy Dials
+│   │   ├── StrategyDialsTab.tsx
+│   │   ├── StrategyDialCard.tsx
+│   │   └── ProposeDiffModal.tsx
+│   ├── universe/                    # Universe Watchlist
+│   │   └── UniverseWatchlistModal.tsx
+│   └── spec/                        # Tab 3: Design Specification
+│       └── SpecViewer.tsx
+└── hooks/                           # Encapsulated state & network operations
+    ├── usePortfolio.ts
+    └── usePipelineExecution.ts
+```
+
+**Implementation Phases:**
+
+- [x] **Phase 1: Zero-Risk Extraction (Data & Types)**
+  1. Extract `initialTelemetry` static fixture from `App.tsx` into `frontend/src/fixtures/mockTelemetry.ts`.
+  2. Extract `initialDials` static config from `App.tsx` into `frontend/src/fixtures/defaultDials.ts`.
+  3. Declare shared domain TypeScript interfaces in `frontend/src/types/` (`telemetry.ts`, `dials.ts`, `portfolio.ts`).
+  4. Verify build compilation (`compile_applet`).
+
+- [x] **Phase 2: Self-Contained Modal & Overlay Extractions**
+  1. Extract `UniverseWatchlistModal` (lines ~2990–3235) into `frontend/src/components/universe/UniverseWatchlistModal.tsx`.
+  2. Extract `ProposeDiffModal` (lines ~2925–2989) into `frontend/src/components/config/ProposeDiffModal.tsx`.
+  3. Verify modal open/close behaviors and verify build compilation (`compile_applet`).
+
+- [x] **Phase 3: Tab-Level Views & Sub-Components**
+  1. Extract Tab 3: Design Specification Viewer (lines ~2864–2924) into `frontend/src/components/spec/SpecViewer.tsx`.
+  2. Extract Tab 2: Strategy Dials Editor (lines ~2182–2863) into `frontend/src/components/config/StrategyDialsTab.tsx` and extract reusable `StrategyDialCard.tsx`.
+  3. Extract Tab 1: Telemetry Dashboard (lines ~1699–2181) into `frontend/src/components/telemetry/TelemetryTab.tsx` with sub-components (`FunnelRoadBar.tsx`, `CandidateTable.tsx`, `CandidateRowDetails.tsx`, `SimulatorTerminal.tsx`).
+  4. Verify tab switching and interactive controls across all 3 views.
+
+- [x] **Phase 4: Shell, Header & Reusable UI Primitives**
+  1. Extract Desktop Header (lines ~1354–1609) and Mobile Compact Header / Drawer (lines ~1083–1353) into `frontend/src/components/layout/Header.tsx` and `MobileDrawer.tsx`.
+  2. Extract Portfolio Live Indicators Banner into `frontend/src/components/layout/PortfolioBanner.tsx`.
+  3. Deduplicate inline switches into a reusable `frontend/src/components/ui/ToggleSwitch.tsx`.
+  4. Clean up the unimplemented `/api/pipeline/replay` SSE placeholder call in `App.tsx`.
+  5. Final verification: Ensure `App.tsx` is under 250 lines and passes full build compilation.
+
+**Status:**  
+✅ Completed
+
+### Iteration 04 — Python Playground & Scratchpad Cleanup
+
+**Objective:**  
+Clean up or archive the 19 interactive notebook files across backend subdirectories.
+
+**Instruction:**  
+1. Archive or remove unused `*_playground.ipynb` notebooks in `backend/00_data/`, `backend/01_scanner/`, `backend/02_intelligence/`, `backend/03_risk/`, `backend/04_execution/`, and root `backend/full_pipeline_playground.ipynb`.
+
+**Status:**  
+✅ Completed (All 19 playground notebooks verified removed; confirmed clean by user on 2026-09-03)
+
+---
+
+# 💡 Discovered Ideas
+
+> New ideas that appear while building are captured here.
+> 
+> **A new idea is NOT implemented automatically.**
+> 
+> First, we decide whether it is necessary to complete the current milestone.
+
+## Live Position PnL Sync Reconciliation
+
+**Description:**  
+Automated background reconciliation routine that checks Alpaca filled orders on a schedule to automatically update closed `trades` rows and record exact realized PnL.
+
+**Is this required to achieve the current milestone outcome?**  
+No (handled in Feature 05 / future refinement).
+
+**Decision:**
+- Move to Roadmap / future
+
+**Reason:**  
+Feature 05 will implement the core lifecycle trigger; continuous background polling daemon can be enhanced in a future milestone.
+
+--- 
+
+# 🚧 Blockers & Enabling Milestones
+
+> Use this when the current Milestone becomes blocked or unnecessarily expensive to continue without completing another piece of work first.
+
+## Current Blocker
+
+**Problem:**  
+None.
+
+**Impact:**  
+N/A
+
+**Can I reasonably continue without solving it?**  
+Yes
+
+---
+
+## 🛠️ Enabling Milestone
+
+**Milestone:**  
+None required at this time.
+
+**Outcome:**  
+N/A
+
+**Minimum Scope:**  
+N/A
+
+**Return To:**  
+Feature 01
+
+**Status:**  
+⬜ Not Needed
+
+---
+
+# 🔍 Review
+
+> Before considering a feature or milestone completed, we perform a review.
+> 
+> AI can assist with the review, but **final approval remains human**.
+
+## Status
+
+🟡 Under Review
+
+## The Three Review Questions
+
+### 1. Does this match exactly what we decided to build?
+
+**Answer:** Under Review
+
+**Notes:** Milestone 3 specification matches the approved 8-table relational architecture and single-data-gatekeeper design.
+
+---
+
+### 2. Did the AI introduce anything we did not request or make incorrect assumptions?
+
+**Answer:** Under Review
+
+**Notes:** Scope strictly bound to 8 tables, 1 new button ("Save Config"), and direct Neon persistence verification.
+
+---
+
+### 3. Do I understand what was built well enough to maintain it later?
+
+**Answer:** Under Review
+
+**Notes:** Architecture and table schemas documented and aligned with user.
+
+---
+
+## Issues Found
+
+- None.
+
+## Required Actions
+
+- User authorization to start Deep Session Task 01 (Database Infrastructure & `universe_watchlist` Table).
+
+---
+
+# ✅ Milestone Closure
+
+> This section is only completed once the entire milestone passes review.
+
+**Status:** ⬜ Open
+
+**Completion Date:** [Pending Milestone Completion]
+
+## Final Outcome
+
+[To be recorded upon milestone completion]
+
+## Important Decisions & Lessons Learned
+
+- **Strict HTTP Verb Discipline & Idempotency (Rule 21)**:
+  - `GET` requests must be strictly read-only and idempotent. Never trigger database writes, snapshot creations, or state mutations on a `GET` request.
+  - All state mutations (e.g. creating portfolio snapshots, saving configs, executing trades) must explicitly use `POST`, `PUT`/`PATCH`, or `DELETE`.
+  - Added dedicated endpoint `POST /api/portfolio/snapshot` for manual/explicit snapshot recordings, while `GET /api/portfolio/live` remains pure read-only.
+- **Deduplication Guards**:
+  - Implemented a 5-second deduplication threshold in `PortfolioDbService` to prevent duplicate row creation from accidental double-clicks or rapid consecutive events.
+- **Brisbane Local Timezone (`Australia/Brisbane`, UTC+10)**:
+  - All database timestamps across all tables (`snapshot_at`, `created_at`) are saved and returned in Brisbane local time.
+
+## Technical Debt / Intentionally Deferred Work
+
+- [To be recorded upon milestone completion]
+
+## Next Milestone
+
+[Milestone 4 — Backtest Engine & Strategy Analytics]
+
+---
+
+**Once this milestone is approved:**
+
+1. Save this document in `Completed Milestones/`.
+2. Update `Roadmap.md`.
+3. Create the new `Now.md`.
+4. Begin the next milestone.
