@@ -1,5 +1,6 @@
 import { AlertTriangle, Database, DollarSign, RotateCcw, Sliders, Sparkles, TrendingUp } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { DialSection } from '../components/ui/dial-section';
 import type { Dials } from '../types/dials';
 
 type StrategyDialsProps = {
@@ -48,14 +49,7 @@ export function StrategyDials({ dials, onChange, onDiscard, onPropose }: Strateg
             {/* EDIT GRID */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               
-              {/* CARD 1: UNIVERSE FILTERS */}
-              <div className="bg-slate-950 rounded-xl border border-slate-800 p-5 shadow-sm space-y-4">
-                <div className="flex items-center gap-2 pb-2 border-b border-slate-850">
-                  <Database className="h-4 w-4 text-teal-400" />
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">1. Universe filter constraints</h3>
-                </div>
-
-                <div className="space-y-3">
+              <DialSection icon={<Database className="h-4 w-4" />} title="1. Universe filter constraints" tone="accent">
                   <div>
                     <label className="block text-xs text-slate-400 font-medium mb-1 flex items-center justify-between">
                       <span>MIN_PRICE ($)</span>
@@ -124,17 +118,9 @@ export function StrategyDials({ dials, onChange, onDiscard, onPropose }: Strateg
                       className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500" 
                     />
                   </div>
-                </div>
-              </div>
+              </DialSection>
 
-              {/* CARD 2: MOMENTUM SCANNER */}
-              <div className="bg-slate-950 rounded-xl border border-slate-800 p-5 shadow-sm space-y-4">
-                <div className="flex items-center gap-2 pb-2 border-b border-slate-850">
-                  <TrendingUp className="h-4 w-4 text-teal-400" />
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">2. Momentum scanner thresholds</h3>
-                </div>
-
-                <div className="space-y-3">
+              <DialSection icon={<TrendingUp className="h-4 w-4" />} title="2. Momentum scanner thresholds" tone="accent">
                   <div>
                     <label className="block text-xs text-slate-400 font-medium mb-1 flex items-center justify-between">
                       <span>TOP_N Candidates limit</span>
@@ -191,17 +177,9 @@ export function StrategyDials({ dials, onChange, onDiscard, onPropose }: Strateg
                       />
                     </div>
                   </div>
-                </div>
-              </div>
+              </DialSection>
 
-              {/* CARD 3: GATE 1 HARD THREATS */}
-              <div className="bg-slate-950 rounded-xl border border-slate-800 p-5 shadow-sm space-y-4">
-                <div className="flex items-center gap-2 pb-2 border-b border-slate-850">
-                  <AlertTriangle className="h-4 w-4 text-rose-400" />
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">3. Gate 1 Hard stress boundaries</h3>
-                </div>
-
-                <div className="space-y-3">
+              <DialSection icon={<AlertTriangle className="h-4 w-4" />} title="3. Gate 1 Hard stress boundaries" tone="danger">
                   <div>
                     <label className="block text-xs text-slate-400 font-medium mb-1 flex items-center justify-between">
                       <span>VIX Index limit</span>
@@ -256,17 +234,9 @@ export function StrategyDials({ dials, onChange, onDiscard, onPropose }: Strateg
                       className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500" 
                     />
                   </div>
-                </div>
-              </div>
+              </DialSection>
 
-              {/* CARD 4: INTELLIGENCE AGENTS (GATE 3 & 5) */}
-              <div className="bg-slate-950 rounded-xl border border-slate-800 p-5 shadow-sm space-y-4">
-                <div className="flex items-center gap-2 pb-2 border-b border-slate-850">
-                  <Sparkles className="h-4 w-4 text-teal-400" />
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">4. LLM Gate & Edge thresholds</h3>
-                </div>
-
-                <div className="space-y-3">
+              <DialSection icon={<Sparkles className="h-4 w-4" />} title="4. LLM Gate & Edge thresholds" tone="accent">
                   <div>
                     <label className="block text-xs text-slate-400 font-medium mb-1 flex items-center justify-between">
                       <span>Gate 3 Min AI Confidence</span>
@@ -310,17 +280,9 @@ export function StrategyDials({ dials, onChange, onDiscard, onPropose }: Strateg
                       className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-teal-400 focus:outline-none focus:border-teal-500 border-teal-500/30" 
                     />
                   </div>
-                </div>
-              </div>
+              </DialSection>
 
-              {/* CARD 5: RISK CONTROLS */}
-              <div className="bg-slate-950 rounded-xl border border-slate-800 p-5 shadow-sm space-y-4">
-                <div className="flex items-center gap-2 pb-2 border-b border-slate-850">
-                  <Sliders className="h-4 w-4 text-teal-400" />
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">5. Sizing & Risk Controls</h3>
-                </div>
-
-                <div className="space-y-3">
+              <DialSection icon={<Sliders className="h-4 w-4" />} title="5. Sizing & Risk Controls" tone="accent">
                   <div>
                     <label className="block text-xs text-slate-400 font-medium mb-1 flex items-center justify-between">
                       <span>MAX_OPEN_POSITIONS</span>
@@ -375,17 +337,9 @@ export function StrategyDials({ dials, onChange, onDiscard, onPropose }: Strateg
                       className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500" 
                     />
                   </div>
-                </div>
-              </div>
+              </DialSection>
 
-              {/* CARD 6: GEOMETRY LEVELS */}
-              <div className="bg-slate-950 rounded-xl border border-slate-800 p-5 shadow-sm space-y-4">
-                <div className="flex items-center gap-2 pb-2 border-b border-slate-850">
-                  <DollarSign className="h-4 w-4 text-teal-400" />
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-300">6. Trade Geometry Limits</h3>
-                </div>
-
-                <div className="space-y-3">
+              <DialSection icon={<DollarSign className="h-4 w-4" />} title="6. Trade Geometry Limits" tone="accent">
                   <div>
                     <label className="block text-xs text-slate-400 font-medium mb-1 flex items-center justify-between">
                       <span>ATR stop multiplier</span>
@@ -413,8 +367,7 @@ export function StrategyDials({ dials, onChange, onDiscard, onPropose }: Strateg
                       className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-teal-500" 
                     />
                   </div>
-                </div>
-              </div>
+              </DialSection>
 
             </div>
 
