@@ -22,9 +22,8 @@ import {
 } from 'lucide-react';
 import { OrderToggles } from './cockpit/OrderToggles';
 import { PortfolioSummary } from './cockpit/PortfolioSummary';
-import { Funnel } from './cockpit/Funnel';
-import { CandidateTable, type Candidate } from './cockpit/CandidateTable';
-import { ApprovedSignals } from './cockpit/ApprovedSignals';
+import { type Candidate } from './cockpit/CandidateTable';
+import { LastRun } from './screens/LastRun';
 
 // Initial Mock Telemetry Data
 const initialTelemetry = {
@@ -1215,26 +1214,20 @@ export default function App() {
         
         {/* TAB 1: LAST RUN TELEMETRY */}
         {activeTab === 'last_run' && (
-          <div id="telemetry_view" className="space-y-6">
-            
-            <Funnel
-              counts={telemetry.funnel}
-              formattedTimestamp={formatToLocalDisplay(telemetry.timestamp)}
-              running={isRunning}
-              buildingWatchlist={isGeneratingUniverse}
-              liveOrders={placeOrders}
-              log={runLog}
-              onViewList={openUniverseModal}
-              onLoadWatchlist={handleLoadWatchlist}
-              onFastReplay={triggerFastReplay}
-              onRunScanner={() => triggerDryRun(false)}
-            />
-
-            <CandidateTable rows={telemetry.results} />
-
-            <ApprovedSignals rows={telemetry.results} stopMultiplier={dials.geometry.atr_stop_multiplier} />
-
-          </div>
+          <LastRun
+            counts={telemetry.funnel}
+            formattedTimestamp={formatToLocalDisplay(telemetry.timestamp)}
+            running={isRunning}
+            buildingWatchlist={isGeneratingUniverse}
+            liveOrders={placeOrders}
+            log={runLog}
+            rows={telemetry.results}
+            stopMultiplier={dials.geometry.atr_stop_multiplier}
+            onViewList={openUniverseModal}
+            onLoadWatchlist={handleLoadWatchlist}
+            onFastReplay={triggerFastReplay}
+            onRunScanner={() => triggerDryRun(false)}
+          />
         )}
 
         {/* TAB 2: CONFIGURATION DIALS */}

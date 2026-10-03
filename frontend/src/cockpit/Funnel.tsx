@@ -4,7 +4,7 @@ import { AlertTriangle, ArrowRight, Layers, Play, RefreshCw, Sparkles } from 'lu
 import { Button } from '../components/ui/button';
 import { StageCard, type StageTone } from '../components/ui/stage-card';
 
-type FunnelCounts = {
+export type FunnelCounts = {
   universe_count: number;
   scanned_count: number;
   processed_count: number;
