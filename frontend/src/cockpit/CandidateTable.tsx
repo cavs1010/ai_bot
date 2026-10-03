@@ -11,6 +11,7 @@ export type Candidate = {
   g3_confidence: number | null;
   ev: number | null;
   win_prob: number | null;
+  position_confidence: string | null;
   trade_levels: {
     entry: number;
     stop: number;

@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
 import { 
-  TrendingUp, 
-  Settings, 
+  TrendingUp,
   Activity,
-  CheckCircle, 
-  AlertTriangle, 
-  HelpCircle, 
-  Sliders, 
+  CheckCircle,
+  AlertTriangle,
+  Sliders,
   ArrowRight, 
   Check, 
   ChevronDown,
@@ -18,7 +16,6 @@ import {
   Loader2,
   RefreshCw,
   Search,
-  Eye,
   ArrowUpDown,
   X,
   Copy
@@ -26,7 +23,7 @@ import {
 import { OrderToggles } from './cockpit/OrderToggles';
 import { PortfolioSummary } from './cockpit/PortfolioSummary';
 import { Funnel } from './cockpit/Funnel';
-import { CandidateTable } from './cockpit/CandidateTable';
+import { CandidateTable, type Candidate } from './cockpit/CandidateTable';
 import { ApprovedSignals } from './cockpit/ApprovedSignals';
 
 // Initial Mock Telemetry Data
@@ -153,7 +150,7 @@ const initialTelemetry = {
       risk_reject_reason: "Active hard news threat detected",
       notes: "Gate 2 news block: Negative litigation updates flagged on Bloomberg feed"
     }
-  ]
+  ] as Candidate[]
 };
 
 // Initial Strategy Dials directly mapped from backend/config.py
@@ -203,7 +200,7 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [telemetry, setTelemetry] = useState(initialTelemetry);
   const [dials, setDials] = useState(initialDials);
-  const [tempDials, setTempDials] = useState(JSON.parse(JSON.stringify(initialDials)));
+  const [tempDials, setTempDials] = useState<typeof initialDials>(JSON.parse(JSON.stringify(initialDials)));
   const [isRunning, setIsRunning] = useState(false);
   const [placeOrders, setPlaceOrders] = useState<boolean>(false);
   const [ignoreMarketHours, setIgnoreMarketHours] = useState<boolean>(false);
