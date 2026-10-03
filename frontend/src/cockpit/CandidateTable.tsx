@@ -2,6 +2,7 @@ import { Fragment, useState } from 'react';
 import { ChevronRight, Info } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { ErrorNotice } from '../components/ui/error-notice';
+import { Tabs } from '../components/ui/tabs';
 
 export type Candidate = {
   ticker: string;
@@ -86,17 +87,15 @@ export function CandidateTable({ rows }: CandidateTableProps) {
         </div>
         <div className="flex items-center gap-2">
           <span className="text-eyebrow text-text-faint uppercase">Filter Decision:</span>
-          <div className="flex">
-            <button type="button" onClick={() => setFilter('ALL')} className={filter === 'ALL' ? 'tab tab-selected' : 'tab'}>
-              All ({rows.length})
-            </button>
-            <button type="button" onClick={() => setFilter('BUY')} className={filter === 'BUY' ? 'tab tab-selected' : 'tab'}>
-              BUYs ({buyCount})
-            </button>
-            <button type="button" onClick={() => setFilter('BLOCKED')} className={filter === 'BLOCKED' ? 'tab tab-selected' : 'tab'}>
-              Blocked / Skips ({blockedCount})
-            </button>
-          </div>
+          <Tabs
+            tabs={[
+              { value: 'ALL', label: `All (${rows.length})` },
+              { value: 'BUY', label: `BUYs (${buyCount})` },
+              { value: 'BLOCKED', label: `Blocked / Skips (${blockedCount})` },
+            ]}
+            selected={filter}
+            onSelect={setFilter}
+          />
         </div>
       </div>
 
