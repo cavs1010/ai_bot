@@ -1,17 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   TrendingUp, 
   Settings, 
   Activity,
   CheckCircle, 
   AlertTriangle, 
-  XCircle, 
   HelpCircle, 
   Sliders, 
   ArrowRight, 
   Check, 
-  Info,
-  ChevronRight,
   ChevronDown,
   ChevronUp,
   Database,
@@ -24,12 +21,12 @@ import {
   Eye,
   ArrowUpDown,
   X,
-  Clock,
   Copy
 } from 'lucide-react';
 import { OrderToggles } from './cockpit/OrderToggles';
 import { PortfolioSummary } from './cockpit/PortfolioSummary';
 import { Funnel } from './cockpit/Funnel';
+import { CandidateTable } from './cockpit/CandidateTable';
 
 // Initial Mock Telemetry Data
 const initialTelemetry = {
@@ -206,7 +203,6 @@ export default function App() {
   const [telemetry, setTelemetry] = useState(initialTelemetry);
   const [dials, setDials] = useState(initialDials);
   const [tempDials, setTempDials] = useState(JSON.parse(JSON.stringify(initialDials)));
-  const [filter, setFilter] = useState<string>('ALL');
   const [isRunning, setIsRunning] = useState(false);
   const [placeOrders, setPlaceOrders] = useState<boolean>(false);
   const [ignoreMarketHours, setIgnoreMarketHours] = useState<boolean>(false);
@@ -226,9 +222,6 @@ export default function App() {
   const [universeSearch, setUniverseSearch] = useState('');
   const [universeSortField, setUniverseSortField] = useState<string>('ticker');
   const [universeSortAsc, setUniverseSortAsc] = useState<boolean>(true);
-
-  // Simple selector helper for expanded rows in candidate list
-  const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
   // Fetch universe.json content directly
   const openUniverseModal = async () => {
@@ -937,14 +930,6 @@ export default function App() {
     showToast("Changes discarded. Reverted dials to current live disk state.");
   };
 
-  // Helper filters for candidates table
-  const filteredCandidates = telemetry.results.filter(item => {
-    if (filter === 'ALL') return true;
-    if (filter === 'BUY') return item.final_decision === 'BUY';
-    if (filter === 'BLOCKED') return item.final_decision.startsWith('BLOCKED') || item.final_decision.startsWith('REJECTED_RISK') || item.final_decision === 'SKIP';
-    return true;
-  });
-
   return (
     <div id="applet_main" className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
       
@@ -1247,221 +1232,7 @@ export default function App() {
               onRunScanner={() => triggerDryRun(false)}
             />
 
-            {/* RESULTS CANDIDATE TABLE CONTAINER */}
-            <section id="results_table_section" className="bg-slate-950 rounded-xl border border-slate-800 shadow-md overflow-hidden">
-              <div className="px-5 py-4 border-b border-slate-850 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div>
-                  <h2 className="text-sm font-semibold text-slate-200">Nightly Candiate Process List</h2>
-                  <p className="text-xs text-slate-400 mt-1">Processed ticker decisions output matching notebook <code className="bg-slate-900 px-1 rounded font-mono text-[10px]">_row()</code> schema.</p>
-                </div>
-
-                {/* Filters */}
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Filter Decision:</span>
-                  <div className="bg-slate-900 p-0.5 rounded-lg border border-slate-800 flex">
-                    <button 
-                      onClick={() => setFilter('ALL')}
-                      className={`px-2.5 py-1 text-[10px] rounded font-medium ${filter === 'ALL' ? 'bg-slate-800 text-teal-400' : 'text-slate-400 hover:text-slate-200'}`}
-                    >
-                      All ({telemetry.results.length})
-                    </button>
-                    <button 
-                      onClick={() => setFilter('BUY')}
-                      className={`px-2.5 py-1 text-[10px] rounded font-medium ${filter === 'BUY' ? 'bg-slate-800 text-teal-400' : 'text-slate-400 hover:text-slate-200'}`}
-                    >
-                      BUYs ({telemetry.results.filter(x=>x.final_decision === 'BUY').length})
-                    </button>
-                    <button 
-                      onClick={() => setFilter('BLOCKED')}
-                      className={`px-2.5 py-1 text-[10px] rounded font-medium ${filter === 'BLOCKED' ? 'bg-slate-800 text-teal-400' : 'text-slate-400 hover:text-slate-200'}`}
-                    >
-                      Blocked / Skips ({telemetry.results.filter(x=>x.final_decision !== 'BUY').length})
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* TABLE */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-900/60 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-850">
-                    <tr>
-                      <th className="py-3 px-4 font-semibold">Ticker</th>
-                      <th className="py-3 px-4 font-semibold">Final Decision</th>
-                      <th className="py-3 px-4 font-semibold">G3 Sentiment</th>
-                      <th className="py-3 px-4 font-semibold text-right">Edge (EV %)</th>
-                      <th className="py-3 px-4 font-semibold text-right">Win Prob</th>
-                      <th className="py-3 px-4 font-semibold">Geometry (Entry / Stop / Target)</th>
-                      <th className="py-3 px-4 font-semibold text-right">Risk Sizing</th>
-                      <th className="py-3 px-4 text-center">Audit</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-850/60">
-                    {filteredCandidates.map((row, idx) => {
-                      const isPlaced = row.final_decision === 'PLACED' || row.final_decision === 'PLACED_UNPROTECTED';
-                      const isQueued = row.final_decision === 'QUEUED_MARKET_CLOSED';
-                      const isExecFailed = row.final_decision === 'EXEC_FAILED' || row.final_decision.startsWith('EXEC_FAILED');
-                      const isBuy = row.final_decision === 'BUY';
-                      const isBlocked = row.final_decision.startsWith('BLOCKED') || row.final_decision.startsWith('REJECTED_RISK');
-                      const isSkip = row.final_decision === 'SKIP';
-
-                      return (
-                        <React.Fragment key={idx}>
-                          <tr className={`hover:bg-slate-900/30 transition-colors cursor-pointer ${expandedRow === row.ticker ? 'bg-slate-900/40' : ''}`} onClick={() => setExpandedRow(expandedRow === row.ticker ? null : row.ticker)}>
-                            
-                            {/* TICKER */}
-                            <td className="py-3.5 px-4 font-semibold text-slate-100 flex items-center gap-2">
-                              {row.ticker}
-                              {(isBuy || isPlaced || isQueued) && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse"></span>}
-                              {isExecFailed && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block"></span>}
-                              {isBlocked && <span className="w-1.5 h-1.5 rounded-full bg-rose-500/60 inline-block"></span>}
-                            </td>
-
-                            {/* FINAL DECISION BADGE */}
-                            <td className="py-3.5 px-4">
-                              {isPlaced && (
-                                <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded text-[10px] font-bold flex items-center w-fit gap-1 shadow-sm">
-                                  <CheckCircle className="h-3 w-3 text-emerald-400" />
-                                  ORDER FILLED / PLACED
-                                </span>
-                              )}
-                              {isQueued && (
-                                <span className="bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2 py-0.5 rounded text-[10px] font-bold flex items-center w-fit gap-1">
-                                  <Clock className="h-3 w-3 text-blue-400" />
-                                  QUEUED FOR OPEN
-                                </span>
-                              )}
-                              {isExecFailed && (
-                                <span className="bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2 py-0.5 rounded text-[10px] font-bold flex items-center w-fit gap-1 shadow-sm">
-                                  <XCircle className="h-3 w-3 text-rose-400" />
-                                  EXECUTION FAILED
-                                </span>
-                              )}
-                              {isBuy && !isPlaced && !isQueued && !isExecFailed && (
-                                <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded text-[10px] font-semibold flex items-center w-fit gap-1">
-                                  <CheckCircle className="h-3 w-3" />
-                                  BUY / Approved
-                                </span>
-                              )}
-                              {isBlocked && (
-                                <span className="bg-rose-950/60 text-rose-300 border border-rose-800/80 px-2 py-0.5 rounded text-[10px] font-semibold flex items-center w-fit gap-1 shadow-sm font-mono">
-                                  <XCircle className="h-3 w-3 text-rose-400 shrink-0" />
-                                  {row.final_decision.replace('REJECTED_RISK:open_positions', 'BLOCKED_RISK:max_positions')}
-                                </span>
-                              )}
-                              {isSkip && (
-                                <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded text-[10px] font-semibold flex items-center w-fit gap-1">
-                                  <AlertTriangle className="h-3 w-3" />
-                                  SKIP (Low EV)
-                                </span>
-                              )}
-                              {!isBuy && !isPlaced && !isQueued && !isExecFailed && !isBlocked && !isSkip && (
-                                <span className="bg-teal-500/10 text-teal-300 border border-teal-500/20 px-2 py-0.5 rounded text-[10px] font-semibold flex items-center w-fit gap-1 animate-pulse">
-                                  <Loader2 className="h-3 w-3 animate-spin" />
-                                  {row.final_decision || 'EVALUATING...'}
-                                </span>
-                              )}
-                            </td>
-
-                            {/* G3 SENTIMENT */}
-                            <td className="py-3.5 px-4 text-slate-300">
-                              {row.g3_direction ? (
-                                <span className="flex items-center gap-1.5">
-                                  <span className={`font-medium ${row.g3_direction === 'BULLISH' ? 'text-emerald-400' : 'text-slate-400'}`}>
-                                    {row.g3_direction}
-                                  </span>
-                                  <span className="text-slate-500 text-[10px]">({row.g3_confidence}/10)</span>
-                                </span>
-                              ) : (
-                                <span className="text-slate-600">—</span>
-                              )}
-                            </td>
-
-                            {/* EXPECTED VALUE */}
-                            <td className="py-3.5 px-4 text-right font-mono font-medium text-slate-200">
-                              {row.ev !== null ? `+${(row.ev * 100).toFixed(1)}%` : <span className="text-slate-600">—</span>}
-                            </td>
-
-                            {/* WIN PROB */}
-                            <td className="py-3.5 px-4 text-right font-mono text-slate-300">
-                              {row.win_prob !== null ? `${(row.win_prob * 100).toFixed(0)}%` : <span className="text-slate-600">—</span>}
-                            </td>
-
-                            {/* GEOMETRY (ENTRY/STOP/TARGET) */}
-                            <td className="py-3.5 px-4 font-mono text-slate-400">
-                              {row.trade_levels ? (
-                                <div className="flex items-center gap-1">
-                                  <span className="text-slate-100 font-semibold">${row.trade_levels.entry}</span>
-                                  <span className="text-slate-600">/</span>
-                                  <span className="text-rose-400">${row.trade_levels.stop}</span>
-                                  <span className="text-slate-600">/</span>
-                                  <span className="text-emerald-400">${row.trade_levels.target}</span>
-                                  <span className="text-[10px] text-slate-500 ml-1">({row.trade_levels.reward_risk}R)</span>
-                                </div>
-                              ) : (
-                                <span className="text-slate-600">—</span>
-                              )}
-                            </td>
-
-                            {/* RISK SIZING */}
-                            <td className="py-3.5 px-4 text-right">
-                              {row.risk_sizing ? (
-                                <div>
-                                  <div className="font-semibold text-slate-100">{row.risk_sizing.shares} sh</div>
-                                  <div className="text-[10px] text-slate-400 font-mono">${row.risk_sizing.position_value} ({row.risk_sizing.position_pct}%)</div>
-                                </div>
-                              ) : (
-                                <span className="text-slate-600">—</span>
-                              )}
-                            </td>
-
-                            {/* EXPAND ACTION */}
-                            <td className="py-3.5 px-4 text-center">
-                              <button className="text-slate-500 hover:text-slate-300 p-1">
-                                <ChevronRight className={`h-4 w-4 transform transition-transform ${expandedRow === row.ticker ? 'rotate-90 text-teal-400' : ''}`} />
-                              </button>
-                            </td>
-
-                          </tr>
-
-                          {/* EXPANDED SUB-ROW DETAILS */}
-                          {expandedRow === row.ticker && (
-                            <tr className="bg-slate-900/50">
-                              <td colSpan={8} className="py-3 px-6 border-b border-slate-850">
-                                <div className="space-y-2">
-                                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-300">
-                                    <Info className="h-3.5 w-3.5 text-teal-400" />
-                                    Pipeline Decision Audit Log
-                                  </div>
-                                  <p className="text-xs text-slate-300 max-w-3xl leading-relaxed">
-                                    {row.notes}
-                                  </p>
-                                  {(row.exec_error || row.final_decision.startsWith('EXEC_FAILED')) && (
-                                    <div className="bg-rose-950/80 border border-rose-800 rounded p-3 text-rose-200 text-xs w-full flex items-start gap-2.5 my-1.5 shadow-md">
-                                      <XCircle className="h-4 w-4 text-rose-400 shrink-0 mt-0.5" />
-                                      <div>
-                                        <div className="font-bold text-rose-300 uppercase tracking-wide">Alpaca Execution Failure Details</div>
-                                        <div className="font-mono mt-1 text-rose-100">{row.exec_error || row.notes || 'Order rejected by broker'}</div>
-                                      </div>
-                                    </div>
-                                  )}
-                                  {row.risk_reject_reason && (
-                                    <div className="bg-rose-500/10 border border-rose-500/20 rounded p-2.5 text-rose-300 text-xs w-fit flex items-center gap-2">
-                                      <XCircle className="h-4 w-4 text-rose-400" />
-                                      <strong>Blocking Reason:</strong> {row.risk_reject_reason}
-                                    </div>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </React.Fragment>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+            <CandidateTable rows={telemetry.results} />
 
             {/* SEGMENT D: APPROVED SIGNALS SUMMARY */}
             <section id="approved_signals_summary" className="bg-slate-950 rounded-xl p-5 border border-slate-800 shadow-md">

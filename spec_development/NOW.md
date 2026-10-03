@@ -10,11 +10,11 @@
 - **Expected Outcome:** The repo has one spec system (`spec_development/`), no Jupyter notebooks, no leftover root junk or unused npm packages, a split dashboard UI instead of a monolithic `App.tsx`, one UI token file so a single color/type/radius/button change cascades everywhere, and a repeatable `npm run check` hygiene command so later changes cannot silently grow files, reintroduce notebooks, or leave dead dependencies.
 
 ### ✅ Completion Criteria
-- [ ] **1. Inventory confirmed:** A written list of dead files, unused npm packages, and notebooks is presented and the human confirms what may be deleted.
-- [ ] **2. Dead artifacts removed:** All `*.ipynb` files are deleted from the repo. Root leftovers (`get-pip.py`, `metadata.json`, dual lockfiles) and unused npm packages are gone. No notebooks folder is kept.
-- [ ] **3. Spec unification:** `spec_development/` is the only spec source of truth. Docs and agent rules no longer point at the non-existent `spec/master.md` / iteration-roadmap workflow.
-- [ ] **4. UI tokens:** All visual properties are named once in `frontend/src/index.css` (`@theme`): color, type, radius, buttons, badges, inputs, three spacings. No second token file, no UI kit.
-- [ ] **5. Frontend split:** `frontend/src/App.tsx` is broken into dashboard components (header/portfolio, funnel, results, settings/dials, API hooks, types) that **only** use those token names. Changing a token (e.g. primary button color) updates every control that uses it. No leftover palette classes (`bg-teal-500`, `bg-rose-900`, mixed `red`/`rose`). No backend numbered-folder reshuffle.
+- [x] **1. Inventory confirmed:** A written list of dead files, unused npm packages, and notebooks is presented and the human confirms what may be deleted.
+- [x] **2. Dead artifacts removed:** All `*.ipynb` files are deleted from the repo. Root leftovers (`get-pip.py`, `metadata.json`, dual lockfiles) and unused npm packages are gone. No notebooks folder is kept.
+- [x] **3. Spec unification:** `spec_development/` is the only spec source of truth. Docs and agent rules no longer point at the non-existent `spec/master.md` / iteration-roadmap workflow.
+- [x] **4. UI tokens:** All visual properties are named once in `frontend/src/index.css` (`@theme`): color, type, radius, buttons, badges, inputs, three spacings. No second token file, no UI kit.
+- [ ] **5. Frontend split:** Order toggles, portfolio summary, market clock, and funnel are out of `App.tsx`. Still in `App.tsx`: candidate table, settings and dials, API hooks and types. Leftover palette classes in those pieces are still a failure. No backend numbered-folder reshuffle.
 - [ ] **6. Hygiene CLI:** `npm run check` fails on leftover notebooks, unused declared JS deps, TypeScript compile errors, and any `.py` / `.ts` / `.tsx` over **400 lines** except the allowlisted dial board `backend/config.py`. `npm audit` is a separate optional security command, not this check.
 
 ---
@@ -25,12 +25,13 @@
 
 ### 🔵 Active Feature
 
-### Feature 1: Inventory (confirm before any delete)
+### Feature 5: Split the dashboard (remainder)
 
-**Expected Outcome:**  
-A concrete inventory of: unused npm packages, root junk, every `*.ipynb`, docs/rules that still mention `spec/master.md`, and source files over 400 lines. Human replies that the list is the deletion set (or amends it). **No files are deleted in this feature.**
+**Status:** 🟡 In progress
 
-**Status:** ⏳ Not started
+Done: order toggles, portfolio summary, market clock, funnel.
+
+Still in `App.tsx`: candidate table, settings and dials, API hooks and types.
 
 ---
 
@@ -63,7 +64,7 @@ In the expected execution order:
 
 ## 🧠 Current Focus — Human Work
 
-- **Current Objective:** Approve Feature 1 (inventory) as the first execution step. No code or deletions until that list is confirmed.
+- **Current Objective:** Continue Feature 5. Order toggles, portfolio summary, market clock, and funnel are done. Candidate table, settings and dials, API hooks, and types are still in `App.tsx`.
 - **Questions to Resolve:** None.
 - **Decisions Made:**
   - Delete every Jupyter notebook from the repo. No `notebooks/` keep-folder.
@@ -95,8 +96,8 @@ In the expected execution order:
 
 ## 🚧 Blockers & Enabling Milestones
 - **Enabling Milestone:** `02_Dokploy_Deployment.md` (Completed ✅).
-- **Current Blockers:** None. Waiting for human go-ahead to run Feature 1 (inventory only).
-
+- **Current Blockers:** None. Feature 5 is in progress.
+c
 ---
 
 ## 🔍 Review
