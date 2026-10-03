@@ -40,6 +40,7 @@ Before starting any turn or task, verify these core constraints:
 13. 🎯 **[Architecture / Contracts]** **Strict Single Source of Truth & Zero Speculative Fallbacks**: Never use speculative fallback operators (e.g. `A || B`), duplicate aliases, or defensive guessing across contracts, schemas, or configs. Enforce one authoritative definition directly.
 14. 📦 **[Runtime / Dependencies]** **Explicit User Authorization & Justification for New Python Dependencies**: Never install new Python packages or modify dependency declarations without first explaining what the package is, what it does, and why it is required, and waiting for explicit user authorization.
 15. 🎨 **[UI / Components]** **One File Per Reusable Control**: A reusable control (switch, button, input, badge) lives in its own file under `frontend/src/components/ui/`. The screen or pattern that uses it imports that file. Never define the control in the file that consumes it.
+16. 🗂️ **[Architecture / Types]** **Shared Domain Types Live in `frontend/src/types/`**: A type that describes data (API/backend contract) and is used by more than one file lives in `frontend/src/types/<domain>.ts`. Props types stay in their component file. Never import a domain type from a component file.
 
 ---
 
@@ -140,5 +141,10 @@ When a new preference, lesson, or rule is identified during a session:
 - **Category**: UI
 - **Rule**: A reusable UI control (switch, button, input, badge) MUST live in its own file under `frontend/src/components/ui/`. The pattern or screen that uses it imports that file. Never define the control inside the file that consumes it.
 - **Guideline**: The control stays agnostic of the screen. It knows how the piece looks and how it turns on or off. The consumer supplies the labels, tone, and behavior. Example: `Switch` is `frontend/src/components/ui/switch.tsx`; `frontend/src/cockpit/OrderToggles.tsx` imports it twice and only passes the live-trades and market-hours cases.
+
+### Lesson 16: Shared Domain Types Live in `frontend/src/types/`
+- **Category**: Architecture
+- **Rule**: A domain type (one that describes data, such as the backend/API contract) used by more than one file MUST live in `frontend/src/types/<domain>.ts`, grouped by domain. Component props types (`XxxProps`) and private helper types MUST stay in the file that uses them. Never import a domain type from a component file, never define the same shape twice, and never create a single catch-all `types.ts`.
+- **Guideline**: Colocate a type until a second file needs it; once it describes shared data, move it to `types/`. This keeps one source of truth for the contract (Lesson 13) and stops components depending on sibling components just for a type. Example: `Candidate`, `FunnelCounts`, `PortfolioSnapshot` and `Telemetry` live in `frontend/src/types/telemetry.ts`; `App.tsx`, `screens/LastRun.tsx` and the `cockpit/` components all import from there, while `CandidateTableProps` stays inside `CandidateTable.tsx`.
 
 

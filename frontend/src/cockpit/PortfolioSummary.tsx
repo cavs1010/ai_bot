@@ -5,16 +5,7 @@ import { ErrorNotice } from '../components/ui/error-notice';
 import { Stat, type StatMark, type StatTone } from '../components/ui/stat';
 import { SyncButton } from '../components/ui/sync-button';
 import { SyncStamp } from '../components/ui/sync-stamp';
-
-type PortfolioSnapshot = {
-  value: number;
-  daily_pnl: number;
-  daily_pnl_pct: number;
-  open_positions: number;
-  vix_level: number;
-  spy_change_pct: number;
-  hours_to_next_macro: number | null;
-};
+import type { PortfolioSnapshot } from '../types/telemetry';
 
 type PortfolioSummaryProps = {
   layout: 'compact' | 'drawer' | 'banner' | 'error';

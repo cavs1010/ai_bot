@@ -1,6 +1,7 @@
 import { ApprovedSignals } from '../cockpit/ApprovedSignals';
-import { CandidateTable, type Candidate } from '../cockpit/CandidateTable';
-import { Funnel, type FunnelCounts } from '../cockpit/Funnel';
+import { CandidateTable } from '../cockpit/CandidateTable';
+import { Funnel } from '../cockpit/Funnel';
+import type { Candidate, FunnelCounts } from '../types/telemetry';
 
 type LastRunProps = {
   counts: FunnelCounts;

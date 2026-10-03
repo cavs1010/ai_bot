@@ -3,15 +3,7 @@ import { Fragment } from 'react';
 import { AlertTriangle, ArrowRight, Layers, Play, RefreshCw, Sparkles } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { StageCard, type StageTone } from '../components/ui/stage-card';
-
-export type FunnelCounts = {
-  universe_count: number;
-  scanned_count: number;
-  processed_count: number;
-  gate5_buy_count: number;
-  approved_count: number;
-  placed_count: number;
-};
+import type { FunnelCounts } from '../types/telemetry';
 
 type FunnelProps = {
   counts: FunnelCounts;

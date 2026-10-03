@@ -1,7 +1,7 @@
 import { CheckCircle } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { SignalCard } from '../components/ui/signal-card';
-import type { Candidate } from './CandidateTable';
+import type { Candidate } from '../types/telemetry';
 
 type ApprovedSignalsProps = {
   rows: Candidate[];

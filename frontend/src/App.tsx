@@ -22,12 +22,12 @@ import {
 } from 'lucide-react';
 import { OrderToggles } from './cockpit/OrderToggles';
 import { PortfolioSummary } from './cockpit/PortfolioSummary';
-import { type Candidate } from './cockpit/CandidateTable';
+import type { Telemetry } from './types/telemetry';
 import { LastRun } from './screens/LastRun';
 
 // Initial Mock Telemetry Data
-const initialTelemetry = {
-  timestamp: null as string | null,
+const initialTelemetry: Telemetry = {
+  timestamp: null,
   portfolio: {
     value: 100000.00,
     daily_pnl: 1250.00,
@@ -149,7 +149,7 @@ const initialTelemetry = {
       risk_reject_reason: "Active hard news threat detected",
       notes: "Gate 2 news block: Negative litigation updates flagged on Bloomberg feed"
     }
-  ] as Candidate[]
+  ]
 };
 
 // Initial Strategy Dials directly mapped from backend/config.py
