@@ -64,7 +64,7 @@ In the expected execution order:
    Execute full automated pipeline and verify complete relational integrity across all 8 tables in Neon with zero orphaned records.
 
 3. **Feature 07 — Config Version Management, Historical Profile Loader & Execution Run Traceability**  
-   Provide a mechanism to browse and load historical portfolio and strategy config presets from `pipeline_configs`, allow switching/activating specific configurations, and ensure strict traceability by explicitly linking the exact `config_id` / version used to each full workflow execution in `pipeline_runs`.
+   Provide a mechanism to browse and load historical portfolio and strategy config presets from `pipeline_configs`, allow switching/activating specific configurations, and ensure strict traceability by explicitly linking the exact `config_id` / version used to each full workflow execution in `pipeline_runs`. Includes the UI history views for saved configs, run history, and portfolio snapshots (decided 2026-10-04).
 
 ---
 
@@ -221,77 +221,40 @@ Ensure full TypeScript compilation coverage for the backend and eliminate redund
 **Status:**  
 ✅ Completed
 
-### Iteration 03 — Frontend Modularity & Component Architecture (Phased)
+### Iteration 03 — Frontend Modularity & Component Architecture
 
 **Objective:**  
-Decompose the monolithic `frontend/src/App.tsx` (3,250 lines) into a clean, modular architecture following Karpathy principles (surgical safety, simplicity first, zero-downtime refactoring) and establish reusable UI primitives.
+Split the monolithic `frontend/src/App.tsx` into a layered architecture that follows `docs/design_system_primer.md`: one token file, one file per reusable control, patterns grouped by domain, and screens that only assemble.
 
-**Target Architecture:**
+**Agreed Architecture** *(replaces the earlier `components/layout|telemetry|config` + `hooks/` + `fixtures/` target; decided 2026-10-04 while reconciling the UI branch with DB main)*:
 ```text
 frontend/src/
-├── App.tsx                          # Root shell & state orchestration (< 250 lines)
-├── types/                           # Shared TypeScript domain contracts
-│   ├── telemetry.ts
-│   ├── dials.ts
-│   └── portfolio.ts
-├── fixtures/                        # Static mock & default configuration data
-│   ├── mockTelemetry.ts
-│   └── defaultDials.ts
-├── components/
-│   ├── ui/                          # Reusable, domain-agnostic UI primitives
-│   │   ├── ToggleSwitch.tsx
-│   │   └── Modal.tsx
-│   ├── layout/                      # Shell & navigation
-│   │   ├── Header.tsx
-│   │   ├── MobileDrawer.tsx
-│   │   └── PortfolioBanner.tsx
-│   ├── telemetry/                   # Tab 1: Last Run Telemetry
-│   │   ├── FunnelStageCard.tsx
-│   │   ├── FunnelRoadBar.tsx
-│   │   ├── CandidateTable.tsx
-│   │   ├── CandidateRowDetails.tsx
-│   │   └── SimulatorTerminal.tsx
-│   ├── config/                      # Tab 2: Strategy Dials
-│   │   ├── StrategyDialsTab.tsx
-│   │   ├── StrategyDialCard.tsx
-│   │   └── ProposeDiffModal.tsx
-│   ├── universe/                    # Universe Watchlist
-│   │   └── UniverseWatchlistModal.tsx
-│   └── spec/                        # Tab 3: Design Specification
-│       └── SpecViewer.tsx
-└── hooks/                           # Encapsulated state & network operations
-    ├── usePortfolio.ts
-    └── usePipelineExecution.ts
+├── index.css                        # Layer 1: the only token file (@theme) + control looks (@layer components)
+├── App.tsx                          # Switches between screens; still holds data/API logic (see Milestone Backlog)
+├── components/ui/                   # Layer 2: one file per reusable control
+│                                    #   badge, button, switch, tabs, modal, text-field, dial-field, dial-section, …
+├── patterns/                        # Layer 3: recurring combinations, grouped by domain
+│   ├── pipeline/                    #   Funnel, CandidateTable, ApprovedSignals
+│   ├── portfolio/                   #   PortfolioSummary
+│   ├── trading/                     #   OrderToggles, MarketClockBadge
+│   ├── strategy/                    #   ProposeDiff, DialInfoSheet
+│   └── universe/                    #   UniverseList
+├── screens/                         # Layer 4: LastRun, StrategyDials, DesignSpec
+├── types/                           # Shared domain types: telemetry, dials, universe
+└── utils/                           # marketClock, variableDescriptions
 ```
 
-**Implementation Phases:**
+**Done:**
+- [x] Controls, patterns and screens extracted into the folders above; patterns use token names.
+- [x] UI wired to the Neon endpoints: run = `POST /api/pipeline/runs` + `GET …/stream`; portfolio sync = `POST /api/portfolio/snapshots`; Propose → Confirm = `POST /api/configs`.
 
-- [x] **Phase 1: Zero-Risk Extraction (Data & Types)**
-  1. Extract `initialTelemetry` static fixture from `App.tsx` into `frontend/src/fixtures/mockTelemetry.ts`.
-  2. Extract `initialDials` static config from `App.tsx` into `frontend/src/fixtures/defaultDials.ts`.
-  3. Declare shared domain TypeScript interfaces in `frontend/src/types/` (`telemetry.ts`, `dials.ts`, `portfolio.ts`).
-  4. Verify build compilation (`compile_applet`).
-
-- [x] **Phase 2: Self-Contained Modal & Overlay Extractions**
-  1. Extract `UniverseWatchlistModal` (lines ~2990–3235) into `frontend/src/components/universe/UniverseWatchlistModal.tsx`.
-  2. Extract `ProposeDiffModal` (lines ~2925–2989) into `frontend/src/components/config/ProposeDiffModal.tsx`.
-  3. Verify modal open/close behaviors and verify build compilation (`compile_applet`).
-
-- [x] **Phase 3: Tab-Level Views & Sub-Components**
-  1. Extract Tab 3: Design Specification Viewer (lines ~2864–2924) into `frontend/src/components/spec/SpecViewer.tsx`.
-  2. Extract Tab 2: Strategy Dials Editor (lines ~2182–2863) into `frontend/src/components/config/StrategyDialsTab.tsx` and extract reusable `StrategyDialCard.tsx`.
-  3. Extract Tab 1: Telemetry Dashboard (lines ~1699–2181) into `frontend/src/components/telemetry/TelemetryTab.tsx` with sub-components (`FunnelRoadBar.tsx`, `CandidateTable.tsx`, `CandidateRowDetails.tsx`, `SimulatorTerminal.tsx`).
-  4. Verify tab switching and interactive controls across all 3 views.
-
-- [x] **Phase 4: Shell, Header & Reusable UI Primitives**
-  1. Extract Desktop Header (lines ~1354–1609) and Mobile Compact Header / Drawer (lines ~1083–1353) into `frontend/src/components/layout/Header.tsx` and `MobileDrawer.tsx`.
-  2. Extract Portfolio Live Indicators Banner into `frontend/src/components/layout/PortfolioBanner.tsx`.
-  3. Deduplicate inline switches into a reusable `frontend/src/components/ui/ToggleSwitch.tsx`.
-  4. Clean up the unimplemented `/api/pipeline/replay` SSE placeholder call in `App.tsx`.
-  5. Final verification: Ensure `App.tsx` is under 250 lines and passes full build compilation.
+**Not done (moved to Milestone Backlog):**
+- [ ] Move data/API logic out of `App.tsx` (currently ~1,300 lines; 400-line ceiling).
+- [ ] Fast Replay button calls `/api/pipeline/replay`, which does not exist on the server.
 
 **Status:**  
-✅ Completed
+🟡 Under Review
+
 
 ### Iteration 04 — Python Playground & Scratchpad Cleanup
 
@@ -337,32 +300,37 @@ Feature 05 will implement the core lifecycle trigger; continuous background poll
 ## Current Blocker
 
 **Problem:**  
-None.
+UI work was done on a separate local branch (`hygiene/repo-cleanup`) while the database work landed on `main`. The two branches carried different UIs, and the local UI still called removed endpoints (e.g. `/api/run/trigger`).
 
 **Impact:**  
-N/A
+Feature 04 cannot be verified end to end from the UI until both branches are reconciled.
 
 **Can I reasonably continue without solving it?**  
-Yes
+No
 
 ---
 
 ## 🛠️ Enabling Milestone
 
 **Milestone:**  
-None required at this time.
+Reconcile UI branch with DB main (branch `merge/ui-with-db`)
 
 **Outcome:**  
-N/A
+One branch that keeps the local UI and design system, runs on the DB backend from `main`, and has one merged `AGENTS.md`.
 
 **Minimum Scope:**  
-N/A
+- Backend and Neon DB layer taken from `main` unchanged (plus the local venv resolver fix and `dotenv`).
+- Local UI wired to the DB endpoints (runs, portfolio snapshots, config saves).
+- Frontend follows the agreed architecture (see Mobile Iteration 03).
+- `AGENTS.md` merged: cloud tiers + restored detailed lessons and lesson protocol.
+- Repo-cleanup leftovers recorded in `Milestone Backlog.md`, not built here.
+- History views (saved configs, run history, snapshots) are **not** in scope; they belong to Feature 07.
 
 **Return To:**  
-Feature 01
+Feature 04
 
 **Status:**  
-⬜ Not Needed
+🟡 Under Review
 
 ---
 
