@@ -54,7 +54,7 @@
    - **Zero Runtime DDL**: NEVER embed `CREATE TABLE IF NOT EXISTS`, `ALTER TABLE`, or runtime table-creation migrations inside application startup (`server.ts`) or inside database query services (`ensureTable()`).
    - **Declarative Schema Files**: `schema.ts` files must strictly define TypeScript interfaces and data contracts, never executable SQL DDL routines.
    - **Pure DML Services**: Database services must strictly perform direct DML queries (`SELECT`, `INSERT`, `UPDATE`), assuming the schema is authoritative and already provisioned.
-   - **Direct SQL Delivery for User Execution**: All schema adjustments, table creations, or DDL migrations must be provided as clean, copy-pasteable SQL code blocks directly in conversation for the user to execute in the Neon console. Never attempt automated runtime or MCP-based DDL executions.
+   - **Approved DDL via Neon MCP**: Schema adjustments, table creations, or DDL migrations are run by the AI through the Neon MCP, never from application code. Show the exact SQL in conversation first and run it only after the user explicitly approves that specific change. Verify the result in Neon afterwards and update `schema.ts` to match.
 5. 🗂️ **Frontend Component Modularity, Proactive Decomposition & File Ceiling**:
    - **Upfront Modularity Question (Mandatory Before Coding)**: Before creating or adding UI code, ALWAYS evaluate whether the target file will become monolithic and whether components/hooks should be extracted immediately. NEVER accumulate code into existing files or `App.tsx` with the intention of refactoring "later".
    - **File Ceiling**: No single React component file should exceed **300–400 lines**. When a component approaches this threshold or accumulates distinct sub-views/modals/panels, they MUST be extracted into modular files: full screens in `frontend/src/screens/`, patterns in `frontend/src/patterns/<domain>/` (e.g. `pipeline/`, `portfolio/`, `strategy/`), reusable controls in `frontend/src/components/ui/`.
@@ -121,7 +121,7 @@
 | **18** | Scope | Strict active sub-task focus; no premature multi-feature jumping. |
 | **19** | Architecture | Honor agreed architecture and commitments; zero mid-stream pivots. |
 | **20** | Database | 100% TypeScript/Node Neon database; zero Python DB; Brisbane local timezone (`+10`). |
-| **21** | Database | **Zero runtime DDL / Direct SQL Delivery.** Tables created in Neon by user; provide copy-pasteable SQL in chat; `schema.ts` is pure TS types; services are pure DML. |
+| **21** | Database | **Zero runtime DDL / Approved DDL via Neon MCP.** AI runs DDL through the Neon MCP only after the user approves the exact SQL; never from app code; `schema.ts` is pure TS types; services are pure DML. |
 | **22** | Tools | **Zero text-simulated tool logs.** Must use native programmatic tool calls only; never mimic tool outputs in chat text. |
 | **23** | Architecture | **Frontend Modularity & Proactive Decomposition.** Mandatory upfront check; max 300–400 lines; zero deferred debt; no inlined fixtures or App.tsx appending. |
 | **24** | Architecture | **HTTP Verb Semantics & State Discipline.** Strict REST methods: `GET` (read-only), `POST` (create), `PUT`/`PATCH` (update), `DELETE` (remove). Decoupled job lifecycle. |
@@ -227,6 +227,11 @@ When a new preference, lesson, or rule is identified during a session:
   3. Why it is strictly required
   And waiting for explicit user authorization before running any installation commands.
 - **Guideline**: Speculative or unannounced package installations introduce dependency conflicts, bloat runtime environments, and undermine deployment predictability. Explicit human control must govern all runtime dependencies.
+
+### Lesson 21: Zero Runtime DDL & Approved DDL via Neon MCP
+- **Category**: Database
+- **Rule**: Application code (`server.ts`, services, `schema.ts`) MUST NEVER run DDL. Schema changes are run by the AI through the Neon MCP, only after showing the exact SQL in conversation and receiving explicit user approval for that specific change.
+- **Guideline**: Replaces the earlier "user runs copy-pasted SQL in the Neon console" practice (changed 2026-10-05). After running DDL, verify the result in Neon and update `server/db/schema.ts` in the same change so the TypeScript contract and the live schema stay one source of truth.
 
 ### Lesson 27: One File Per Reusable UI Control
 - **Category**: UI
