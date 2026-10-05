@@ -21,7 +21,7 @@ exec_dir         = backend_dir / '04_execution'
 
 # Append to sys.path for bare-name imports
 for p in [
-    backend_dir,                                  # → config.py
+    backend_dir,                                  # → strategy_config.py
     scanner_dir,                                  # → universe_filter, momentum_scanner
     intelligence_dir,                             # → constants, helpers/*
     risk_dir,                                     # → risk_gate
@@ -37,7 +37,7 @@ for p in [
         sys.path.insert(0, p_str)
 
 # Import our modular strategy elements
-import config
+from strategy_config import TOP_N, MIN_SCORE, MIN_EDGE_PCT, MAX_OPEN_POSITIONS
 import universe_filter
 import momentum_scanner
 from universe_filter import run_universe_filter
@@ -83,7 +83,7 @@ def main():
     if run_universe:
         print_log("[universe] Rebuilding universe.json (Stage 1 weekly filter)...")
         try:
-            count = run_universe_filter(max_price=400.0)
+            count = run_universe_filter()
             print_log(f"[universe] Success: Regenerated universe with {count} liquid stocks.")
         except Exception as e:
             print_log(f"[universe] Error running universe filter: {e}")
@@ -120,7 +120,7 @@ def main():
             print_log("[scanner] No candidates met momentum score criteria. Aborting.")
             candidates_df = pd.DataFrame()
         else:
-            print_log(f"[scanner] Found {len(candidates_df)} candidates with momentum score >= {config.MIN_SCORE}")
+            print_log(f"[scanner] Found {len(candidates_df)} candidates with momentum score >= {MIN_SCORE}")
     except Exception as e:
         print_log(f"[scanner] Error scanning watchlist: {e}")
         candidates_df = pd.DataFrame()
@@ -131,9 +131,9 @@ def main():
     open_positions_count = 0
     drawdown_pct = 0.0
     
-    use_live_portfolio = args.live_portfolio or getattr(config, 'USE_LIVE_PORTFOLIO', False)
-    place_orders = args.place_orders or getattr(config, 'PLACE_ORDERS', False)
-    ignore_market_hours = args.ignore_market_hours or getattr(config, 'IGNORE_MARKET_HOURS', False)
+    use_live_portfolio = args.live_portfolio
+    place_orders = args.place_orders
+    ignore_market_hours = args.ignore_market_hours
 
     if use_live_portfolio:
         print_log("[portfolio] Querying live Alpaca account...")
@@ -167,7 +167,7 @@ def main():
     # 4. Processing candidates through Gates 1-5, Risk Gate, and Execution
     rows = []
     processed_count = 0
-    top_n_limit = getattr(config, 'TOP_N', 10)
+    top_n_limit = TOP_N
 
     def emit_candidate_update(ticker: str, delta: dict):
         payload = {"ticker": ticker, **delta}
@@ -365,7 +365,7 @@ def main():
             g5 = decide_gate5_signal(candidate, {'gate1': g1, 'gate2': g2, 'gate3': g3, 'gate4': g4})
             tl = g5.get('trade_levels')
             if g5['decision'] != 'BUY':
-                print_log(f"[gate5] {ticker}: SKIP — calculated EV {g5.get('expected_value'):.1%} is below strategy hurdle ({config.MIN_EDGE_PCT:.1%}).")
+                print_log(f"[gate5] {ticker}: SKIP — calculated EV {g5.get('expected_value'):.1%} is below strategy hurdle ({MIN_EDGE_PCT:.1%}).")
                 emit_candidate_update(ticker, {
                     "final_decision": g5['decision'],
                     "ev": round(g5['expected_value'], 3) if g5.get('expected_value') is not None else None,
@@ -489,7 +489,7 @@ def main():
             "daily_pnl": float(daily_pnl),
             "daily_pnl_pct": round((daily_pnl / portfolio_value) * 100, 2) if portfolio_value > 0 else 0.0,
             "open_positions": int(open_positions_count),
-            "max_positions": int(config.MAX_OPEN_POSITIONS),
+            "max_positions": int(MAX_OPEN_POSITIONS),
             "drawdown_pct": round(float(drawdown_pct) * 100, 2),
             "vix_level": float((shared.get('vix') or {}).get('level', 15.0)),
             "spy_change_pct": round(float((shared.get('spy') or {}).get('change_pct_today', 0.0)) * 100, 2),

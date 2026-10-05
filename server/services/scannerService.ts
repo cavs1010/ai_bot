@@ -1,6 +1,7 @@
 import fs from 'fs';
 import { PATHS } from '../config/paths';
 import { PythonRunner } from './pythonRunner';
+import { ConfigDbService, toStrategyEnv } from './configDbService';
 import { UniverseDbService, UniverseStockItem } from './universeDbService';
 
 export interface UniverseData {
@@ -122,9 +123,12 @@ export class ScannerService {
     }
 
     try {
+      // The universe filter uses the active strategy config; without one, it throws here
+      const activeConfig = await ConfigDbService.getActiveConfig();
       const result = await PythonRunner.runToCompletion({
         scriptPath: PATHS.universeScript,
         cwd: PATHS.root,
+        env: toStrategyEnv(activeConfig),
       });
 
       let parsedStocks: UniverseStockItem[] = [];

@@ -2,9 +2,8 @@
 # Phase 4 | Intelligence Layer
 #
 # This file holds lookup tables (mappings), NOT tunable strategy dials.
-# Every number you adjust based on trading decisions lives on the central board:
-#   backend/config.py
-# (BLOCK_THRESHOLDS and TRADE_LEVEL_PARAMS moved there.)
+# Every number you adjust based on trading decisions lives in the active Neon
+# strategy config (pipeline_configs), read through backend/strategy_config.py.
 
 # ---------------------------------------------------------------------------
 # SECTOR_ETF_MAP: TradingView sector name → SPDR Select Sector ETF ticker
@@ -31,9 +30,6 @@ SECTOR_ETF_MAP: dict[str, str] = {
     "Transportation":         "XLI",   # airlines, logistics → Industrials (closest)
     "Utilities":              "XLU",   # → Utilities
 }
-
-# NOTE: BLOCK_THRESHOLDS (Gate 1) and TRADE_LEVEL_PARAMS (Gate 5 / Phase 5) used to
-# live here. They are tunable dials, so they now live on the board: backend/config.py.
 
 # ---------------------------------------------------------------------------
 # SOURCE_RELIABILITY_TIERS: substring patterns → reliability tier

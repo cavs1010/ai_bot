@@ -17,9 +17,9 @@ load_dotenv()
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 from constants import SOURCE_RELIABILITY_TIERS
-# News-input dials live on the central board — backend/config.py.
+# Strategy settings come from the active Neon config, passed in by Node.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3]))   # → backend/
-from config import NEWS_LOOKBACK_DAYS, NEWS_MAX_RESULTS
+from strategy_config import NEWS_LOOKBACK_DAYS, NEWS_MAX_RESULTS
 
 
 def classify_source(source_name: str, url: str | None = None) -> str:

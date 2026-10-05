@@ -6,7 +6,7 @@
 #   build_trade_levels(candidate)     → {entry, atr, stop, target, stop_pct, target_pct, reward_risk}
 #   build_gate_summary(gate_results)  → str
 #
-# Stop/target formulas use TRADE_LEVEL_PARAMS from config.py (mission non-negotiables).
+# Stop/target formulas use TRADE_LEVEL_PARAMS (money_params.trade_risk in the active strategy config).
 #
 # Test: python backend/02_intelligence/helpers/logic/trade_levels.py
 
@@ -14,9 +14,9 @@ import sys
 import pathlib
 from collections.abc import Mapping
 
-# TRADE_LEVEL_PARAMS lives on the central board — backend/config.py.
+# Strategy settings come from the active Neon config, passed in by Node.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3]))   # → backend/
-from config import TRADE_LEVEL_PARAMS
+from strategy_config import TRADE_LEVEL_PARAMS
 
 
 def build_trade_levels(candidate: Mapping[str, float]) -> dict[str, float]:

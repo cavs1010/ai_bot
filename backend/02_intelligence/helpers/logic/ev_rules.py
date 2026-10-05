@@ -15,9 +15,9 @@
 import sys
 import pathlib
 
-# Win-probability dials live on the central board — backend/config.py.
+# Strategy settings come from the active Neon config, passed in by Node.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3]))   # → backend/
-from config import (
+from strategy_config import (
     WIN_PROB_BASE, MOMENTUM_SCORE_MIN, MOMENTUM_SCORE_MAX, MOMENTUM_COMPONENT,
     CONFIDENCE_BASELINE, CONFIDENCE_COMPONENT, CAUTION_PENALTY, NEUTRAL_DIRECTION_PENALTY,
     WIN_PROB_FLOOR, WIN_PROB_CEILING, POSITION_CONFIDENCE_HIGH, POSITION_CONFIDENCE_MEDIUM,
@@ -79,7 +79,7 @@ def apply_edge_rules(
         confidence:    Gate 3 confidence 0–10.
         caution:       Gate 3 caution flag (True → win-probability penalty).
         reward_risk:   Reward-to-risk ratio from build_trade_levels() (~2.0).
-        min_edge_pct:  Minimum EV to pass (from MIN_EDGE_PCT env, default 0.04).
+        min_edge_pct:  Minimum EV to pass (MIN_EDGE_PCT from the active strategy config).
 
     Returns:
         dict with keys:

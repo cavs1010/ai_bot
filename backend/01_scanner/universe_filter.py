@@ -11,12 +11,16 @@ from tradingview_screener.column import col
 
 load_dotenv()
 
-# Strategy dials live on the central board — backend/config.py
+# Strategy settings come from the active Neon config, passed in by Node
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))   # → backend/
-from config import (
+from strategy_config import (
     MIN_AVG_VOLUME, MIN_PRICE, MIN_ATR_PCT, MAX_ATR_PCT, MIN_MARKET_CAP,
     EARNINGS_WINDOW_DAYS, SCREENER_LIMIT, MAX_POSITION_SIZE_PCT, PRICE_CEILING_BUFFER,
 )
+
+# Live account state comes from the execution layer (one Alpaca client for the whole backend)
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / '04_execution'))
+from alpaca_executor import get_portfolio_value
 
 UNIVERSE_PATH = pathlib.Path(__file__).resolve().parent / 'data' / 'universe.json'
 WATCHLIST_PATH = str(UNIVERSE_PATH)   # plumbing path, not a strategy dial
@@ -27,26 +31,10 @@ def get_max_share_price() -> float:
     Returns the dynamic maximum share price based on Alpaca portfolio value.
 
     Returns:
-        portfolio_value * MAX_POSITION_SIZE_PCT * 0.90, or 360.0 as fallback.
+        portfolio_value * MAX_POSITION_SIZE_PCT * PRICE_CEILING_BUFFER.
+        Raises if Alpaca is unavailable; there is no fallback ceiling.
     """
-    try:
-        import alpaca_trade_api as tradeapi
-        from alpaca_trade_api.common import URL
-        key_id = os.getenv('ALPACA_API_KEY')
-        secret_key = os.getenv('ALPACA_SECRET_KEY')
-        base_url = os.getenv('ALPACA_BASE_URL')
-        if not key_id or not secret_key or not base_url:
-            raise ValueError('Alpaca credentials not set')
-        api = tradeapi.REST(
-            key_id=key_id,
-            secret_key=secret_key,
-            base_url=URL(base_url),
-        )
-        portfolio_value = float(str(api.get_account().portfolio_value))
-        return portfolio_value * MAX_POSITION_SIZE_PCT * PRICE_CEILING_BUFFER
-    except Exception as e:
-        print(f'[universe] Alpaca unavailable, using fallback ceiling $360.00: {e}')
-        return 360.0
+    return get_portfolio_value() * MAX_POSITION_SIZE_PCT * PRICE_CEILING_BUFFER
 
 
 def get_earnings_tickers(days_ahead: int = EARNINGS_WINDOW_DAYS) -> set[str] | None:

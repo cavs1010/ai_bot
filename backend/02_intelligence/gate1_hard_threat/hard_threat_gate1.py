@@ -10,7 +10,7 @@
 #       → {passed: bool, block_reason: str | None, checks: dict}
 #       Call once per candidate. Uses pre-fetched shared data + per-ticker fetches.
 #
-# Thresholds from: config.BLOCK_THRESHOLDS (the central strategy dial board)
+# Thresholds from: the active Neon config (selection_params.gate1, money_params daily loss limit)
 # No Claude call — first gate, runs in milliseconds
 #
 # Test: python backend/02_intelligence/gate1_hard_threat/hard_threat_gate1.py
@@ -20,9 +20,9 @@ import pathlib
 
 base = pathlib.Path(__file__).resolve().parents[1]   # → 02_intelligence/ (for helpers.*)
 sys.path.insert(0, str(base))
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))   # → backend/ (for config)
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))   # → backend/ (for strategy_config)
 
-from config import BLOCK_THRESHOLDS
+from strategy_config import BLOCK_THRESHOLDS, MAX_DAILY_LOSS_PCT
 from helpers.fetchers.market    import get_vix_snapshot, get_spy_snapshot, get_sector_etf_snapshot
 from helpers.fetchers.calendars import get_ticker_earnings_window, get_hours_to_next_macro_event
 from helpers.fetchers.premarket import get_premarket_gap
@@ -109,7 +109,7 @@ def screen_gate1_hard_threats(
 
     # CHECK 1 — Daily loss limit
     # Pure math, never fails. Run first — cheapest check, no fetch required.
-    loss = check_daily_loss_limit(portfolio_value, daily_pnl, BLOCK_THRESHOLDS['loss_limit_pct'])
+    loss = check_daily_loss_limit(portfolio_value, daily_pnl, MAX_DAILY_LOSS_PCT)
     checks['loss_limit'] = {
         'passed':   not loss['breached'],
         'breached': loss['breached'],

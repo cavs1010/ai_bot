@@ -18,9 +18,9 @@
 import sys
 import pathlib
 
-# Pass-rule dials live on the central board — backend/config.py.
+# Strategy settings come from the active Neon config, passed in by Node.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3]))   # → backend/
-from config import MIN_CONFIDENCE, CAUTION_SIZE_REDUCTION_PCT
+from strategy_config import MIN_CONFIDENCE, CAUTION_SIZE_REDUCTION_PCT
 
 
 def apply_pass_rules(direction: str, confidence: int) -> dict:

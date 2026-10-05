@@ -377,8 +377,8 @@ export default function App() {
         }));
         showToast(`Universe generated! ${data.count} tickers saved to universe.json. Stages 2–6 reset.`);
       } else {
-        console.error("Failed to generate watchlist:", data.error);
-        showToast(`Error: ${data.error || 'Failed to generate watchlist'}`);
+        console.error(`${data.error}:`, data.details);
+        showToast(`${data.error}: ${data.details}`);
       }
     } catch (err: any) {
       console.error("Error calling /api/universe/generate:", err);

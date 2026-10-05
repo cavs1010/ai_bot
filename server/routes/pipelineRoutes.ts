@@ -3,7 +3,7 @@ import { EventEmitter } from 'events';
 import { ScannerService } from '../services/scannerService';
 import { PythonRunner } from '../services/pythonRunner';
 import { PipelineDbService } from '../services/pipelineDbService';
-import { ConfigDbService } from '../services/configDbService';
+import { ConfigDbService, toStrategyEnv } from '../services/configDbService';
 import { UniverseDbService } from '../services/universeDbService';
 import { PATHS } from '../config/paths';
 
@@ -183,18 +183,18 @@ pipelineRouter.post('/runs', async (req: Request, res: Response) => {
   const startTime = Date.now();
   const isDryRun = !place_orders;
 
-  // Fetch active strategy config preset for snapshot
-  let activeConfig = null;
+  // The run uses the active strategy config; without one, nothing starts
+  let activeConfig;
   try {
     activeConfig = await ConfigDbService.getActiveConfig();
-  } catch (err) {
-    console.warn('[pipelineRouter] Could not load active config for run metadata:', err);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 
   // Explicit Database Insertion (pipeline_runs)
   const dbRun = await PipelineDbService.createRun({
     is_dry_run: isDryRun,
-    config_id: activeConfig?.id || null,
+    config_id: activeConfig.id,
   });
 
   const dbRunId = dbRun?.id;
@@ -228,6 +228,7 @@ pipelineRouter.post('/runs', async (req: Request, res: Response) => {
     scriptPath: PATHS.pipelineFullScript,
     args,
     cwd: PATHS.root,
+    env: toStrategyEnv(activeConfig),
     onStdout: (chunk) => {
       const lines = chunk.split('\n');
       for (const line of lines) {

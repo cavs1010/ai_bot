@@ -17,10 +17,10 @@
 import sys
 import pathlib
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))   # → backend/ (for config)
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))   # → backend/ (for strategy_config)
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / '02_intelligence'))  # → helpers.*
 
-from config import MAX_OPEN_POSITIONS, MAX_DAILY_LOSS_PCT, MAX_DRAWDOWN_PCT, KELLY_FRACTION, MIN_REWARD_RISK, MAX_POSITION_SIZE_PCT
+from strategy_config import MAX_OPEN_POSITIONS, MAX_DAILY_LOSS_PCT, MAX_DRAWDOWN_PCT, KELLY_FRACTION, MIN_REWARD_RISK, MAX_POSITION_SIZE_PCT
 from helpers.logic.portfolio import check_daily_loss_limit
 
 

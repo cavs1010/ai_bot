@@ -28,9 +28,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Threat-window dial lives on the central board — backend/config.py.
+# Strategy settings come from the active Neon config, passed in by Node.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3]))   # → backend/
-from config import EARNINGS_THREAT_DAYS
+from strategy_config import EARNINGS_THREAT_DAYS
 
 # FairEconomy publishes the public ForexFactory calendar as free, key-less JSON.
 # Only the current-week feed exists; it covers the rest of the calendar week,

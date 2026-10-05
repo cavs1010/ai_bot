@@ -78,7 +78,7 @@ The local repo-cleanup milestone (`hygiene/repo-cleanup`) was merged into Milest
 
 **Potential Outcome:**  
 1. **Finish the frontend split:** move the data/API logic (portfolio sync, pipeline run + stream, SSE log parser, config save, universe fetch) out of `frontend/src/App.tsx` so it drops under the 400-line ceiling, and move the inline mock telemetry / default dials out of `App.tsx`. Replace leftover hardcoded palette classes in `App.tsx`, `StrategyDials` header area and `MarketClockBadge` with token names.
-2. **Hygiene CLI (`npm run check`):** one command that fails on any `*.ipynb`, unused declared JS deps, TypeScript compile errors, and any `.py` / `.ts` / `.tsx` over 400 lines (allowlist `backend/config.py`). `npm audit` stays separate.
+2. **Hygiene CLI (`npm run check`):** one command that fails on any `*.ipynb`, unused declared JS deps, TypeScript compile errors, and any `.py` / `.ts` / `.tsx` over 400 lines. `npm audit` stays separate.
 
 **Why it might matter:**  
 Keeps the agreed architecture (`components/ui/`, `patterns/<domain>/`, `screens/`) from eroding, and stops files from silently growing back into monoliths.

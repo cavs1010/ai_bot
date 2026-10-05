@@ -17,9 +17,9 @@ import datetime
 import feedparser
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
-# Threat-window dial lives on the central board — backend/config.py.
+# Strategy settings come from the active Neon config, passed in by Node.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[3]))   # → backend/
-from config import FILING_LOOKBACK_DAYS
+from strategy_config import FILING_LOOKBACK_DAYS
 
 # SEC fair-access policy: identify the application and contact email in User-Agent
 feedparser.USER_AGENT = 'ai-trading-bot/1.0 cavs1010@gmail.com'

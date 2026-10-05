@@ -18,9 +18,9 @@ import pathlib
 
 base = pathlib.Path(__file__).resolve().parents[1]   # → 02_intelligence/ (for helpers.*)
 sys.path.insert(0, str(base))
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))   # → backend/ (for config)
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))   # → backend/ (for strategy_config)
 
-from config import MIN_EDGE_PCT
+from strategy_config import MIN_EDGE_PCT
 from helpers.logic.ev_rules import apply_edge_rules
 from helpers.logic.trade_levels import build_gate_summary, build_trade_levels
 

@@ -2,9 +2,9 @@ import sys
 import pathlib
 import pandas as pd
 
-# Strategy dials live on the central board — backend/config.py.
+# Strategy settings come from the active Neon config, passed in by Node.
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))   # → backend/
-from config import TOP_N, MIN_SCORE, RSI_MIN, RSI_MAX
+from strategy_config import TOP_N, MIN_SCORE, RSI_MIN, RSI_MAX
 
 UNIVERSE_PATH = pathlib.Path(__file__).resolve().parent / 'data' / 'universe.json'
 WATCHLIST_PATH = str(UNIVERSE_PATH)   # plumbing path, not a strategy dial
@@ -76,12 +76,12 @@ def run_scan(min_score: int = MIN_SCORE, df: pd.DataFrame | None = None, top_n: 
 
     Args:
         min_score: Minimum momentum score (0–3) a stock must reach to be included.
-                   Default is MIN_SCORE (2) — requiring at least two of three criteria met.
+                   Default is MIN_SCORE from the active strategy config.
         df: Pre-loaded watchlist DataFrame to score (must have the columns read by
             calculate_momentum_score). When None (default), the watchlist is loaded
             from WATCHLIST_PATH via load_watchlist(). Pass a DataFrame to score an
             in-memory watchlist without disk I/O. The input is not mutated.
-        top_n: Maximum number of candidates to return. Default is TOP_N (15).
+        top_n: Maximum number of candidates to return. Default is TOP_N from the active strategy config.
 
     Returns:
         DataFrame with columns ticker, price, score, atr, rsi, sma20, sma50, sector,
