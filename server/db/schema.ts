@@ -28,7 +28,7 @@ export interface UniverseWatchlistItem {
 export interface PipelineConfig {
   id?: number;
   name: string;
-  parameters_json: Record<string, any>; // LEGACY: dropped once the app reads selection_params / money_params
+  parameters_json?: Record<string, any>; // LEGACY: no longer read or written by the app; column dropped in change 2c
   selection_params: Record<string, any>;
   money_params: Record<string, any>;
   created_at?: string;

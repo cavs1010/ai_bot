@@ -6,7 +6,7 @@ dotenv.config();
 const connectionString = process.env.DATABASE_URL;
 
 if (!connectionString) {
-  console.warn('[Database] Warning: DATABASE_URL environment variable is not defined.');
+  throw new Error('[Database] DATABASE_URL environment variable is not defined.');
 }
 
 /**
@@ -14,8 +14,8 @@ if (!connectionString) {
  * Single source of truth for all database operations in Node.js backend.
  */
 export const dbPool = new Pool({
-  connectionString: connectionString || undefined,
-  ssl: connectionString ? { rejectUnauthorized: false } : undefined,
+  connectionString,
+  ssl: { rejectUnauthorized: false },
   max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,

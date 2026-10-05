@@ -9,7 +9,7 @@ export const configRouter = Router();
  */
 configRouter.post('/configs', async (req: Request, res: Response) => {
   try {
-    const { name, is_default, parameters_json } = req.body;
+    const { name, is_default, selection_params, money_params } = req.body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return res.status(400).json({
@@ -18,17 +18,11 @@ configRouter.post('/configs', async (req: Request, res: Response) => {
       });
     }
 
-    if (!parameters_json || typeof parameters_json !== 'object') {
-      return res.status(400).json({
-        success: false,
-        error: 'parameters_json payload must be a valid object.',
-      });
-    }
-
     const saved = await ConfigDbService.saveConfig({
       name: name.trim(),
-      is_default: Boolean(is_default),
-      parameters_json,
+      is_default,
+      selection_params,
+      money_params,
     });
 
     return res.status(201).json({
