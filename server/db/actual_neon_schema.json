@@ -157,6 +157,18 @@
         "data_type": "timestamp with time zone",
         "is_nullable": "NO",
         "column_default": "(CURRENT_TIMESTAMP AT TIME ZONE 'Australia/Brisbane'::text)"
+      },
+      {
+        "column_name": "filled_avg_price",
+        "data_type": "numeric",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "filled_qty",
+        "data_type": "numeric",
+        "is_nullable": "YES",
+        "column_default": "0"
       }
     ],
     "pipeline_configs": [
@@ -466,12 +478,6 @@
         "column_name": "batch_id",
         "data_type": "integer",
         "is_nullable": "NO",
-        "column_default": null
-      },
-      {
-        "column_name": "price",
-        "data_type": "numeric",
-        "is_nullable": "YES",
         "column_default": null
       },
       {
