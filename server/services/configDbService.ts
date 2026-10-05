@@ -27,7 +27,7 @@ export class ConfigDbService {
       // Next version for this name is computed inside the insert
       const insertRes = await client.query(
         `INSERT INTO pipeline_configs (name, version, is_default, selection_params, money_params, created_at)
-         SELECT $1, COALESCE(MAX(version), 0) + 1, $2, $3, $4, (NOW() AT TIME ZONE 'Australia/Brisbane')
+         SELECT $1::varchar, COALESCE(MAX(version), 0) + 1, $2, $3, $4, (NOW() AT TIME ZONE 'Australia/Brisbane')
          FROM pipeline_configs WHERE name = $1
          RETURNING ${CONFIG_COLUMNS}`,
         [
