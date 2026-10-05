@@ -20,7 +20,7 @@ export const PATHS = {
 /**
  * Returns the project venv Python executable.
  * Local README uses `venv/`; Docker production uses `.venv/`.
- * Never falls back to system python (AGENTS.md Lesson 9).
+ * Never falls back to system python (AGENTS.md Rule 9).
  */
 export function getPythonExecutable(): string {
   const candidates =

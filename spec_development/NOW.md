@@ -106,7 +106,7 @@ Implement Feature 04: Continuous Pipeline Persistence. Create table schemas for 
 - **Schema Design:** 8 relational tables with typed columns + `payload JSONB`.
 - **UI Controls:** Single new UI button added ("Save Config" in Strategy tile); all analysis/trading steps run as a continuous, automated sequence.
 - **Snapshot Change-Detection (Option 1):** Skips inserting duplicate rows if total equity, cash, buying power, and positions are unchanged.
-- **HTTP Idempotency (Rule 21):** `GET /api/portfolio/live` is strictly read-only; `POST /api/portfolio/snapshot` is used for snapshot recordings.
+- **HTTP Idempotency (Rule 24):** `GET /api/portfolio/live` is strictly read-only; `POST /api/portfolio/snapshot` is used for snapshot recordings.
 - **Timezone:** All timestamps stored and formatted in Brisbane local time (`Australia/Brisbane`, UTC+10).
 
 ## When This Is Finished...
@@ -327,7 +327,7 @@ One branch that keeps the local UI and design system, runs on the DB backend fro
 - History views (saved configs, run history, snapshots) are **not** in scope; they belong to Feature 07.
 
 **Verification Plan** *(agreed 2026-10-05)*:
-0. **Hard-coded value audit** — Business data and business configuration (thresholds, dial defaults, gate definitions, ticker lists, risk limits, seed presets, fallback payloads) must come from Neon, or a live API for market data, never from values written in code. Code may only hold UI copy, design tokens, type contracts, and environment/path config. Includes checking that the Python pipeline receives its config from Node (active `pipeline_configs` row) rather than its own constants or files. Present findings with file:line evidence; fix only after user confirmation (Rule 8). When complete, add as Rule 29 in `AGENTS.md` (Rule 25 stays for mock/fallback data; no overlap).
+0. **Hard-coded value audit** — Business data and business configuration (thresholds, dial defaults, gate definitions, ticker lists, risk limits, seed presets, fallback payloads) must come from Neon, or a live API for market data, never from values written in code. Code may only hold UI copy, design tokens, type contracts, and environment/path config. Includes checking that the Python pipeline receives its config from Node (active `pipeline_configs` row) rather than its own constants or files. Present findings with file:line evidence; fix only after user confirmation (Rule 8). When complete, add it to `AGENTS.md` under the next free rule number (per Rule 0) (Rule 25 stays for mock/fallback data; no overlap).
 1. **Verify writes** — User performs each UI action; AI checks the resulting rows in Neon (columns, Brisbane timestamps, shared `run_id`). Order: Load Watchlist → Portfolio sync → Save Config → Pipeline run (live LLM calls; only on explicit go-ahead).
 2. **Decide reads** — UI currently reads from Neon only for the watchlist. Decide whether these gaps are fixed here or in Feature 07: active config load (`GET /api/configs/active` unused), Last Run screen (`GET /api/run/latest` reads a JSON file, not Neon), portfolio (shows Alpaca live, not snapshots).
 3. **Rule 24 audit & fix (with Rule 13 check)** — Audit every `GET` route in `server/routes/` for side effects (DB writes, subprocesses, state changes) and list duplicate route aliases/mounts that break Rule 13. Present findings with file:line evidence; fix only after user confirmation (Rule 8). Known so far: `GET /api/universe/generate` and `GET /api/universe/refresh` trigger a refresh; duplicates `POST /api/portfolio/snapshot` vs `/snapshots`, `pipelineRouter` also mounted at `/api/run`, `configRouter` mounted at both `/api/configs` and `/api`.
@@ -400,7 +400,7 @@ Feature 04
 
 ## Important Decisions & Lessons Learned
 
-- **Strict HTTP Verb Discipline & Idempotency (Rule 21)**:
+- **Strict HTTP Verb Discipline & Idempotency (Rule 24)**:
   - `GET` requests must be strictly read-only and idempotent. Never trigger database writes, snapshot creations, or state mutations on a `GET` request.
   - All state mutations (e.g. creating portfolio snapshots, saving configs, executing trades) must explicitly use `POST`, `PUT`/`PATCH`, or `DELETE`.
   - Added dedicated endpoint `POST /api/portfolio/snapshot` for manual/explicit snapshot recordings, while `GET /api/portfolio/live` remains pure read-only.
