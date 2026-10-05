@@ -240,8 +240,9 @@ frontend/src/
 │   ├── strategy/                    #   ProposeDiff, DialInfoSheet
 │   └── universe/                    #   UniverseList
 ├── screens/                         # Layer 4: LastRun, StrategyDials, DesignSpec
+├── content/                         # Text shown to the user, never setting values: dialDescriptions
 ├── types/                           # Shared domain types: telemetry, dials, universe
-└── utils/                           # marketClock, variableDescriptions
+└── utils/                           # Logic only: marketClock, strategyDials
 ```
 
 **Done:**

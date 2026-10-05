@@ -6,7 +6,7 @@ import { DialSection } from '../components/ui/dial-section';
 import { DialInfoSheet } from '../patterns/strategy/DialInfoSheet';
 import type { Dials } from '../types/dials';
 import { fromDisplay, toDisplay } from '../utils/strategyDials';
-import { VARIABLE_INFO_REGISTRY, type VariableInfo } from '../utils/variableDescriptions';
+import { VARIABLE_INFO_REGISTRY, type VariableInfo } from '../content/dialDescriptions';
 
 type StrategyDialsProps = {
   dials: Dials;

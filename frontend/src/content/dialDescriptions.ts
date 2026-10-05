@@ -53,7 +53,7 @@ export const VARIABLE_INFO_REGISTRY: Record<string, VariableInfo> = {
     key: 'EARNINGS_WINDOW_DAYS',
     label: 'EARNINGS_WINDOW_DAYS',
     category: '1. Universe Filter Constraints',
-    summary: 'Number of calendar days before and after a corporate earnings announcement to avoid.',
+    summary: 'Stocks reporting earnings within the next this-many days are removed from the universe.',
     whyItMatters: 'Earnings releases introduce binary overnight gap risk (5-20% jumps/drops) that invalidates technical analysis and standard stop-loss protection.',
     ruleOfThumb: '5 - 7 days buffer prevents entering positions right before earnings announcements.',
     examples: 'Set to 5: skips tickers reporting earnings within the next 5 days.'
@@ -73,17 +73,17 @@ export const VARIABLE_INFO_REGISTRY: Record<string, VariableInfo> = {
     key: 'MIN_SCORE',
     label: 'MIN_SCORE (0 - 3)',
     category: '2. Momentum Scanner Thresholds',
-    formula: 'Score = EMA Trend (1 pt) + RSI Momentum (1 pt) + Volume Confirmation (1 pt)',
-    summary: 'Minimum technical composite score needed to qualify as a momentum candidate.',
-    whyItMatters: 'Ensures candidates have multi-timeframe trend alignment, healthy relative strength, and above-average volume before deep intelligence gating.',
+    formula: 'Score = RSI between RSI_MIN and RSI_MAX (1 pt) + Price > SMA20 (1 pt) + SMA20 > SMA50 (1 pt)',
+    summary: 'Minimum momentum score (0 - 3) needed to qualify as a momentum candidate.',
+    whyItMatters: 'Ensures candidates have a healthy RSI, a short-term uptrend, and a bullish moving-average structure before the paid AI gates.',
     ruleOfThumb: 'Score ≥ 2 filters out weak or contradictory momentum charts.',
-    examples: 'Score 3/3 = EMA uptrend + RSI in sweet spot + Volume expanding.'
+    examples: 'Score 3/3 = RSI in the momentum zone + price above SMA20 + SMA20 above SMA50.'
   },
   RSI_MIN: {
     key: 'RSI_MIN',
     label: 'RSI_MIN (14-Day)',
     category: '2. Momentum Scanner Thresholds',
-    summary: 'Minimum Relative Strength Index value allowed for momentum entries.',
+    summary: 'Lower bound of the RSI momentum zone. A stock with RSI between RSI_MIN and RSI_MAX earns 1 momentum-score point.',
     whyItMatters: 'Ensures the stock is in active accumulation and not languishing in a downtrend or oversold bear trap.',
     ruleOfThumb: '50 - 55 ensures bullish momentum regime.',
     examples: 'RSI > 50 confirms bulls are in control on the daily timeframe.'
@@ -92,7 +92,7 @@ export const VARIABLE_INFO_REGISTRY: Record<string, VariableInfo> = {
     key: 'RSI_MAX',
     label: 'RSI_MAX (14-Day)',
     category: '2. Momentum Scanner Thresholds',
-    summary: 'Maximum Relative Strength Index value allowed before a stock is considered overbought.',
+    summary: 'Upper bound of the RSI momentum zone. Above it the stock is considered overbought and does not earn the RSI point.',
     whyItMatters: 'Prevents buying into exhausted, parabolic moves where immediate mean-reversion pullbacks are statistically likely.',
     ruleOfThumb: '68 - 72 avoids chasing blow-off tops.',
     examples: 'RSI 78 is overextended; RSI 62 is ideal healthy momentum.'
@@ -124,13 +124,13 @@ export const VARIABLE_INFO_REGISTRY: Record<string, VariableInfo> = {
     summary: 'Minimum daily performance allowed for the candidate stock\'s corresponding sector ETF (e.g. XLK, XLF).',
     whyItMatters: 'Sector headwinds drag down otherwise strong individual stocks. Swimming against sector flow causes false breakouts.',
     ruleOfThumb: '-2.0% to -2.5% sector drop flags severe localized risk.',
-    examples: 'If AMD is scanning but Semiconductor ETF (SOXX) is down -3.1%, entry is blocked.'
+    examples: 'If AMD is scanning but the Technology sector ETF (XLK) is down -3.1%, entry is blocked.'
   },
   premarket_gap_pct: {
     key: 'premarket_gap_pct',
     label: 'Premarket Gap Limit (%)',
     category: '3. Gate 1 Hard Stress Boundaries',
-    summary: 'Maximum allowable premarket gap percentage from previous day\'s closing price.',
+    summary: 'Maximum premarket gap from the previous day\'s close, up or down. A gap at or beyond this size blocks the stock.',
     whyItMatters: 'Large premarket gaps (>3-4%) frequently lead to aggressive gap-fade profit-taking at the opening bell.',
     ruleOfThumb: '3.0% - 4.0% limit protects from opening-bell slippage and instant reversals.',
     examples: 'A stock gapping up 6.5% premarket is skipped to avoid buying the open trap.'
@@ -141,8 +141,8 @@ export const VARIABLE_INFO_REGISTRY: Record<string, VariableInfo> = {
     key: 'MIN_CONFIDENCE',
     label: 'Gate 3 Min AI Confidence (1 - 10)',
     category: '4. LLM Gate & Edge Thresholds',
-    summary: 'Minimum directional confidence score required from the LLM News & Sentiment Analyst.',
-    whyItMatters: 'Ensures trades are only taken when the AI has strong, unambiguous catalyst backing rather than neutral noise.',
+    summary: 'Confidence cutoff for the Gate 3 sentiment call. Below it, a NEUTRAL call is blocked and a BULLISH call passes with a reduced position size. A BEARISH call is always blocked.',
+    whyItMatters: 'Weak conviction should not get a full-size position; it either trades smaller or not at all.',
     ruleOfThumb: '6 - 7 out of 10 ensures high conviction in narrative tailwinds.',
     examples: 'Score 8/10 = clear positive earnings beat, analyst upgrade, and product momentum.'
   },
@@ -150,20 +150,20 @@ export const VARIABLE_INFO_REGISTRY: Record<string, VariableInfo> = {
     key: 'WIN_PROB_BASE',
     label: 'WIN_PROB_BASE (%)',
     category: '4. LLM Gate & Edge Thresholds',
-    summary: 'Baseline historical probability of success before applying AI intelligence adjustments.',
+    summary: 'Assumed starting win probability before momentum and Gate 3 confidence adjustments.',
     whyItMatters: 'Serves as the conservative starting anchor in the expected value and Kelly position sizing formulas.',
     ruleOfThumb: '35.0% - 40.0% is a disciplined, conservative momentum baseline.',
-    examples: 'Starting at 35%, strong AI sentiment can boost probability up to 55-65%.'
+    examples: 'Starting at 35%, a 3/3 momentum score and high Gate 3 confidence can raise it to the 70% ceiling.'
   },
   MIN_EDGE_PCT: {
     key: 'MIN_EDGE_PCT',
     label: 'MIN_EDGE_PCT (%)',
     category: '4. LLM Gate & Edge Thresholds',
-    formula: 'EV = (Win Prob × Target %) - (Loss Prob × Stop Loss %)',
-    summary: 'Minimum mathematical expected value (edge) required to approve a trade.',
+    formula: 'EV = (Win Prob × Reward:Risk) - (1 - Win Prob), measured in units of the amount risked',
+    summary: 'Minimum expected value required for Gate 5 to issue a BUY. EV is expressed as a fraction of the amount risked on the trade.',
     whyItMatters: 'Ensures only statistically positive-expectation trades receive capital allocation.',
-    ruleOfThumb: '≥ 4.0% expected edge covers transaction fees, slippage, and execution friction.',
-    examples: 'If EV is +5.2%, it passes the 4.0% minimum edge hurdle.'
+    ruleOfThumb: '≥ 4.0% (EV of at least 0.04× the amount risked) covers transaction fees, slippage, and execution friction.',
+    examples: 'With a 2:1 reward:risk and a 35% win probability, EV = 0.35 × 2 - 0.65 = 0.05 (5%), which passes a 4% hurdle.'
   },
 
   // --- SECTION 5: RISK & POSITION SIZING ---
@@ -181,9 +181,9 @@ export const VARIABLE_INFO_REGISTRY: Record<string, VariableInfo> = {
     label: 'MAX_DAILY_LOSS_PCT (%)',
     category: '5. Risk & Position Sizing',
     summary: 'Daily portfolio drawdown circuit breaker.',
-    whyItMatters: 'If the total account drops by this percentage in a single trading day, all trading is automatically paused to stop catastrophic compounding losses.',
+    whyItMatters: 'If the total account drops by this percentage in a single trading day, all new buys are blocked to stop compounding losses.',
     ruleOfThumb: '2.0% - 3.0% of total portfolio equity.',
-    examples: 'On a $100k account, a $3,000 intraday loss halts all new executions for the day.'
+    examples: 'On a $100k account, a $3,000 intraday loss blocks all new buys for the day.'
   },
   MAX_DRAWDOWN_PCT: {
     key: 'MAX_DRAWDOWN_PCT',
@@ -192,15 +192,15 @@ export const VARIABLE_INFO_REGISTRY: Record<string, VariableInfo> = {
     summary: 'Peak-to-trough account drawdown safety limit.',
     whyItMatters: 'The ultimate survival metric for quantitative trading systems. Prevents deep capital destruction during prolonged adverse regimes.',
     ruleOfThumb: '6.0% - 10.0% max drawdown threshold.',
-    examples: 'If account drops 8% from its high-water mark, risk sizing is drastically reduced or paused.'
+    examples: 'If the account drops 8% from its high-water mark, all new buys are halted.'
   },
   KELLY_FRACTION: {
     key: 'KELLY_FRACTION',
     label: 'KELLY_FRACTION',
     category: '5. Risk & Position Sizing',
-    formula: 'Fractional Kelly = Kelly Multiplier × ((Win% / Loss%) - ((1 - Win%) / Win%))',
+    formula: 'Position % = min(KELLY_FRACTION × (Win Prob - (1 - Win Prob) / Reward:Risk), MAX_POSITION_SIZE_PCT)',
     summary: 'Fraction of the theoretical full Kelly criterion used for sizing positions.',
-    whyItMatters: 'Full Kelly (1.0) leads to massive account volatility. Fractional Kelly (0.25 = Quarter Kelly) captures 75% of growth with only 25% of the volatility.',
+    whyItMatters: 'Full Kelly (1.0) leads to massive account volatility. Quarter Kelly (0.25) keeps about 44% of full Kelly\'s growth rate with only 25% of its volatility.',
     ruleOfThumb: '0.20 - 0.25 (Quarter Kelly) is the institutional quantitative standard.',
     examples: '0.25 sizes positions conservatively based on expected mathematical edge.'
   },
@@ -211,7 +211,7 @@ export const VARIABLE_INFO_REGISTRY: Record<string, VariableInfo> = {
     label: 'ATR Stop Multiplier',
     category: '6. Trade Geometry & Targets',
     formula: 'Stop Distance = ATR Stop Multiplier × 14-Day ATR',
-    summary: 'Number of Average True Ranges used to place the stop loss below entry price.',
+    summary: 'Number of Average True Ranges used to place the stop loss below entry price. It also sets the broker-side trailing stop distance.',
     whyItMatters: 'Dynamic ATR stops adapt to current stock volatility—giving volatile stocks room to breathe while keeping tight stops on quiet stocks.',
     ruleOfThumb: '1.5 × ATR places the stop outside normal daily noise without taking excessive risk.',
     examples: 'If ATR is $2.00, a 1.5x multiplier sets the stop $3.00 below entry.'
@@ -221,7 +221,7 @@ export const VARIABLE_INFO_REGISTRY: Record<string, VariableInfo> = {
     label: 'Target Risk/Reward Multiple',
     category: '6. Trade Geometry & Targets',
     formula: 'Profit Target = Entry + (Target RR Multiple × Stop Distance)',
-    summary: 'Profit target expressed as a multiple of the initial risk (stop loss distance).',
+    summary: 'Profit target expressed as a multiple of the initial risk (stop loss distance). No take-profit order is placed; the target is the reward assumption used in the EV and Kelly sizing math.',
     whyItMatters: 'Ensures asymmetric upside where winning trades make significantly more than losing trades lose.',
     ruleOfThumb: '2.0 (2:1 R:R) means risking $1 to make $2.',
     examples: 'With a $3.00 stop loss and 2.0 RR, the profit target is set $6.00 above entry.'

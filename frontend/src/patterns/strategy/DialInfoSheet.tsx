@@ -2,7 +2,7 @@ import { Calculator, HelpCircle, Info, Lightbulb, ShieldAlert } from 'lucide-rea
 import type { ReactNode } from 'react';
 import { Button } from '../../components/ui/button';
 import { Modal } from '../../components/ui/modal';
-import type { VariableInfo } from '../../utils/variableDescriptions';
+import type { VariableInfo } from '../../content/dialDescriptions';
 
 type DialInfoSheetProps = {
   info: VariableInfo;
