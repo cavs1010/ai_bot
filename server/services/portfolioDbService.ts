@@ -26,13 +26,13 @@ export interface PortfolioSnapshotRecord {
 }
 
 export interface CreatePortfolioSnapshotInput {
-  trigger_source?: 'MANUAL_UPDATE' | 'PIPELINE_RUN' | 'RECONCILIATION';
+  trigger_source: 'MANUAL_UPDATE' | 'PIPELINE_RUN' | 'RECONCILIATION';
   total_equity: number;
   cash: number;
   buying_power: number;
-  day_pnl?: number;
-  day_pnl_pct?: number;
-  positions?: PositionDetail[];
+  day_pnl: number;
+  day_pnl_pct: number;
+  positions: PositionDetail[];
 }
 
 export class PortfolioDbService {
@@ -44,10 +44,10 @@ export class PortfolioDbService {
       throw new Error('DATABASE_URL is not set.');
     }
 
-    const triggerSource = input.trigger_source || 'MANUAL_UPDATE';
-    const dayPnl = input.day_pnl !== undefined ? input.day_pnl : 0.0;
-    const dayPnlPct = input.day_pnl_pct !== undefined ? input.day_pnl_pct : 0.0;
-    const positions = input.positions || [];
+    const triggerSource = input.trigger_source;
+    const dayPnl = input.day_pnl;
+    const dayPnlPct = input.day_pnl_pct;
+    const positions = input.positions;
     const positionsCount = positions.length;
     const payloadJson = JSON.stringify(positions);
 

@@ -4,6 +4,15 @@ import { PortfolioDbService, PositionDetail } from '../services/portfolioDbServi
 
 export const portfolioRouter = Router();
 
+// Reads one numeric field from an Alpaca response. Missing or non-numeric is an error, never a default.
+function requireNumber(source: Record<string, any>, field: string, what: string): number {
+  const value = parseFloat(source[field]);
+  if (Number.isNaN(value)) {
+    throw new Error(`${what} is missing ${field}`);
+  }
+  return value;
+}
+
 // GET /api/portfolio/account
 portfolioRouter.get('/account', async (req: Request, res: Response) => {
   try {
@@ -99,41 +108,37 @@ portfolioRouter.get('/live', async (req: Request, res: Response) => {
  */
 const handleCreateSnapshot = async (req: Request, res: Response) => {
   try {
-    const triggerSource = req.body?.trigger_source || 'MANUAL_UPDATE';
     const [account, positions] = await Promise.all([
-      AlpacaService.getAccount() as Promise<{
-        portfolio_value?: string;
-        equity?: string;
-        last_equity?: string;
-        cash?: string;
-        buying_power?: string;
-        status?: string;
-      }>,
-      AlpacaService.getPositions() as Promise<Array<unknown>>,
+      AlpacaService.getAccount() as Promise<Record<string, any>>,
+      AlpacaService.getPositions() as Promise<Array<Record<string, any>>>,
     ]);
 
-    const equity = parseFloat(account.equity || account.portfolio_value || '100000');
-    const lastEquity = parseFloat(account.last_equity || String(equity));
+    const equity = requireNumber(account, 'equity', 'Alpaca account response');
+    const lastEquity = requireNumber(account, 'last_equity', 'Alpaca account response');
     const rawDailyPnl = equity - lastEquity;
     const dailyPnl = Math.round(rawDailyPnl * 100) / 100;
-    const dailyPnlPct = lastEquity > 0 ? Math.round(((rawDailyPnl / lastEquity) * 100) * 100) / 100 : 0.0;
-    const cash = parseFloat(account.cash || '0');
-    const buyingPower = parseFloat(account.buying_power || '0');
+    const dailyPnlPct = Math.round(((rawDailyPnl / lastEquity) * 100) * 100) / 100;
+    const cash = requireNumber(account, 'cash', 'Alpaca account response');
+    const buyingPower = requireNumber(account, 'buying_power', 'Alpaca account response');
 
-    const formattedPositions: PositionDetail[] = Array.isArray(positions)
-      ? positions.map((p: any) => ({
-          ticker: p.symbol || '',
-          shares: parseFloat(p.qty || '0'),
-          avg_entry_price: parseFloat(p.avg_entry_price || '0'),
-          current_price: parseFloat(p.current_price || '0'),
-          market_value: parseFloat(p.market_value || '0'),
-          unrealized_pnl: parseFloat(p.unrealized_pl || '0'),
-          unrealized_pnl_pct: parseFloat(p.unrealized_plpc || '0') * 100,
-        }))
-      : [];
+    const formattedPositions: PositionDetail[] = positions.map((p) => {
+      if (typeof p.symbol !== 'string' || p.symbol.length === 0) {
+        throw new Error('Alpaca position response is missing symbol');
+      }
+      const what = `Alpaca position ${p.symbol}`;
+      return {
+        ticker: p.symbol,
+        shares: requireNumber(p, 'qty', what),
+        avg_entry_price: requireNumber(p, 'avg_entry_price', what),
+        current_price: requireNumber(p, 'current_price', what),
+        market_value: requireNumber(p, 'market_value', what),
+        unrealized_pnl: requireNumber(p, 'unrealized_pl', what),
+        unrealized_pnl_pct: requireNumber(p, 'unrealized_plpc', what) * 100,
+      };
+    });
 
     const savedSnapshot = await PortfolioDbService.saveSnapshot({
-      trigger_source: triggerSource,
+      trigger_source: req.body.trigger_source,
       total_equity: equity,
       cash,
       buying_power: buyingPower,
