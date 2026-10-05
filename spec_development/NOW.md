@@ -226,27 +226,10 @@ Ensure full TypeScript compilation coverage for the backend and eliminate redund
 **Objective:**  
 Split the monolithic `frontend/src/App.tsx` into a layered architecture that follows `docs/design_system_primer.md`: one token file, one file per reusable control, patterns grouped by domain, and screens that only assemble.
 
-**Agreed Architecture** *(replaces the earlier `components/layout|telemetry|config` + `hooks/` + `fixtures/` target; decided 2026-10-04 while reconciling the UI branch with DB main)*:
-```text
-frontend/src/
-├── index.css                        # Layer 1: the only token file (@theme) + control looks (@layer components)
-├── App.tsx                          # Switches between screens; still holds data/API logic (see Milestone Backlog)
-├── components/ui/                   # Layer 2: one file per reusable control
-│                                    #   badge, button, switch, tabs, modal, text-field, dial-field, dial-section, …
-├── patterns/                        # Layer 3: recurring combinations, grouped by domain
-│   ├── pipeline/                    #   Funnel, CandidateTable, ApprovedSignals
-│   ├── portfolio/                   #   PortfolioSummary
-│   ├── trading/                     #   OrderToggles, MarketClockBadge
-│   ├── strategy/                    #   ProposeDiff, DialInfoSheet
-│   └── universe/                    #   UniverseList
-├── screens/                         # Layer 4: LastRun, StrategyDials, DesignSpec
-├── content/                         # Text shown to the user, never setting values: dialDescriptions
-├── types/                           # Shared domain types: telemetry, dials, universe
-└── utils/                           # Logic only: marketClock, strategyDials
-```
+**Agreed Architecture:** see the Project Structure section in `AGENTS.md`.
 
 **Done:**
-- [x] Controls, patterns and screens extracted into the folders above; patterns use token names.
+- [x] Controls, patterns and screens extracted into the Project Structure folders; patterns use token names.
 - [x] UI wired to the Neon endpoints: run = `POST /api/pipeline/runs` + `GET …/stream`; portfolio sync = `POST /api/portfolio/snapshots`; Propose → Confirm = `POST /api/configs`.
 
 **Not done (moved to Milestone Backlog):**
@@ -322,7 +305,7 @@ One branch that keeps the local UI and design system, runs on the DB backend fro
 **Minimum Scope:**  
 - Backend and Neon DB layer taken from `main` unchanged (plus the local venv resolver fix and `dotenv`).
 - Local UI wired to the DB endpoints (runs, portfolio snapshots, config saves).
-- Frontend follows the agreed architecture (see Mobile Iteration 03).
+- Frontend follows the Project Structure section in `AGENTS.md`.
 - `AGENTS.md` merged: cloud tiers + restored detailed lessons and lesson protocol.
 - Repo-cleanup leftovers recorded in `Milestone Backlog.md`, not built here.
 - History views (saved configs, run history, snapshots) are **not** in scope; they belong to Feature 07.

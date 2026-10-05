@@ -22,6 +22,29 @@ Every change to this file MUST follow these steps. Rule 0 follows them too; a ru
 
 ---
 
+## 🗺️ Project Structure
+
+Every file goes in the folder this tree assigns to it. This is the only place in this file that says where files live. Adding a folder or changing what a folder holds requires the user's approval and is updated here.
+
+```text
+frontend/src/
+├── index.css        # The only token file (@theme) + control looks (@layer components)
+├── App.tsx          # Switches between screens
+├── components/ui/   # One file per reusable control: badge, button, switch, tabs, modal, text-field, dial-field, dial-section, …
+├── patterns/        # Recurring combinations of controls, grouped by domain
+│   ├── pipeline/    #   Funnel, CandidateTable, ApprovedSignals
+│   ├── portfolio/   #   PortfolioSummary
+│   ├── trading/     #   OrderToggles, MarketClockBadge
+│   ├── strategy/    #   ProposeDiff, DialInfoSheet
+│   └── universe/    #   UniverseList
+├── screens/         # Full screens that only assemble patterns: LastRun, StrategyDials, DesignSpec
+├── content/         # Text shown to the user, never setting values: dialDescriptions
+├── types/           # Shared domain types, one file per domain: telemetry, dials, universe
+└── utils/           # Logic only: marketClock, strategyDials
+```
+
+---
+
 ## ⛔ TIER 1: Hard Stops
 
 2. 🚫 **Single-Task Focus**: Work only on the single active sub-task in `spec_development/NOW.md`. Never jump ahead to, implement, or mark as completed subsequent tasks or features unless the user explicitly says so.
@@ -55,7 +78,7 @@ Every change to this file MUST follow these steps. Rule 0 follows them too; a ru
 
 ## 🏗️ TIER 2: Locked Architectural Contracts
 
-9. 🐍 **Single Python Runtime**: All Python executions, subprocesses, and package installs MUST use `.venv/bin/python3` via the `getPythonExecutable()` resolver in `server/config/paths.ts`. Never use system Python (`/usr/bin/python3`) or install outside `.venv`.
+9. 🐍 **Single Python Runtime**: All Python executions, subprocesses, and package installs MUST use the project virtual environment via the `getPythonExecutable()` resolver. Never use system Python or install outside the virtual environment.
    *Why:* Mixed environments cause `ModuleNotFoundError`, broken pipes, and corrupted IPC.
 
 11. 🧭 **Simplest Mechanism First**: Before proposing an approach, analyze the problem from first principles and check whether simple deterministic logic, a calculation, or an existing lifecycle event solves it. Never default to heavy mechanisms (polling, background servers, unrequested intervals, extra layers).
@@ -70,20 +93,20 @@ Every change to this file MUST follow these steps. Rule 0 follows them too; a ru
 20. 🦘 **Neon via Node Only, Brisbane Time**: All database operations happen in TypeScript/Node against Neon. Python never touches the database or imports database modules; it only does analytical calculations. Every database timestamp is saved and shown in Brisbane local time (`Australia/Brisbane`, UTC+10).
     *Why:* One gatekeeper keeps data access auditable; one timezone keeps timestamps comparable across tables.
 
-21. 🗄️ **Zero Runtime DDL, Approved DDL via Neon MCP**: Application code (`server.ts`, services, `schema.ts`) never runs DDL (`CREATE TABLE IF NOT EXISTS`, `ALTER TABLE`, `ensureTable()`); services only run DML (`SELECT`, `INSERT`, `UPDATE`, `DELETE`) and `schema.ts` only holds TypeScript types. Schema changes are run by the AI through the Neon MCP, only after showing the exact SQL and getting explicit approval for that specific change; then verify the result in Neon and update `server/db/schema.ts` in the same change.
+21. 🗄️ **Zero Runtime DDL, Approved DDL via Neon MCP**: Application code (`server.ts`, services, `schema.ts`) never runs DDL (`CREATE TABLE IF NOT EXISTS`, `ALTER TABLE`, `ensureTable()`); services only run DML (`SELECT`, `INSERT`, `UPDATE`, `DELETE`) and `schema.ts` only holds TypeScript types. Schema changes are run by the AI through the Neon MCP, only after showing the exact SQL and getting explicit approval for that specific change; then verify the result in Neon and update `schema.ts` in the same change.
     *Why:* The live schema and the TypeScript contract must stay one source of truth, and every schema change must be human-approved.
 
-23. 🗂️ **Frontend Modularity & File Ceiling**: Before adding UI code, decide whether the target file will become monolithic and extract components in the same change, never "later". No component file exceeds 300–400 lines. Screens go in `frontend/src/screens/`, patterns in `frontend/src/patterns/<domain>/`, reusable controls in `frontend/src/components/ui/`. New tabs, modals, and overlays live in their own files and are imported into `App.tsx` as lean tags. Large static constants never live inside component files.
+23. 🗂️ **Frontend Modularity & File Ceiling**: Before adding UI code, decide whether the target file will become monolithic and extract components in the same change, never "later". No component file exceeds 300–400 lines. New tabs, modals, and overlays live in their own files and are imported into `App.tsx` as lean tags. Large static constants never live inside component files.
     *Why:* Deferred extraction turns into permanent monoliths.
 
 24. 🌐 **HTTP Verb Semantics**: `GET` is strictly read-only (no DB writes, subprocesses, or side effects). `POST` creates records or starts jobs. `PUT`/`PATCH` update existing records. `DELETE` removes records. Long-running work is started by a mutating call and observed through a separate read-only `GET .../stream` or `GET .../status`.
     *Why:* Mutating `GET`s fire on reloads, prefetches, and polling.
 
-27. 🎨 **One File Per Reusable UI Control**: A reusable control (switch, button, input, badge) lives in its own file under `frontend/src/components/ui/`, and consumers import it, never redefine it. The control stays agnostic of the screen; the consumer supplies labels, tone, and behavior.
-    *Why:* One definition per control keeps the design system consistent. Example: `patterns/trading/OrderToggles.tsx` imports `components/ui/switch.tsx` twice.
+27. 🎨 **One File Per Reusable UI Control**: A reusable control (switch, button, input, badge) lives in its own file, and consumers import it, never redefine it. The control stays agnostic of the screen; the consumer supplies labels, tone, and behavior.
+    *Why:* One definition per control keeps the design system consistent. Example: `OrderToggles` imports `Switch` twice.
 
-28. 🗂️ **Shared Domain Types in `frontend/src/types/`**: A domain type (data or API contract) used by more than one file lives in `frontend/src/types/<domain>.ts`. Props types (`XxxProps`) and private helper types stay in their component file. Never import a domain type from a component file, never define the same shape twice, never create a catch-all `types.ts`.
-    *Why:* Applies Rule 13 to frontend types. Example: `Candidate` and `Telemetry` live in `types/telemetry.ts`; `CandidateTableProps` stays in `CandidateTable.tsx`.
+28. 🗂️ **Shared Domain Types**: A domain type (data or API contract) used by more than one file lives in the shared types file for its domain. Props types (`XxxProps`) and private helper types stay in their component file. Never import a domain type from a component file, never define the same shape twice, never create a catch-all `types.ts`.
+    *Why:* Applies Rule 13 to frontend types. Example: `Candidate` and `Telemetry` live in the telemetry types file; `CandidateTableProps` stays in `CandidateTable.tsx`.
 
 ---
 
