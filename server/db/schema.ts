@@ -28,21 +28,9 @@ export interface UniverseWatchlistItem {
 export interface PipelineConfig {
   id?: number;
   name: string;
-  is_active?: boolean;
-  max_position_size_usd?: number;
-  max_portfolio_risk_pct?: number;
-  max_open_positions?: number;
-  daily_loss_limit_usd?: number;
-  min_price?: number;
-  max_price?: number;
-  min_volume_avg?: number;
-  min_relative_volume?: number;
-  min_premarket_gain_pct?: number;
-  gate3_min_conviction_score?: number;
-  gate5_min_ev_score?: number;
-  stop_loss_pct?: number;
-  take_profit_pct?: number;
-  parameters_json: Record<string, any>;
+  parameters_json: Record<string, any>; // LEGACY: dropped once the app reads selection_params / money_params
+  selection_params: Record<string, any>;
+  money_params: Record<string, any>;
   created_at?: string;
   version?: number;
   is_default?: boolean;
