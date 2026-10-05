@@ -13,7 +13,11 @@ from alpaca.trading.requests import (
     TrailingStopOrderRequest,
     GetPortfolioHistoryRequest,
 )
-from alpaca.trading.enums import OrderSide, TimeInForce
+from alpaca.trading.enums import OrderSide, OrderType, TimeInForce
+
+# The entry order this executor places. Also describes the order a simulated BUY would have placed.
+ENTRY_SIDE = OrderSide.BUY
+ENTRY_ORDER_TYPE = OrderType.MARKET
 
 
 def _get_alpaca_client():
@@ -166,7 +170,7 @@ def position_trade(trade_details: dict, fill_timeout_s: int = 60, ignore_market_
         order_req = MarketOrderRequest(
             symbol=ticker,
             qty=shares,
-            side=OrderSide.BUY,
+            side=ENTRY_SIDE,
             time_in_force=TimeInForce.DAY
         )
         entry = client.submit_order(order_req)
@@ -191,6 +195,10 @@ def position_trade(trade_details: dict, fill_timeout_s: int = 60, ignore_market_
     audit = {
         'ticker': ticker,
         'entry_order_id': str(filled.id),
+        'client_order_id': filled.client_order_id,
+        'side': filled.side.value,
+        'order_type': filled.order_type.value,
+        'qty': float(filled.qty),
         'status': status_str,
         'is_market_closed': is_market_closed,
         'filled_qty': filled_qty,

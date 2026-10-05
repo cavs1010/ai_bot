@@ -54,6 +54,8 @@ from alpaca_executor import (
     get_daily_pnl,
     get_drawdown_pct,
     position_trade,
+    ENTRY_SIDE,
+    ENTRY_ORDER_TYPE,
 )
 from helpers.fetchers.news import fetch_news
 from helpers.fetchers.market import get_market_context
@@ -173,59 +175,35 @@ def main():
         payload = {"ticker": ticker, **delta}
         print_log(f"__CANDIDATE_UPDATE__ {json.dumps(payload)}")
 
-    def _row(ticker, decision, g1=None, g2=None, g3=None, g4=None, g5=None, risk=None, exec_audit=None, exec_error=None):
+    def _row(ticker, decision, scan, g1=None, g2=None, g3=None, g4=None, g5=None, risk=None, order=None, exec_error=None):
         tl = g5.get('trade_levels') if g5 else None
         pos = risk['position'] if risk else None
 
+        # One entry per gate that actually ran, built only from that gate's own result.
+        # The Risk gate is not recorded here: its outcome lives in final_decision and order.
         gate_evals = []
-        g1_passed = not str(decision).startswith('BLOCKED_G1')
-        gate_evals.append({
-            "gate_id": 1,
-            "passed": g1_passed,
-            "score": None,
-            "reasoning": f"Decision: {decision}" if not g1_passed else "Passed hard threat screen",
-            "sub_evaluations": g1 or {}
-        })
-        if g1_passed:
-            g2_passed = str(decision) != 'BLOCKED_G2'
-            gate_evals.append({
-                "gate_id": 2,
-                "passed": g2_passed,
-                "score": None,
-                "reasoning": "Catastrophic news event flagged" if not g2_passed else "Passed news safety checks",
-                "sub_evaluations": g2 or {}
-            })
-            if g2_passed:
-                g3_passed = str(decision) != 'BLOCKED_G3'
-                gate_evals.append({
-                    "gate_id": 3,
-                    "passed": g3_passed,
-                    "score": float(g3['confidence']) if g3 and g3.get('confidence') is not None else None,
-                    "reasoning": f"Sentiment {g3.get('direction')} ({g3.get('confidence')}/10)" if g3 else "AI sentiment check",
-                    "sub_evaluations": g3 or {}
-                })
-                if g3_passed:
-                    g4_passed = not str(decision).startswith('BLOCKED_G4')
-                    gate_evals.append({
-                        "gate_id": 4,
-                        "passed": g4_passed,
-                        "score": None,
-                        "reasoning": (g4.get('reason') if g4 else None) or ("Passed contradiction check" if g4_passed else "Blocked contradiction"),
-                        "sub_evaluations": g4 or {}
-                    })
-                    if g4_passed:
-                        g5_passed = str(decision) != 'SKIP'
-                        gate_evals.append({
-                            "gate_id": 5,
-                            "passed": g5_passed,
-                            "score": float(g5['expected_value']) if g5 and g5.get('expected_value') is not None else None,
-                            "reasoning": f"EV {g5.get('expected_value'):.1%}" if g5 and g5.get('expected_value') is not None else "Signal evaluation",
-                            "sub_evaluations": g5 or {}
-                        })
+        if g1:
+            gate_evals.append({"gate_id": 1, "passed": g1['passed'], "score": None,
+                               "reasoning": g1['block_reason'], "sub_evaluations": g1['checks']})
+        if g2:
+            gate_evals.append({"gate_id": 2, "passed": g2['passed'], "score": None,
+                               "reasoning": g2['reason'], "sub_evaluations": g2})
+        if g3:
+            gate_evals.append({"gate_id": 3, "passed": g3['passed'], "score": g3['confidence'],
+                               "reasoning": g3['key_reason'], "sub_evaluations": g3})
+        if g4:
+            # FLAG_FOR_REVIEW is auto-approved by this pipeline, so only BLOCK stops the candidate
+            gate_evals.append({"gate_id": 4, "passed": g4['action'] != 'BLOCK', "score": None,
+                               "reasoning": g4['reason'], "sub_evaluations": g4})
+        if g5:
+            gate_evals.append({"gate_id": 5, "passed": g5['passed'], "score": g5['expected_value'],
+                               "reasoning": g5['reason'], "sub_evaluations": g5})
 
         return {
             'ticker': ticker,
             'final_decision': decision,
+            'scan': scan,
+            'order': order,
             'g3_direction': g3.get('direction') if g3 else None,
             'g3_confidence': g3.get('confidence') if g3 else None,
             'ev': round(g5['expected_value'], 3) if g5 else None,
@@ -240,12 +218,37 @@ def main():
             'position_pct': pos['position_pct'] if pos else None,
             'risk_reject': risk.get('reject_reason') if risk and not risk['approved'] else None,
             'exec_error': exec_error,
-            'filled_qty': exec_audit.get('filled_qty') if exec_audit else None,
-            'filled_avg_price': exec_audit.get('filled_avg_price') if exec_audit else None,
-            'trail_percent': exec_audit.get('trail_percent') if exec_audit else None,
-            'stop_attached': exec_audit.get('stop_attached') if exec_audit else None,
-            'exec_audit': exec_audit,
             'gate_evaluations': gate_evals,
+        }
+
+    def _real_order(audit):
+        """order_executions record for an order Alpaca actually received; every value comes from Alpaca."""
+        return {
+            'client_order_id': audit['client_order_id'],
+            'alpaca_order_id': audit['entry_order_id'],
+            'side': audit['side'],
+            'order_type': audit['order_type'],
+            'qty': audit['qty'],
+            'stop_loss': audit['initial_stop_price'],
+            'filled_qty': audit['filled_qty'],
+            'filled_avg_price': audit['filled_avg_price'],
+            'status': audit['status'],
+            'raw_response': audit,
+        }
+
+    def _simulated_order(pos, tl):
+        """order_executions record for a BUY approved with order placement off: no order exists at Alpaca."""
+        return {
+            'client_order_id': None,
+            'alpaca_order_id': None,
+            'side': ENTRY_SIDE.value,
+            'order_type': ENTRY_ORDER_TYPE.value,
+            'qty': pos['shares'],
+            'stop_loss': tl['stop'],
+            'filled_qty': None,
+            'filled_avg_price': None,
+            'status': 'SIMULATED',
+            'raw_response': pos,
         }
 
     if not candidates_df.empty:
@@ -275,6 +278,16 @@ def main():
                 'score': int(r['score']),
             }
 
+            # Stage 2 scan values for this candidate (saved to scanned_stocks.rule_evaluations)
+            scan = {
+                'score': int(r['score']),
+                'price': float(r['price']),
+                'rsi': float(r['rsi']),
+                'sma20': float(r['sma20']),
+                'sma50': float(r['sma50']),
+                'atr': float(r['atr']),
+            }
+
             # Gate 1 — Hard Threat Screen
             g1 = screen_gate1_hard_threats(candidate, shared, portfolio_value, daily_pnl)
             if not g1['passed']:
@@ -285,7 +298,7 @@ def main():
                     "final_decision": decision,
                     "notes": f"Gate 1: {reason}"
                 })
-                rows.append(_row(ticker, decision))
+                rows.append(_row(ticker, decision, scan, g1=g1))
                 continue
             print_log(f"[gate1] {ticker}: Passed hard threat rules.")
             emit_candidate_update(ticker, {
@@ -305,7 +318,7 @@ def main():
                     "final_decision": "BLOCKED_G2",
                     "notes": "Gate 2 news block: catastrophic news event flagged"
                 })
-                rows.append(_row(ticker, "BLOCKED_G2"))
+                rows.append(_row(ticker, "BLOCKED_G2", scan, g1=g1, g2=g2))
                 continue
             print_log(f"[gate2] {ticker}: Passed news safety checks.")
             emit_candidate_update(ticker, {
@@ -324,7 +337,7 @@ def main():
                     "g3_confidence": g3.get('confidence'),
                     "notes": f"Gate 3 AI sentiment block: {g3.get('direction')} ({g3.get('confidence')}/10)"
                 })
-                rows.append(_row(ticker, "BLOCKED_G3", g3=g3))
+                rows.append(_row(ticker, "BLOCKED_G3", scan, g1=g1, g2=g2, g3=g3))
                 continue
             print_log(f"[gate3] {ticker}: Passed. AI Sentiment: {g3.get('direction')} (Confidence: {g3.get('confidence')}/10)")
             emit_candidate_update(ticker, {
@@ -338,12 +351,14 @@ def main():
             print_log(f"[gate4] Loading market backdrop for contradiction analysis...")
             market_context = get_market_context(sector)
             if market_context is None:
+                # Gate 4 cannot assess without the backdrop; this block is its outcome
+                g4 = {'action': 'BLOCK', 'reason': 'unable to fetch market backdrop metrics', 'market_context': None}
                 print_log(f"[gate4] {ticker}: BLOCKED — unable to fetch market backdrop metrics.")
                 emit_candidate_update(ticker, {
                     "final_decision": "BLOCKED_G4:no_market_context",
                     "notes": "Gate 4 blocked: unable to fetch market context"
                 })
-                rows.append(_row(ticker, "BLOCKED_G4:no_market_context", g3=g3))
+                rows.append(_row(ticker, "BLOCKED_G4:no_market_context", scan, g1=g1, g2=g2, g3=g3, g4=g4))
                 continue
 
             g4 = detect_gate4_contradiction(candidate, g3, market_context)
@@ -353,7 +368,7 @@ def main():
                     "final_decision": "BLOCKED_G4",
                     "notes": f"Gate 4 blocked: {g4.get('reason')}"
                 })
-                rows.append(_row(ticker, "BLOCKED_G4", g3=g3))
+                rows.append(_row(ticker, "BLOCKED_G4", scan, g1=g1, g2=g2, g3=g3, g4=g4))
                 continue
             elif g4['action'] == 'FLAG_FOR_REVIEW':
                 # Automated environment auto-approves flags but logs the warning
@@ -374,7 +389,7 @@ def main():
                     "trade_levels": tl,
                     "notes": f"Gate 5 SKIP: EV {g5.get('expected_value'):.1%} below threshold"
                 })
-                rows.append(_row(ticker, g5['decision'], g3=g3, g5=g5))
+                rows.append(_row(ticker, g5['decision'], scan, g1=g1, g2=g2, g3=g3, g4=g4, g5=g5))
                 continue
             
             print_log(f"[gate5] {ticker}: BUY SIGNAL generated! EV={g5.get('expected_value'):.1%}, Entry=${tl['entry']:.2f}, Stop=${tl['stop']:.2f}, Target=${tl['target']:.2f}, R:R={tl['reward_risk']:.1f}")
@@ -397,7 +412,7 @@ def main():
                     "risk_reject_reason": reject_reason,
                     "notes": f"Risk rejected: {reject_reason}"
                 })
-                rows.append(_row(ticker, f"REJECTED_RISK:{reject_reason}", g3=g3, g5=g5, risk=risk))
+                rows.append(_row(ticker, f"REJECTED_RISK:{reject_reason}", scan, g1=g1, g2=g2, g3=g3, g4=g4, g5=g5, risk=risk))
                 continue
             
             pos = risk['position']
@@ -418,7 +433,7 @@ def main():
                     "final_decision": "BUY",
                     "notes": "BUY approved (Order simulation saved)"
                 })
-                rows.append(_row(ticker, "BUY", g3=g3, g5=g5, risk=risk))
+                rows.append(_row(ticker, "BUY", scan, g1=g1, g2=g2, g3=g3, g4=g4, g5=g5, risk=risk, order=_simulated_order(pos, tl)))
                 continue
 
             print_log(f"[executor] {ticker}: Dispatching paper order to Alpaca via REST API (ignore_market_hours={ignore_market_hours})...")
@@ -436,7 +451,7 @@ def main():
                     "exec_error": err_msg,
                     "notes": f"Execution failed: {err_msg}"
                 })
-                rows.append(_row(ticker, "EXEC_FAILED", g3=g3, g5=g5, risk=risk, exec_error=err_msg))
+                rows.append(_row(ticker, "EXEC_FAILED", scan, g1=g1, g2=g2, g3=g3, g4=g4, g5=g5, risk=risk, exec_error=err_msg))
                 continue
 
             if audit is None:
@@ -447,7 +462,7 @@ def main():
                     "exec_error": err_msg,
                     "notes": f"Execution failed: {err_msg}"
                 })
-                rows.append(_row(ticker, "EXEC_FAILED", g3=g3, g5=g5, risk=risk, exec_error=err_msg))
+                rows.append(_row(ticker, "EXEC_FAILED", scan, g1=g1, g2=g2, g3=g3, g4=g4, g5=g5, risk=risk, exec_error=err_msg))
                 continue
 
             open_positions_count += 1
@@ -468,7 +483,7 @@ def main():
                 "final_decision": decision,
                 "notes": f"Order {decision}"
             })
-            rows.append(_row(ticker, decision, g3=g3, g5=g5, risk=risk, exec_audit=audit))
+            rows.append(_row(ticker, decision, scan, g1=g1, g2=g2, g3=g3, g4=g4, g5=g5, risk=risk, order=_real_order(audit)))
 
     print_log(f"[pipeline] Run completed. Processed {processed_count} candidates.")
 
@@ -528,12 +543,10 @@ def main():
                 "position_pct": round(r["position_pct"] * 100, 2) if r["position_pct"] else None
             } if r["shares"] else None,
             "risk_reject_reason": r["risk_reject"],
-            "exec_error": r.get("exec_error"),
-            "execution_audit": r.get("exec_audit"),
-            "order_audit": r.get("exec_audit"),
-            "filled_qty": r.get("filled_qty"),
-            "filled_avg_price": r.get("filled_avg_price"),
-            "gate_evaluations": r.get("gate_evaluations", []),
+            "exec_error": r["exec_error"],
+            "scan": r["scan"],
+            "gate_evaluations": r["gate_evaluations"],
+            "order": r["order"],
             "notes": f"Decision: {r['final_decision']}" + (f" | Error: {r['exec_error']}" if r.get("exec_error") else "")
         }
         telemetry_payload["results"].append(formatted_row)
