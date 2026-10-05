@@ -19,7 +19,9 @@ import type { UniverseItem } from './types/universe';
 import { DesignSpec } from './screens/DesignSpec';
 import { LastRun } from './screens/LastRun';
 import { StrategyDials } from './screens/StrategyDials';
-import type { DialDiff, Dials } from './types/dials';
+import type { DialDiff, Dials, StrategyConfig } from './types/dials';
+import { diffDials } from './utils/strategyDials';
+import { ErrorNotice } from './components/ui/error-notice';
 
 // Initial Mock Telemetry Data
 const initialTelemetry: Telemetry = {
@@ -148,54 +150,14 @@ const initialTelemetry: Telemetry = {
   ]
 };
 
-// Initial Strategy Dials directly mapped from backend/config.py
-const initialDials: Dials = {
-  universe: {
-    MIN_PRICE: 10.0,
-    MIN_MARKET_CAP_BILLIONS: 100.0, // represented in Billions for readability
-    MIN_ATR_PCT: 1.0,
-    MAX_ATR_PCT: 5.0,
-    EARNINGS_WINDOW_DAYS: 5
-  },
-  scanner: {
-    TOP_N: 15,
-    MIN_SCORE: 2,
-    RSI_MIN: 50,
-    RSI_MAX: 70
-  },
-  gate1: {
-    vix_level_limit: 30.0,
-    spy_change_pct_limit: -1.5,
-    sector_change_pct_limit: -2.0,
-    premarket_gap_pct_limit: 3.0,
-    macro_hours_threshold: 2.0,
-    loss_limit_pct_limit: 3.0
-  },
-  gate3: {
-    MIN_CONFIDENCE: 6
-  },
-  gate5: {
-    WIN_PROB_BASE: 35.0, // stored as %
-    MIN_EDGE_PCT: 4.0 // stored as %
-  },
-  risk: {
-    MAX_OPEN_POSITIONS: 10,
-    MAX_DAILY_LOSS_PCT: 3.0,
-    MAX_DRAWDOWN_PCT: 8.0,
-    KELLY_FRACTION: 0.25
-  },
-  geometry: {
-    atr_stop_multiplier: 1.5,
-    target_rr_multiple: 2.0
-  }
-};
-
 export default function App() {
   const [activeTab, setActiveTab] = useState<'last_run' | 'config' | 'spec'>('last_run');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [telemetry, setTelemetry] = useState(initialTelemetry);
-  const [dials, setDials] = useState(initialDials);
-  const [tempDials, setTempDials] = useState<typeof initialDials>(JSON.parse(JSON.stringify(initialDials)));
+  // Active strategy config, loaded from Neon (GET /api/configs/active)
+  const [dials, setDials] = useState<Dials | null>(null);
+  const [tempDials, setTempDials] = useState<Dials | null>(null);
+  const [configError, setConfigError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [placeOrders, setPlaceOrders] = useState<boolean>(false);
   const [ignoreMarketHours, setIgnoreMarketHours] = useState<boolean>(false);
@@ -208,7 +170,7 @@ export default function App() {
   const [proposedDiff, setProposedDiff] = useState<DialDiff[]>([]);
 
   // Strategy config preset (saved to Neon pipeline_configs)
-  const [strategyName, setStrategyName] = useState<string>('Default Momentum Strategy');
+  const [strategyName, setStrategyName] = useState<string>('');
   const [isSavingConfig, setIsSavingConfig] = useState<boolean>(false);
 
   // Universe Modal State
@@ -336,8 +298,28 @@ export default function App() {
     fetchLivePortfolio(true);
   };
 
+  // Load the active strategy config; the dials and the strategy name come only from Neon
+  const loadActiveConfig = async () => {
+    try {
+      const res = await fetch('/api/configs/active');
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const config: StrategyConfig = data.data;
+        const loaded: Dials = { selection_params: config.selection_params, money_params: config.money_params };
+        setDials(loaded);
+        setTempDials(structuredClone(loaded));
+        setStrategyName(config.name);
+      } else {
+        setConfigError(data.error);
+      }
+    } catch (err: any) {
+      setConfigError(err.message);
+    }
+  };
+
   // Fetch the latest telemetry run from backend on page load
   useEffect(() => {
+    loadActiveConfig();
     fetchLivePortfolio();
 
     fetch('/api/run/latest')
@@ -825,110 +807,18 @@ export default function App() {
     setTimeout(() => setSuccessToast(null), 4000);
   };
 
-  // Dial edit handler
-  const handleDialChange = (section: keyof Dials, field: string, value: number) => {
-    setTempDials(prev => ({
-      ...prev,
-      [section]: {
-        ...prev[section],
-        [field]: value
-      }
-    }));
+  // Dial edit handler (value already converted back to stored units by StrategyDials)
+  const handleDialChange = (group: keyof Dials, section: string, field: string, value: number) => {
+    setTempDials(prev => {
+      const next = structuredClone(prev!);
+      (next[group] as Record<string, Record<string, number>>)[section][field] = value;
+      return next;
+    });
   };
 
-  // Compare temp values with active ones to create a Propose summary
+  // Compare edited values with the saved ones to create a Propose summary
   const proposeChanges = () => {
-    const diffs: typeof proposedDiff = [];
-    
-    // Check Universe
-    Object.keys(dials.universe).forEach(k => {
-      const key = k as keyof typeof dials.universe;
-      if (dials.universe[key] !== tempDials.universe[key]) {
-        diffs.push({
-          path: `universe.${key}`,
-          oldVal: dials.universe[key],
-          newVal: tempDials.universe[key],
-          desc: key === 'MIN_PRICE' ? "Adjust threshold for cheap assets" : "Alters universe depth"
-        });
-      }
-    });
-
-    // Check Scanner
-    Object.keys(dials.scanner).forEach(k => {
-      const key = k as keyof typeof dials.scanner;
-      if (dials.scanner[key] !== tempDials.scanner[key]) {
-        diffs.push({
-          path: `scanner.${key}`,
-          oldVal: dials.scanner[key],
-          newVal: tempDials.scanner[key],
-          desc: "Updates momentum filtering limits"
-        });
-      }
-    });
-
-    // Check Gate 1
-    Object.keys(dials.gate1).forEach(k => {
-      const key = k as keyof typeof dials.gate1;
-      if (dials.gate1[key] !== tempDials.gate1[key]) {
-        diffs.push({
-          path: `gate1.${key}`,
-          oldVal: dials.gate1[key],
-          newVal: tempDials.gate1[key],
-          desc: "Modifies strict market-level risk circuit breaker"
-        });
-      }
-    });
-
-    // Check Gate 3
-    if (dials.gate3.MIN_CONFIDENCE !== tempDials.gate3.MIN_CONFIDENCE) {
-      diffs.push({
-        path: "gate3.MIN_CONFIDENCE",
-        oldVal: dials.gate3.MIN_CONFIDENCE,
-        newVal: tempDials.gate3.MIN_CONFIDENCE,
-        desc: "Alters required LLM confidence before allowing trade"
-      });
-    }
-
-    // Check Gate 5
-    Object.keys(dials.gate5).forEach(k => {
-      const key = k as keyof typeof dials.gate5;
-      if (dials.gate5[key] !== tempDials.gate5[key]) {
-        diffs.push({
-          path: `gate5.${key}`,
-          oldVal: dials.gate5[key],
-          newVal: tempDials.gate5[key],
-          desc: key === 'MIN_EDGE_PCT' ? "Changes strict expected return cutoff rate" : "Adjusts probability baseline"
-        });
-      }
-    });
-
-    // Check Risk
-    Object.keys(dials.risk).forEach(k => {
-      const key = k as keyof typeof dials.risk;
-      if (dials.risk[key] !== tempDials.risk[key]) {
-        diffs.push({
-          path: `risk.${key}`,
-          oldVal: dials.risk[key],
-          newVal: tempDials.risk[key],
-          desc: "Alters capital exposure and allocation bounds"
-        });
-      }
-    });
-
-    // Check Geometry
-    Object.keys(dials.geometry).forEach(k => {
-      const key = k as keyof typeof dials.geometry;
-      if (dials.geometry[key] !== tempDials.geometry[key]) {
-        diffs.push({
-          path: `geometry.${key}`,
-          oldVal: dials.geometry[key],
-          newVal: tempDials.geometry[key],
-          desc: "Adjusts structural stop levels and reward multiples"
-        });
-      }
-    });
-
-    setProposedDiff(diffs);
+    setProposedDiff(diffDials(dials!, tempDials!));
     setShowConfirmModal(true);
   };
 
@@ -942,12 +832,13 @@ export default function App() {
         body: JSON.stringify({
           name: strategyName.trim(),
           is_default: true,
-          parameters_json: tempDials,
+          selection_params: tempDials!.selection_params,
+          money_params: tempDials!.money_params,
         }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setDials(JSON.parse(JSON.stringify(tempDials)));
+        setDials(structuredClone(tempDials));
         setShowConfirmModal(false);
         showToast(`Strategy '${data.data.name}' (v${data.data.version}) saved to database.`);
       } else {
@@ -961,9 +852,20 @@ export default function App() {
   };
 
   const discardDials = () => {
-    setTempDials(JSON.parse(JSON.stringify(dials)));
+    setTempDials(structuredClone(dials));
     showToast("Changes discarded. Reverted dials to the last saved state.");
   };
+
+  // Without the active config from Neon there is nothing to run; stop here and show why
+  if (!dials || !tempDials) {
+    return (
+      <div className="min-h-screen bg-slate-900 text-slate-100 flex items-center justify-center p-4">
+        {configError
+          ? <ErrorNotice layout="inset" title="Strategy config not loaded:" message={configError} />
+          : <p className="text-sm text-slate-400">Loading strategy config from Neon…</p>}
+      </div>
+    );
+  }
 
   return (
     <div id="applet_main" className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans">
@@ -1012,7 +914,7 @@ export default function App() {
             <PortfolioSummary
               layout="compact"
               portfolio={telemetry.portfolio}
-              maxPositions={dials.risk.MAX_OPEN_POSITIONS}
+              maxPositions={dials.money_params.portfolio_limits.MAX_OPEN_POSITIONS}
               isFetching={isFetchingPortfolio}
               lastSync={portfolioLastSync}
               error={portfolioError}
@@ -1083,7 +985,7 @@ export default function App() {
             <PortfolioSummary
               layout="drawer"
               portfolio={telemetry.portfolio}
-              maxPositions={dials.risk.MAX_OPEN_POSITIONS}
+              maxPositions={dials.money_params.portfolio_limits.MAX_OPEN_POSITIONS}
               isFetching={isFetchingPortfolio}
               lastSync={portfolioLastSync}
               error={portfolioError}
@@ -1162,7 +1064,7 @@ export default function App() {
           <PortfolioSummary
             layout="banner"
             portfolio={telemetry.portfolio}
-            maxPositions={dials.risk.MAX_OPEN_POSITIONS}
+            maxPositions={dials.money_params.portfolio_limits.MAX_OPEN_POSITIONS}
             isFetching={isFetchingPortfolio}
             lastSync={portfolioLastSync}
             error={portfolioError}
@@ -1174,7 +1076,7 @@ export default function App() {
         <PortfolioSummary
           layout="error"
           portfolio={telemetry.portfolio}
-          maxPositions={dials.risk.MAX_OPEN_POSITIONS}
+          maxPositions={dials.money_params.portfolio_limits.MAX_OPEN_POSITIONS}
           isFetching={isFetchingPortfolio}
           lastSync={portfolioLastSync}
           error={portfolioError}
@@ -1260,7 +1162,7 @@ export default function App() {
             liveOrders={placeOrders}
             log={runLog}
             rows={telemetry.results}
-            stopMultiplier={dials.geometry.atr_stop_multiplier}
+            stopMultiplier={dials.money_params.trade_risk.atr_stop_multiplier}
             onViewList={openUniverseModal}
             onLoadWatchlist={handleLoadWatchlist}
             onFastReplay={triggerFastReplay}

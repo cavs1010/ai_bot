@@ -20,8 +20,8 @@ export const VARIABLE_INFO_REGISTRY: Record<string, VariableInfo> = {
     ruleOfThumb: '$10 - $20 is the industry standard floor for clean institutional liquidity.',
     examples: 'Set to $10: excludes stocks trading below $10.00.'
   },
-  MIN_MARKET_CAP_BILLIONS: {
-    key: 'MIN_MARKET_CAP_BILLIONS',
+  MIN_MARKET_CAP: {
+    key: 'MIN_MARKET_CAP',
     label: 'MIN_MARKET_CAP (Billions $)',
     category: '1. Universe Filter Constraints',
     summary: 'Minimum company market capitalization in billions of USD.',
@@ -99,8 +99,8 @@ export const VARIABLE_INFO_REGISTRY: Record<string, VariableInfo> = {
   },
 
   // --- SECTION 3: GATE 1 HARD THREAT BOUNDARIES ---
-  vix_level_limit: {
-    key: 'vix_level_limit',
+  vix_level: {
+    key: 'vix_level',
     label: 'VIX Index Limit',
     category: '3. Gate 1 Hard Stress Boundaries',
     summary: 'Macro market fear index (CBOE Volatility Index) hard stop ceiling.',
@@ -108,8 +108,8 @@ export const VARIABLE_INFO_REGISTRY: Record<string, VariableInfo> = {
     ruleOfThumb: 'VIX > 30 represents severe market stress; all new long trades should be halted.',
     examples: 'If VIX is 32.5, Gate 1 instantly blocks all new buy entries.'
   },
-  spy_change_pct_limit: {
-    key: 'spy_change_pct_limit',
+  spy_change_pct: {
+    key: 'spy_change_pct',
     label: 'SPY Daily Min (%)',
     category: '3. Gate 1 Hard Stress Boundaries',
     summary: 'Minimum benchmark daily return (S&P 500 ETF) allowed for new long entries.',
@@ -117,8 +117,8 @@ export const VARIABLE_INFO_REGISTRY: Record<string, VariableInfo> = {
     ruleOfThumb: '-1.5% to -2.0% threshold halts long trades on heavy market distribution days.',
     examples: 'If SPY is down -2.2%, Gate 1 blocks all new long positions.'
   },
-  sector_change_pct_limit: {
-    key: 'sector_change_pct_limit',
+  sector_change_pct: {
+    key: 'sector_change_pct',
     label: 'Sector Daily Min (%)',
     category: '3. Gate 1 Hard Stress Boundaries',
     summary: 'Minimum daily performance allowed for the candidate stock\'s corresponding sector ETF (e.g. XLK, XLF).',
@@ -126,8 +126,8 @@ export const VARIABLE_INFO_REGISTRY: Record<string, VariableInfo> = {
     ruleOfThumb: '-2.0% to -2.5% sector drop flags severe localized risk.',
     examples: 'If AMD is scanning but Semiconductor ETF (SOXX) is down -3.1%, entry is blocked.'
   },
-  premarket_gap_pct_limit: {
-    key: 'premarket_gap_pct_limit',
+  premarket_gap_pct: {
+    key: 'premarket_gap_pct',
     label: 'Premarket Gap Limit (%)',
     category: '3. Gate 1 Hard Stress Boundaries',
     summary: 'Maximum allowable premarket gap percentage from previous day\'s closing price.',
