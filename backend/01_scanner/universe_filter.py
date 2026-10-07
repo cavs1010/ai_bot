@@ -37,30 +37,26 @@ def get_max_share_price() -> float:
     return get_portfolio_value() * MAX_POSITION_SIZE_PCT * PRICE_CEILING_BUFFER
 
 
-def get_earnings_tickers(days_ahead: int = EARNINGS_WINDOW_DAYS) -> set[str] | None:
+def get_earnings_tickers(days_ahead: int = EARNINGS_WINDOW_DAYS) -> set[str]:
     """
     Fetches tickers with earnings announcements in the next N days from Finnhub.
 
     Args:
-        days_ahead: Number of calendar days to look forward. Default 5.
+        days_ahead: Number of calendar days to look forward (EARNINGS_WINDOW_DAYS).
 
     Returns:
-        Set of ticker strings with upcoming earnings, or None on failure.
+        Set of ticker strings with upcoming earnings; empty if none are scheduled.
+        Raises if FINNHUB_API_KEY is missing or Finnhub fails: the filter is never skipped.
     """
-    try:
-        key = os.getenv('FINNHUB_API_KEY')
-        if not key:
-            print('[universe] FINNHUB_API_KEY not set, skipping earnings filter')
-            return None
-        today = datetime.now().strftime('%Y-%m-%d')
-        future = (datetime.now() + timedelta(days=days_ahead)).strftime('%Y-%m-%d')
-        url = f'https://finnhub.io/api/v1/calendar/earnings?from={today}&to={future}&token={key}'
-        r = requests.get(url, timeout=10)
-        r.raise_for_status()
-        return {e['symbol'] for e in r.json().get('earningsCalendar', []) if 'symbol' in e}
-    except Exception as e:
-        print(f'[universe] Finnhub unavailable, skipping earnings filter: {e}')
-        return None
+    key = os.getenv('FINNHUB_API_KEY')
+    if not key:
+        raise RuntimeError('FINNHUB_API_KEY is not set; the earnings filter cannot run')
+    today = datetime.now().strftime('%Y-%m-%d')
+    future = (datetime.now() + timedelta(days=days_ahead)).strftime('%Y-%m-%d')
+    url = f'https://finnhub.io/api/v1/calendar/earnings?from={today}&to={future}&token={key}'
+    r = requests.get(url, timeout=10)
+    r.raise_for_status()
+    return {e['symbol'] for e in r.json()['earningsCalendar']}
 
 
 def save_watchlist(df: pd.DataFrame) -> None:
@@ -132,12 +128,9 @@ def run_universe_filter(max_price: float | None = None, limit: int = SCREENER_LI
     print(f'[universe] {len(df)} stocks after ATR% filter ({MIN_ATR_PCT}%–{MAX_ATR_PCT}%)')
 
     earnings = get_earnings_tickers()
-    if earnings:
-        before = len(df)
-        df = pd.DataFrame(df[~df['name'].isin(list(earnings))])
-        removed = before - len(df)
-        if removed:
-            print(f'[universe] {removed} stocks removed for upcoming earnings')
+    before = len(df)
+    df = pd.DataFrame(df[~df['name'].isin(list(earnings))])
+    print(f'[universe] {before - len(df)} stocks removed for upcoming earnings')
 
     assert df[['RSI', 'SMA20', 'SMA50']].notna().to_numpy().any(axis=0).all(), '[universe] momentum columns missing from TradingView response'
 
@@ -159,14 +152,8 @@ def run_universe_filter(max_price: float | None = None, limit: int = SCREENER_LI
 if __name__ == '__main__':
     result = run_universe_filter()
     if result is not None and result > 0:
-        p = pathlib.Path(WATCHLIST_PATH)
-        tickers = []
-        if p.exists():
-            try:
-                data = json.loads(p.read_text(encoding='utf-8'))
-                tickers = [item['ticker'] for item in data if 'ticker' in item]
-            except Exception:
-                pass
+        data = json.loads(pathlib.Path(WATCHLIST_PATH).read_text(encoding='utf-8'))
+        tickers = [item['ticker'] for item in data]
         output = {
             "success": True,
             "count": result,

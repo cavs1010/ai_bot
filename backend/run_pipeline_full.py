@@ -240,7 +240,7 @@ def main():
             # Gate 1 — Hard Threat Screen
             g1 = screen_gate1_hard_threats(candidate, shared, portfolio_value, daily_pnl)
             if not g1['passed']:
-                reason = g1.get('block_reason', 'unknown')
+                reason = g1['block_reason']
                 decision = f"BLOCKED_G1:{reason}"
                 print_log(f"[gate1] {ticker}: BLOCKED — reason: {reason}")
                 emit_candidate_update(ticker, {
@@ -257,10 +257,22 @@ def main():
 
             # Gate 2 & 3 News Fetch and Evaluation
             print_log(f"[gate2] Fetching recent news headlines for {ticker}...")
-            headlines = fetch_news(ticker) or []
+            headlines = fetch_news(ticker)
+            if headlines is None:
+                # No news source answered: Gate 2 cannot assess the stock, so it is blocked (never "no news")
+                g2 = {'passed': False, 'reason': 'news_unavailable', 'news_provider': None}
+                print_log(f"[gate2] {ticker}: BLOCKED — news could not be fetched from any source.")
+                emit_candidate_update(ticker, {
+                    "final_decision": "BLOCKED_G2:news_unavailable",
+                    "notes": "Gate 2 blocked: news could not be fetched from any source"
+                })
+                rows.append(_row(ticker, "BLOCKED_G2:news_unavailable", scan, g1=g1, g2=g2))
+                continue
             print_log(f"[gate2] Fetched {len(headlines)} headlines.")
 
             g2 = assess_gate2_news_threat(candidate, headlines)
+            # Which news API supplied the headlines; a window with no news has no provider
+            g2['news_provider'] = headlines[0]['provider'] if headlines else None
             if not g2['passed']:
                 print_log(f"[gate2] {ticker}: BLOCKED — catastrophic news event flagged by Claude.")
                 emit_candidate_update(ticker, {

@@ -4,7 +4,7 @@
 #
 # Functions:
 #   get_upcoming_macro_events(hours_ahead=24)        → [{event, country, time, impact}] | None
-#   get_hours_to_next_macro_event()                  → float (hours) | None
+#   get_hours_to_next_macro_event()                  → float (hours) | None (no event); raises if fetch fails
 #   get_ticker_earnings_window(ticker, days_ahead=1) → {reports_today, reports_tomorrow, report_date, hour} | None
 #
 # APIs:
@@ -56,9 +56,8 @@ def _read_cache() -> tuple[datetime, list[dict]] | None:
 def _fetch_econ_calendar() -> list[dict] | None:
     """
     Returns the raw ForexFactory feed, served from the on-disk cache while it is
-    fresh (< _CACHE_TTL). On a fetch failure a stale cache is returned if present
-    — an old calendar is safer for the gate than none. Returns None only when
-    both the network and the cache are unavailable.
+    fresh (< _CACHE_TTL). Returns None if the fetch fails: a stale calendar can miss
+    a newly scheduled event, which is exactly what Gate 1 checks for.
     """
     now = datetime.now(timezone.utc)
     cached = _read_cache()
@@ -72,9 +71,6 @@ def _fetch_econ_calendar() -> list[dict] | None:
         # We only ever use US events, so trim to those before caching.
         data = [e for e in r.json() if e.get('country') == 'USD']
     except Exception as e:
-        if cached is not None:
-            print(f'[calendars] macro events: using stale cache — fetch failed: {e}')
-            return cached[1]
         print(f'[calendars] macro events: fetch failed — {e}')
         return None
 
@@ -143,20 +139,21 @@ def get_hours_to_next_macro_event() -> float | None:
     """
     Returns the number of hours until the nearest upcoming US high-impact macro event.
 
-    Looks up to 7 days ahead. Returns None if no events found in that window
-    or if the fetch fails — callers should treat None as 'no upcoming macro risk known'.
+    Looks up to 7 days ahead.
 
     Args:
         None
 
     Returns:
         float — hours until the nearest event (e.g. 3.5 = three and a half hours away).
-        None on fetch failure or no events found within 7 days.
+        None if the calendar was fetched and has no high-impact event within 7 days.
+        Raises RuntimeError if the calendar could not be fetched — never reported as 'no event'.
     """
     events = get_upcoming_macro_events(hours_ahead=168)  # 7 days
+    if events is None:
+        raise RuntimeError('Macro calendar could not be fetched')
     if not events:
-        # Both None (fetch failed) and [] (no events) return None here.
-        # Gate 4 prompt treats None as 'no macro risk on horizon'.
+        # Fetched, and no high-impact event in the window: a real answer.
         return None
 
     now = datetime.now(timezone.utc)

@@ -12,6 +12,7 @@ from alpaca.trading.requests import (
     MarketOrderRequest,
     TrailingStopOrderRequest,
     GetPortfolioHistoryRequest,
+    GetCalendarRequest,
 )
 from alpaca.trading.enums import OrderSide, OrderType, TimeInForce
 
@@ -47,6 +48,15 @@ def _get_alpaca_client():
     except Exception as e:
         print(f'[executor] ❌ Failed to initialize Alpaca TradingClient: {e}')
         raise e
+
+
+def is_trading_day(day) -> bool:
+    """
+    True if the US market trades on `day` (a datetime.date), from Alpaca's market calendar
+    (weekends and exchange holidays excluded). Raises on failure.
+    """
+    client = _get_alpaca_client()
+    return len(client.get_calendar(GetCalendarRequest(start=day, end=day))) == 1
 
 
 def get_portfolio_value() -> float:

@@ -49,6 +49,7 @@ def classify_source(source_name: str, url: str | None = None) -> str:
 
 
 def _item(
+    provider: str,
     headline: str,
     source: str,
     url: str,
@@ -56,6 +57,7 @@ def _item(
     summary: str = '',
 ) -> dict:
     return {
+        'provider': provider,   # news API that returned this headline: alpaca | finnhub | newsapi
         'headline': headline,
         'source': source or '',
         'reliability': classify_source(source, url),
@@ -81,16 +83,17 @@ def fetch_news(
         include_summary: If True, include one-line summary when the API provides it.
 
     Returns:
-        [{headline, source, reliability, url, published_at, summary}] or [] if none found.
-        None if every attempted source failed.
+        [{provider, headline, source, reliability, url, published_at, summary}], or [] if the
+        sources that answered have no news in the window.
+        None if no source answered (no keys set, or every attempted source failed) — never
+        reported as "no news".
     """
     raw: list[dict] = []
-    tried = False
+    answered = False   # True once any source responds successfully, even with zero articles
 
     key = os.getenv('ALPACA_API_KEY')
     secret = os.getenv('ALPACA_SECRET_KEY')
     if key and secret:
-        tried = True
         try:
             from alpaca.data.historical.news import NewsClient
             from alpaca.data.models.news import NewsSet
@@ -112,19 +115,20 @@ def fetch_news(
                 if article.headline:
                     summary = article.summary if include_summary else ''
                     raw.append(_item(
+                        'alpaca',
                         article.headline,
                         article.source or 'benzinga',
                         article.url or '',
                         article.created_at.isoformat() if article.created_at else '',
                         summary,
                     ))
+            answered = True
         except Exception as e:
             print(f'[news] {ticker}: Alpaca fetch failed — {e}')
 
     if not raw:
         fh_key = os.getenv('FINNHUB_API_KEY')
         if fh_key:
-            tried = True
             try:
                 r = requests.get(
                     'https://finnhub.io/api/v1/company-news',
@@ -149,19 +153,20 @@ def fetch_news(
                         if ts else ''
                     )
                     raw.append(_item(
+                        'finnhub',
                         headline,
                         article.get('source', ''),
                         article.get('url', ''),
                         published,
                         article.get('summary', '') if include_summary else '',
                     ))
+                answered = True
             except Exception as e:
                 print(f'[news] {ticker}: Finnhub fetch failed — {e}')
 
     if not raw:
         news_key = os.getenv('NEWS_API_KEY')
         if news_key:
-            tried = True
             try:
                 response = NewsApiClient(api_key=news_key).get_everything(
                     q=ticker,
@@ -174,16 +179,18 @@ def fetch_news(
                     title = article.get('title', '')
                     if title and title != '[Removed]':
                         raw.append(_item(
+                            'newsapi',
                             title,
                             article.get('source', {}).get('name', ''),
                             article.get('url', ''),
                             article.get('publishedAt', ''),
                             article.get('description') or '' if include_summary else '',
                         ))
+                answered = True
             except Exception as e:
                 print(f'[news] {ticker}: NewsAPI fetch failed — {e}')
 
-    if not tried:
+    if not answered:
         return None
     return raw
 
