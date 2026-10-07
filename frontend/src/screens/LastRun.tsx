@@ -1,16 +1,16 @@
 import { ApprovedSignals } from '../patterns/pipeline/ApprovedSignals';
 import { CandidateTable } from '../patterns/pipeline/CandidateTable';
 import { Funnel } from '../patterns/pipeline/Funnel';
-import type { Candidate, FunnelCounts } from '../types/telemetry';
+import type { RunState } from '../types/telemetry';
 
 type LastRunProps = {
-  counts: FunnelCounts;
+  universeCount: number | null;
+  run: RunState | null;
   formattedTimestamp: string;
   running: boolean;
   buildingWatchlist: boolean;
   liveOrders: boolean;
   log: string[];
-  rows: Candidate[];
   stopMultiplier: number;
   onViewList: () => void;
   onLoadWatchlist: () => void;
@@ -19,13 +19,13 @@ type LastRunProps = {
 };
 
 export function LastRun({
-  counts,
+  universeCount,
+  run,
   formattedTimestamp,
   running,
   buildingWatchlist,
   liveOrders,
   log,
-  rows,
   stopMultiplier,
   onViewList,
   onLoadWatchlist,
@@ -35,7 +35,8 @@ export function LastRun({
   return (
     <div id="telemetry_view" className="space-y-6">
       <Funnel
-        counts={counts}
+        universeCount={universeCount}
+        counts={run ? run.funnel : null}
         formattedTimestamp={formattedTimestamp}
         running={running}
         buildingWatchlist={buildingWatchlist}
@@ -46,8 +47,16 @@ export function LastRun({
         onFastReplay={onFastReplay}
         onRunScanner={onRunScanner}
       />
-      <CandidateTable rows={rows} />
-      <ApprovedSignals rows={rows} stopMultiplier={stopMultiplier} />
+      {run ? (
+        <>
+          <CandidateTable rows={run.results} />
+          <ApprovedSignals rows={run.results} stopMultiplier={stopMultiplier} />
+        </>
+      ) : (
+        <p className="text-body-sm text-text-muted bg-canvas p-5 rounded-xl border border-border">
+          No pipeline run yet. Results appear here once you run the pipeline.
+        </p>
+      )}
     </div>
   );
 }

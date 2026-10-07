@@ -14,7 +14,9 @@ import { OrderToggles } from './patterns/trading/OrderToggles';
 import { PortfolioSummary } from './patterns/portfolio/PortfolioSummary';
 import { ProposeDiff } from './patterns/strategy/ProposeDiff';
 import { UniverseList } from './patterns/universe/UniverseList';
-import type { Telemetry } from './types/telemetry';
+import type { RunState } from './types/telemetry';
+import { useLivePortfolio } from './hooks/useLivePortfolio';
+import { formatToLocalDisplay } from './utils/time';
 import type { UniverseItem } from './types/universe';
 import { DesignSpec } from './screens/DesignSpec';
 import { LastRun } from './screens/LastRun';
@@ -23,137 +25,12 @@ import type { DialDiff, Dials, StrategyConfig } from './types/dials';
 import { diffDials } from './utils/strategyDials';
 import { ErrorNotice } from './components/ui/error-notice';
 
-// Initial Mock Telemetry Data
-const initialTelemetry: Telemetry = {
-  timestamp: null,
-  portfolio: {
-    value: 100000.00,
-    daily_pnl: 1250.00,
-    daily_pnl_pct: 1.25,
-    open_positions: 2,
-    max_positions: 10,
-    drawdown_pct: 1.5,
-    vix_level: 14.50,
-    spy_change_pct: 0.45,
-    hours_to_next_macro: 4.5
-  },
-  funnel: {
-    universe_count: 62,
-    scanned_count: 15,
-    processed_count: 10,
-    gate5_buy_count: 3,
-    approved_count: 3,
-    placed_count: 0
-  },
-  results: [
-    {
-      ticker: "COF",
-      final_decision: "BUY",
-      g3_direction: "BULLISH",
-      g3_confidence: 8,
-      ev: 0.084,
-      win_prob: 0.58,
-      position_confidence: "HIGH",
-      trade_levels: {
-        entry: 135.00,
-        stop: 129.50,
-        target: 146.00,
-        reward_risk: 2.0
-      },
-      risk_sizing: {
-        shares: 39,
-        position_value: 5265.00,
-        position_pct: 5.26
-      },
-      risk_reject_reason: null,
-      notes: "Strong macro momentum, sector bullish breakout"
-    },
-    {
-      ticker: "MSFT",
-      final_decision: "BUY",
-      g3_direction: "BULLISH",
-      g3_confidence: 9,
-      ev: 0.065,
-      win_prob: 0.52,
-      position_confidence: "HIGH",
-      trade_levels: {
-        entry: 420.00,
-        stop: 411.50,
-        target: 437.00,
-        reward_risk: 2.0
-      },
-      risk_sizing: {
-        shares: 12,
-        position_value: 5040.00,
-        position_pct: 5.04
-      },
-      risk_reject_reason: null,
-      notes: "Cloud business growth outperforming, passed Gate 4 sentiment convergence"
-    },
-    {
-      ticker: "NVDA",
-      final_decision: "BLOCKED_G1:sector",
-      g3_direction: null,
-      g3_confidence: null,
-      ev: null,
-      win_prob: null,
-      position_confidence: null,
-      trade_levels: null,
-      risk_sizing: null,
-      risk_reject_reason: "Sector premarket gap exceeds limit",
-      notes: "Gate 1 rule block: Semiconductor sector drop is wider than standard safety margins"
-    },
-    {
-      ticker: "AMD",
-      final_decision: "BLOCKED_G3",
-      g3_direction: "NEUTRAL",
-      g3_confidence: 4,
-      ev: null,
-      win_prob: null,
-      position_confidence: null,
-      trade_levels: null,
-      risk_sizing: null,
-      risk_reject_reason: "Gate 3 AI sentiment confidence too low",
-      notes: "Gate 3 Claude block: Sentiment direction neutral with insufficient score (4/10)"
-    },
-    {
-      ticker: "BNY",
-      final_decision: "SKIP",
-      g3_direction: "BULLISH",
-      g3_confidence: 6,
-      ev: 0.012,
-      win_prob: 0.38,
-      position_confidence: "LOW",
-      trade_levels: {
-        entry: 80.00,
-        stop: 78.50,
-        target: 83.00,
-        reward_risk: 2.0
-      },
-      risk_sizing: null,
-      risk_reject_reason: "Expected Value (1.2%) below 4.0% minimum threshold",
-      notes: "Gate 5 rule skip: Survived intelligence gates but failed minimum expected value criteria"
-    },
-    {
-      ticker: "AAPL",
-      final_decision: "BLOCKED_G2",
-      g3_direction: "BEARISH",
-      g3_confidence: 7,
-      ev: null,
-      win_prob: null,
-      position_confidence: null,
-      trade_levels: null,
-      risk_sizing: null,
-      risk_reject_reason: "Active hard news threat detected",
-      notes: "Gate 2 news block: Negative litigation updates flagged on Bloomberg feed"
-    }
-  ]
-};
-
 export default function App() {
   const [activeTab, setActiveTab] = useState<'last_run' | 'config' | 'spec'>('last_run');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [telemetry, setTelemetry] = useState(initialTelemetry);
+  // This screen only shows what happens in this session: nothing until Load Watchlist or a run
+  const [universeCount, setUniverseCount] = useState<number | null>(null);
+  const [run, setRun] = useState<RunState | null>(null);
   // Active strategy config, loaded from Neon (GET /api/configs/active)
   const [dials, setDials] = useState<Dials | null>(null);
   const [tempDials, setTempDials] = useState<Dials | null>(null);
@@ -204,99 +81,25 @@ export default function App() {
     }
   };
 
-  // Portfolio live state
-  const [portfolioError, setPortfolioError] = useState<string | null>(null);
+  // Pipeline run error banner
   const [pipelineRunError, setPipelineRunError] = useState<string | null>(null);
   const [pipelineErrorExpanded, setPipelineErrorExpanded] = useState<boolean>(true);
   const [copiedError, setCopiedError] = useState<boolean>(false);
-  const [isFetchingPortfolio, setIsFetchingPortfolio] = useState<boolean>(false);
-  const [portfolioLastSync, setPortfolioLastSync] = useState<string | null>(null);
 
-  // Helper to format timestamp as YYYY-MM-DD HH:MM:SS in Local Timezone
-  const formatTimestamp = (d: Date = new Date()) => {
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    const seconds = String(d.getSeconds()).padStart(2, '0');
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  const showToast = (msg: string) => {
+    setSuccessToast(msg);
+    setTimeout(() => setSuccessToast(null), 4000);
   };
 
-  // Converts any UTC / ISO / datetime string into the user's local timezone format
-  const formatToLocalDisplay = (rawTimestamp: string | null | undefined) => {
-    if (!rawTimestamp) return "—";
-    try {
-      let d: Date;
-      if (rawTimestamp.includes('T') || rawTimestamp.endsWith('Z')) {
-        d = new Date(rawTimestamp);
-      } else if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(rawTimestamp)) {
-        const utcDate = new Date(rawTimestamp.replace(' ', 'T') + 'Z');
-        d = !isNaN(utcDate.getTime()) ? utcDate : new Date(rawTimestamp);
-      } else {
-        d = new Date(rawTimestamp);
-      }
-
-      if (isNaN(d.getTime())) {
-        return rawTimestamp;
-      }
-      return formatTimestamp(d);
-    } catch {
-      return rawTimestamp;
-    }
-  };
-
-  // Fetch live portfolio directly from Alpaca API
-  const fetchLivePortfolio = async (showNotification: boolean = false) => {
-    setIsFetchingPortfolio(true);
-    setPortfolioError(null);
-    try {
-      const res = await fetch('/api/portfolio/live');
-      const data = await res.json();
-      if (res.ok && data.success) {
-        const syncTime = formatTimestamp();
-        setPortfolioLastSync(syncTime);
-        setTelemetry(prev => ({
-          ...prev,
-          portfolio: {
-            ...prev.portfolio,
-            value: data.value,
-            daily_pnl: data.daily_pnl,
-            daily_pnl_pct: data.daily_pnl_pct,
-            open_positions: data.open_positions,
-            drawdown_pct: data.drawdown_pct
-          }
-        }));
-        if (showNotification) {
-          showToast(`Alpaca portfolio synchronized at ${syncTime}`);
-        }
-      } else {
-        setPortfolioError(data.error || 'Failed to connect to Alpaca API');
-      }
-    } catch (err: any) {
-      setPortfolioError(`Network error fetching Alpaca portfolio: ${err.message}`);
-    } finally {
-      setIsFetchingPortfolio(false);
-    }
-  };
-
-  // Manual "Update Portfolio": record a snapshot in Neon (POST), then refresh the live view (GET)
-  const syncPortfolio = async () => {
-    try {
-      const res = await fetch('/api/portfolio/snapshots', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ trigger_source: 'MANUAL_UPDATE' }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        showToast(`Snapshot not saved: ${data.details}`);
-      }
-    } catch (err: any) {
-      showToast(`Snapshot not saved: ${err.message}`);
-    }
-    fetchLivePortfolio(true);
-  };
+  // Live Alpaca account: null until Alpaca answers
+  const {
+    portfolio,
+    isFetching: isFetchingPortfolio,
+    lastSync: portfolioLastSync,
+    error: portfolioError,
+    refresh: refreshPortfolio,
+    sync: syncPortfolio,
+  } = useLivePortfolio(showToast);
 
   // Load the active strategy config; the dials and the strategy name come only from Neon
   const loadActiveConfig = async () => {
@@ -317,65 +120,23 @@ export default function App() {
     }
   };
 
-  // Fetch the latest telemetry run from backend on page load
+  // On startup only the strategy config is loaded; run results appear only after Load Watchlist or a run
   useEffect(() => {
     loadActiveConfig();
-    fetchLivePortfolio();
-
-    fetch('/api/run/latest')
-      .then(res => {
-        if (!res.ok) throw new Error('No latest run data found');
-        return res.json();
-      })
-      .then(data => {
-        if (data && data.timestamp) {
-          setTelemetry(prev => ({
-            ...data,
-            portfolio: prev.portfolio.value !== 100000.00 ? prev.portfolio : data.portfolio
-          }));
-        }
-      })
-      .catch(err => {
-        console.warn("Could not load latest telemetry:", err);
-      });
   }, []);
 
   // Handler for Stage 1: Load Watchlist / Generate Universe
   const handleLoadWatchlist = async () => {
     setIsGeneratingUniverse(true);
-    // Immediately clear previous timestamp and reset downstream counters
-    setTelemetry(prev => ({
-      ...prev,
-      timestamp: null,
-      funnel: {
-        ...prev.funnel,
-        scanned_count: 0,
-        processed_count: 0,
-        gate5_buy_count: 0,
-        approved_count: 0,
-        placed_count: 0
-      },
-      results: []
-    }));
+    // A new universe makes any earlier run's results stale: clear them
+    setUniverseCount(null);
+    setRun(null);
     try {
       const res = await fetch('/api/universe/generate', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
-        setTelemetry(prev => ({
-          ...prev,
-          timestamp: new Date().toISOString(),
-          funnel: {
-            ...prev.funnel,
-            universe_count: data.count,
-            scanned_count: 0,
-            processed_count: 0,
-            gate5_buy_count: 0,
-            approved_count: 0,
-            placed_count: 0
-          },
-          results: []
-        }));
-        showToast(`Universe generated! ${data.count} tickers saved to universe.json. Stages 2–6 reset.`);
+        setUniverseCount(data.count);
+        showToast(`Universe generated! ${data.count} tickers saved. Stages 2–6 reset.`);
       } else {
         console.error(`${data.error}:`, data.details);
         showToast(`${data.error}: ${data.details}`);
@@ -391,7 +152,8 @@ export default function App() {
   // Structured SSE Candidate Event Handler (Single Source of Truth)
   const handleCandidateUpdate = (candidateUpdate: any) => {
     if (!candidateUpdate || !candidateUpdate.ticker) return;
-    setTelemetry(prev => {
+    setRun(current => {
+      const prev = current!; // stream events only arrive after the run state is created
       const results = [...prev.results];
       const funnel = { ...prev.funnel };
       const idx = results.findIndex(r => r.ticker === candidateUpdate.ticker);
@@ -444,7 +206,8 @@ export default function App() {
   const parseLiveLogLine = (logLine: string) => {
     if (!logLine) return;
 
-    setTelemetry(prev => {
+    setRun(current => {
+      const prev = current!; // stream events only arrive after the run state is created
       let results = [...prev.results];
       let funnel = { ...prev.funnel };
       let updated = false;
@@ -635,6 +398,40 @@ export default function App() {
     });
   };
 
+  // A run starts with nothing measured yet; counts go up as candidates are processed
+  const startRunState = (): RunState => ({
+    timestamp: null,
+    funnel: { scanned_count: null, processed_count: 0, gate5_buy_count: 0, approved_count: 0, placed_count: 0 },
+    results: [],
+    market: null,
+  });
+
+  // A run's final result (Python's latest_run.json): the only source of its totals and market snapshot
+  const applyRunResult = (result: any) => {
+    setUniverseCount(result.funnel.universe_count);
+    setRun({
+      timestamp: new Date().toISOString(),
+      funnel: {
+        scanned_count: result.funnel.scanned_count,
+        processed_count: result.funnel.processed_count,
+        gate5_buy_count: result.funnel.gate5_buy_count,
+        approved_count: result.funnel.approved_count,
+        placed_count: result.funnel.placed_count,
+      },
+      results: result.results,
+      market: {
+        vix_level: result.portfolio.vix_level,
+        spy_change_pct: result.portfolio.spy_change_pct,
+        hours_to_next_macro: result.portfolio.hours_to_next_macro,
+      },
+    });
+  };
+
+  // When the stream ends without a result (e.g. the run failed), the run keeps what was streamed and gets its end time
+  const markRunFinished = () => {
+    setRun(current => ({ ...current!, timestamp: current!.timestamp ?? new Date().toISOString() }));
+  };
+
   // Run Real Python Pipeline: create the run (POST, recorded in Neon pipeline_runs), then subscribe to its stream (GET)
   const triggerDryRun = async (runUniverse: boolean = false) => {
     setIsRunning(true);
@@ -642,23 +439,10 @@ export default function App() {
     setPipelineRunError(null);
 
     // Auto-sync live portfolio at the start of scanner run
-    fetchLivePortfolio(false);
+    refreshPortfolio(false);
 
-    // Clear previous timestamp so it disappears while running, reset funnel progress
-    setTelemetry(prev => ({
-      ...prev,
-      timestamp: null,
-      funnel: {
-        ...prev.funnel,
-        scanned_count: 0,
-        processed_count: 0,
-        gate5_buy_count: 0,
-        approved_count: 0,
-        placed_count: 0
-      },
-      results: []
-    }));
-    
+    setRun(startRunState());
+
     let streamUrl: string;
     try {
       const res = await fetch('/api/pipeline/runs', {
@@ -679,6 +463,7 @@ export default function App() {
       setPipelineRunError(`Failed to start pipeline run: ${err.message}`);
       setPipelineErrorExpanded(true);
       setIsRunning(false);
+      setRun(null);
       return;
     }
 
@@ -695,29 +480,21 @@ export default function App() {
           setRunLog(prev => [...prev, data.log]);
           parseLiveLogLine(data.log);
         } else if (data.result) {
-          const completionTimestamp = new Date().toISOString();
-          setTelemetry({
-            ...data.result,
-            timestamp: completionTimestamp
-          });
+          applyRunResult(data.result);
           showToast("Pipeline executed successfully! Telemetry updated from python backend.");
           // Auto-sync portfolio immediately after pipeline finishes
-          fetchLivePortfolio(false);
+          refreshPortfolio(false);
         } else if (data.error) {
           setPipelineRunError(data.error);
           setPipelineErrorExpanded(true);
           showToast(`Pipeline Error: ${data.error.slice(0, 80)}...`);
-          fetchLivePortfolio(false);
+          refreshPortfolio(false);
         } else if (data.done) {
           eventSource.close();
           setIsRunning(false);
-          // Set timestamp upon finish if not already set by data.result
-          setTelemetry(prev => ({
-            ...prev,
-            timestamp: prev.timestamp || new Date().toISOString()
-          }));
+          markRunFinished();
           // Ensure live portfolio is synced once stream ends
-          fetchLivePortfolio(false);
+          refreshPortfolio(false);
         }
       } catch (err) {
         console.error("Error parsing SSE message:", err);
@@ -728,7 +505,7 @@ export default function App() {
       console.warn("SSE connection closed or error encountered:", err);
       eventSource.close();
       setIsRunning(false);
-      fetchLivePortfolio(false);
+      refreshPortfolio(false);
     };
   };
 
@@ -739,22 +516,9 @@ export default function App() {
     setPipelineRunError(null);
 
     // Auto-sync live portfolio at the start of fast replay
-    fetchLivePortfolio(false);
+    refreshPortfolio(false);
 
-    // Clear previous timestamp so it disappears while running
-    setTelemetry(prev => ({
-      ...prev,
-      timestamp: null,
-      funnel: {
-        ...prev.funnel,
-        scanned_count: 0,
-        processed_count: 0,
-        gate5_buy_count: 0,
-        approved_count: 0,
-        placed_count: 0
-      },
-      results: []
-    }));
+    setRun(startRunState());
 
     const eventSource = new EventSource('/api/pipeline/replay');
 
@@ -768,25 +532,18 @@ export default function App() {
           setRunLog(prev => [...prev, data.log]);
           parseLiveLogLine(data.log);
         } else if (data.result) {
-          const completionTimestamp = new Date().toISOString();
-          setTelemetry({
-            ...data.result,
-            timestamp: completionTimestamp
-          });
+          applyRunResult(data.result);
           showToast("⚡ Replay complete! Data loaded ($0 Token Cost).");
-          fetchLivePortfolio(false);
+          refreshPortfolio(false);
         } else if (data.error) {
           setPipelineRunError(data.error);
           setPipelineErrorExpanded(true);
-          fetchLivePortfolio(false);
+          refreshPortfolio(false);
         } else if (data.done) {
           eventSource.close();
           setIsRunning(false);
-          setTelemetry(prev => ({
-            ...prev,
-            timestamp: prev.timestamp || new Date().toISOString()
-          }));
-          fetchLivePortfolio(false);
+          markRunFinished();
+          refreshPortfolio(false);
         }
       } catch (err) {
         console.error("Error parsing replay SSE message:", err);
@@ -797,13 +554,8 @@ export default function App() {
       console.warn("Replay SSE connection ended:", err);
       eventSource.close();
       setIsRunning(false);
-      fetchLivePortfolio(false);
+      refreshPortfolio(false);
     };
-  };
-
-  const showToast = (msg: string) => {
-    setSuccessToast(msg);
-    setTimeout(() => setSuccessToast(null), 4000);
   };
 
   // Dial edit handler (value already converted back to stored units by StrategyDials)
@@ -912,7 +664,9 @@ export default function App() {
             {/* Quick Portfolio Badge (Clicking toggles drawer) */}
             <PortfolioSummary
               layout="compact"
-              portfolio={telemetry.portfolio}
+              portfolio={portfolio}
+              market={run ? run.market : null}
+              macroBlockHours={dials.selection_params.gate1.macro_hours}
               maxPositions={dials.money_params.portfolio_limits.MAX_OPEN_POSITIONS}
               isFetching={isFetchingPortfolio}
               lastSync={portfolioLastSync}
@@ -983,7 +737,9 @@ export default function App() {
 
             <PortfolioSummary
               layout="drawer"
-              portfolio={telemetry.portfolio}
+              portfolio={portfolio}
+              market={run ? run.market : null}
+              macroBlockHours={dials.selection_params.gate1.macro_hours}
               maxPositions={dials.money_params.portfolio_limits.MAX_OPEN_POSITIONS}
               isFetching={isFetchingPortfolio}
               lastSync={portfolioLastSync}
@@ -1062,7 +818,9 @@ export default function App() {
 
           <PortfolioSummary
             layout="banner"
-            portfolio={telemetry.portfolio}
+            portfolio={portfolio}
+            market={run ? run.market : null}
+            macroBlockHours={dials.selection_params.gate1.macro_hours}
             maxPositions={dials.money_params.portfolio_limits.MAX_OPEN_POSITIONS}
             isFetching={isFetchingPortfolio}
             lastSync={portfolioLastSync}
@@ -1074,7 +832,9 @@ export default function App() {
 
         <PortfolioSummary
           layout="error"
-          portfolio={telemetry.portfolio}
+          portfolio={portfolio}
+          market={run ? run.market : null}
+          macroBlockHours={dials.selection_params.gate1.macro_hours}
           maxPositions={dials.money_params.portfolio_limits.MAX_OPEN_POSITIONS}
           isFetching={isFetchingPortfolio}
           lastSync={portfolioLastSync}
@@ -1154,13 +914,13 @@ export default function App() {
         {/* TAB 1: LAST RUN TELEMETRY */}
         {activeTab === 'last_run' && (
           <LastRun
-            counts={telemetry.funnel}
-            formattedTimestamp={formatToLocalDisplay(telemetry.timestamp)}
+            universeCount={universeCount}
+            run={run}
+            formattedTimestamp={formatToLocalDisplay(run ? run.timestamp : null)}
             running={isRunning}
             buildingWatchlist={isGeneratingUniverse}
             liveOrders={placeOrders}
             log={runLog}
-            rows={telemetry.results}
             stopMultiplier={dials.money_params.trade_risk.atr_stop_multiplier}
             onViewList={openUniverseModal}
             onLoadWatchlist={handleLoadWatchlist}

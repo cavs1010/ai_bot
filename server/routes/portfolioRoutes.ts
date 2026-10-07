@@ -61,36 +61,27 @@ portfolioRouter.get('/orders', async (req: Request, res: Response) => {
 portfolioRouter.get('/live', async (req: Request, res: Response) => {
   try {
     const [account, positions] = await Promise.all([
-      AlpacaService.getAccount() as Promise<{
-        portfolio_value?: string;
-        equity?: string;
-        last_equity?: string;
-        cash?: string;
-        buying_power?: string;
-        status?: string;
-      }>,
-      AlpacaService.getPositions() as Promise<Array<unknown>>,
+      AlpacaService.getAccount() as Promise<Record<string, any>>,
+      AlpacaService.getPositions() as Promise<Array<Record<string, any>>>,
     ]);
 
-    const equity = parseFloat(account.equity || account.portfolio_value || '100000');
-    const lastEquity = parseFloat(account.last_equity || String(equity));
+    const equity = requireNumber(account, 'equity', 'Alpaca account response');
+    const lastEquity = requireNumber(account, 'last_equity', 'Alpaca account response');
     const rawDailyPnl = equity - lastEquity;
     const dailyPnl = Math.round(rawDailyPnl * 100) / 100;
-    const dailyPnlPct = lastEquity > 0 ? Math.round(((rawDailyPnl / lastEquity) * 100) * 100) / 100 : 0.0;
-    const openPositions = Array.isArray(positions) ? positions.length : 0;
-    const cash = parseFloat(account.cash || '0');
-    const buyingPower = parseFloat(account.buying_power || '0');
+    const dailyPnlPct = Math.round(((rawDailyPnl / lastEquity) * 100) * 100) / 100;
+    const cash = requireNumber(account, 'cash', 'Alpaca account response');
+    const buyingPower = requireNumber(account, 'buying_power', 'Alpaca account response');
 
     return res.json({
       success: true,
       value: equity,
       daily_pnl: dailyPnl,
       daily_pnl_pct: dailyPnlPct,
-      open_positions: openPositions,
-      drawdown_pct: 0.0,
+      open_positions: positions.length,
       cash,
       buying_power: buyingPower,
-      status: account.status || 'ACTIVE',
+      status: account.status,
     });
   } catch (err: unknown) {
     const error = err as { statusCode?: number; message?: string };

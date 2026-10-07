@@ -5,7 +5,7 @@ export type StageTone = 'accent' | 'positive' | 'danger';
 
 type StageCardProps = {
   title: string;
-  count: number;
+  count: number | null; // null = not measured yet, shown as "—"
   subtitle: string;
   loading: boolean;
   loadingLabel: string;
@@ -27,8 +27,8 @@ const glowClass: Record<StageTone, string> = {
 };
 
 export function StageCard({ title, count, subtitle, loading, loadingLabel, tone, live, action }: StageCardProps) {
-  const showSpinner = loading && count === 0;
-  const numberClass = count > 0 && tone !== 'accent' ? toneClass[tone] : 'text-text';
+  const showSpinner = loading && (count === null || count === 0);
+  const numberClass = count !== null && count > 0 && tone !== 'accent' ? toneClass[tone] : 'text-text';
 
   return (
     <div
@@ -46,7 +46,7 @@ export function StageCard({ title, count, subtitle, loading, loadingLabel, tone,
               <span className="text-body-sm">{loadingLabel}</span>
             </span>
           ) : (
-            <span className={numberClass}>{count}</span>
+            <span className={numberClass}>{count === null ? '—' : count}</span>
           )}
         </div>
         <div className={`mt-1 ${live ? 'font-mono font-medium text-danger animate-pulse' : 'text-text-muted'}`}>{subtitle}</div>

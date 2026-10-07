@@ -2,7 +2,6 @@ import { Database } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 
 const ENDPOINTS: { method: string; path: string; desc: string }[] = [
-  { method: 'GET', path: '/api/run/latest', desc: 'Latest pipeline funnel states & results rows' },
   { method: 'POST', path: '/api/pipeline/runs', desc: 'Start a pipeline run (recorded in pipeline_runs)' },
   { method: 'GET', path: '/api/pipeline/runs/:id/stream', desc: 'Live progress stream for a run' },
   { method: 'GET', path: '/api/configs', desc: 'Saved strategy dial presets' },

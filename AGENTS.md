@@ -38,9 +38,11 @@ frontend/src/
 │   ├── strategy/    #   ProposeDiff, DialInfoSheet
 │   └── universe/    #   UniverseList
 ├── screens/         # Full screens that only assemble patterns: LastRun, StrategyDials, DesignSpec
+├── hooks/           # Where a screen's live data comes from (fetch, refresh, loading and error state), one hook per
+│                    #   data source, so screens and patterns only lay out the values they receive: useLivePortfolio
 ├── content/         # Text shown to the user, never setting values: dialDescriptions
 ├── types/           # Shared domain types, one file per domain: telemetry, dials, universe
-└── utils/           # Logic only: marketClock, strategyDials
+└── utils/           # Logic only: marketClock, strategyDials, time
 ```
 
 ---

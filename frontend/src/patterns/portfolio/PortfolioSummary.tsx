@@ -5,11 +5,13 @@ import { ErrorNotice } from '../../components/ui/error-notice';
 import { Stat, type StatMark, type StatTone } from '../../components/ui/stat';
 import { SyncButton } from '../../components/ui/sync-button';
 import { SyncStamp } from '../../components/ui/sync-stamp';
-import type { PortfolioSnapshot } from '../../types/telemetry';
+import type { LivePortfolio, MarketSnapshot } from '../../types/telemetry';
 
 type PortfolioSummaryProps = {
   layout: 'compact' | 'drawer' | 'banner' | 'error';
-  portfolio: PortfolioSnapshot;
+  portfolio: LivePortfolio | null; // null until Alpaca answers
+  market: MarketSnapshot | null;   // null until a pipeline run in this session reports it
+  macroBlockHours: number;         // Gate 1 macro_hours from the active strategy config
   maxPositions: number;
   isFetching: boolean;
   lastSync: string | null;
@@ -35,9 +37,14 @@ function money(value: number) {
   return value.toLocaleString(undefined, { minimumFractionDigits: 2 });
 }
 
+// Shown for any value that has not been loaded or measured yet
+const NOT_LOADED = '—';
+
 export function PortfolioSummary({
   layout,
   portfolio,
+  market,
+  macroBlockHours,
   maxPositions,
   isFetching,
   lastSync,
@@ -46,15 +53,15 @@ export function PortfolioSummary({
   liveTrades,
   onOpen,
 }: PortfolioSummaryProps) {
-  const pnlUp = portfolio.daily_pnl >= 0;
-  const hours = portfolio.hours_to_next_macro;
-  const macroKnown = hours !== null && hours !== undefined;
+  const pnlUp = portfolio !== null && portfolio.daily_pnl >= 0;
+  const spyUp = market !== null && market.spy_change_pct >= 0;
+  const hours = market ? market.hours_to_next_macro : null;
   const facts: Fact[] = [
     {
       key: 'value',
       label: 'Portfolio Value',
       inlineLabel: 'Portfolio value:',
-      value: `$${money(portfolio.value)}`,
+      value: portfolio ? `$${money(portfolio.value)}` : NOT_LOADED,
       fetching: isFetching,
       tone: 'text',
     },
@@ -62,17 +69,17 @@ export function PortfolioSummary({
       key: 'pnl',
       label: 'Daily P&L',
       inlineLabel: 'Daily P&L:',
-      value: `${pnlUp ? '+' : ''}$${money(portfolio.daily_pnl)}`,
-      detail: `(${portfolio.daily_pnl_pct}%)`,
+      value: portfolio ? `${pnlUp ? '+' : ''}$${money(portfolio.daily_pnl)}` : NOT_LOADED,
+      detail: portfolio ? `(${portfolio.daily_pnl_pct}%)` : undefined,
       fetching: isFetching,
-      tone: pnlUp ? 'positive' : 'danger',
-      mark: pnlUp ? 'up' : 'down',
+      tone: portfolio ? (pnlUp ? 'positive' : 'danger') : 'text',
+      mark: portfolio ? (pnlUp ? 'up' : 'down') : undefined,
     },
     {
       key: 'positions',
       label: 'Open Positions',
       inlineLabel: 'Positions:',
-      value: String(portfolio.open_positions),
+      value: portfolio ? String(portfolio.open_positions) : NOT_LOADED,
       detail: `/ ${maxPositions} max`,
       fetching: isFetching,
       tone: 'text',
@@ -81,27 +88,26 @@ export function PortfolioSummary({
       key: 'vix',
       label: 'VIX Level',
       inlineLabel: 'VIX:',
-      value: String(portfolio.vix_level),
+      value: market ? String(market.vix_level) : NOT_LOADED,
       fetching: false,
       tone: 'text',
-      badge: 'Calm',
     },
     {
       key: 'spy',
       label: 'SPY Change',
       inlineLabel: 'SPY Change:',
-      value: `+${portfolio.spy_change_pct}%`,
+      value: market ? `${spyUp ? '+' : ''}${market.spy_change_pct}%` : NOT_LOADED,
       fetching: false,
-      tone: 'positive',
+      tone: market ? (spyUp ? 'positive' : 'danger') : 'text',
     },
     {
       key: 'macro',
       label: 'Macro Event',
       inlineLabel: 'Macro Event:',
-      value: macroKnown ? `${hours} hrs` : 'None (>24h)',
+      value: market ? (hours !== null ? `${hours} hrs` : 'None in 7 days') : NOT_LOADED,
       fetching: false,
       tone: 'text',
-      mark: macroKnown && hours <= 2 ? 'soon' : 'calm',
+      mark: hours !== null ? (hours <= macroBlockHours ? 'soon' : 'calm') : undefined,
     },
   ];
 
@@ -118,10 +124,10 @@ export function PortfolioSummary({
         {error && <XCircle className="h-3 w-3 text-danger shrink-0" />}
         <Stat
           layout="pair"
-          label={`$${(portfolio.value / 1000).toFixed(1)}k`}
-          value={`${pnlUp ? '+' : ''}${portfolio.daily_pnl_pct}%`}
+          label={portfolio ? `$${(portfolio.value / 1000).toFixed(1)}k` : NOT_LOADED}
+          value={portfolio ? `${pnlUp ? '+' : ''}${portfolio.daily_pnl_pct}%` : ''}
           fetching={false}
-          tone={pnlUp ? 'positive' : 'danger'}
+          tone={portfolio ? (pnlUp ? 'positive' : 'danger') : 'text'}
         />
       </button>
     );

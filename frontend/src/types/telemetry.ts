@@ -22,30 +22,34 @@ export type Candidate = {
   exec_error?: string | null;
 };
 
-export type FunnelCounts = {
-  universe_count: number;
-  scanned_count: number;
+// Stages 2–6 of one pipeline run. scanned_count is only known when the run's result arrives.
+export type RunFunnelCounts = {
+  scanned_count: number | null;
   processed_count: number;
   gate5_buy_count: number;
   approved_count: number;
   placed_count: number;
 };
 
-export type PortfolioSnapshot = {
+// Live Alpaca account (GET /api/portfolio/live)
+export type LivePortfolio = {
   value: number;
   daily_pnl: number;
   daily_pnl_pct: number;
   open_positions: number;
-  max_positions: number;
-  drawdown_pct: number;
+};
+
+// Market backdrop measured by a pipeline run (VIX, SPY, next macro event)
+export type MarketSnapshot = {
   vix_level: number;
   spy_change_pct: number;
   hours_to_next_macro: number | null;
 };
 
-export type Telemetry = {
+// The run started in this session; null until the user runs the pipeline
+export type RunState = {
   timestamp: string | null;
-  portfolio: PortfolioSnapshot;
-  funnel: FunnelCounts;
+  funnel: RunFunnelCounts;
   results: Candidate[];
+  market: MarketSnapshot | null;
 };

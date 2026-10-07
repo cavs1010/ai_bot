@@ -3,10 +3,11 @@ import { Fragment } from 'react';
 import { AlertTriangle, ArrowRight, Layers, Play, RefreshCw, Sparkles } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { StageCard, type StageTone } from '../../components/ui/stage-card';
-import type { FunnelCounts } from '../../types/telemetry';
+import type { RunFunnelCounts } from '../../types/telemetry';
 
 type FunnelProps = {
-  counts: FunnelCounts;
+  universeCount: number | null;
+  counts: RunFunnelCounts | null;
   formattedTimestamp: string;
   running: boolean;
   buildingWatchlist: boolean;
@@ -21,7 +22,7 @@ type FunnelProps = {
 type Stage = {
   key: string;
   title: string;
-  count: number;
+  count: number | null;
   subtitle: string;
   loading: boolean;
   loadingLabel: string;
@@ -31,6 +32,7 @@ type Stage = {
 };
 
 export function Funnel({
+  universeCount,
   counts,
   formattedTimestamp,
   running,
@@ -47,7 +49,7 @@ export function Funnel({
     {
       key: 'universe',
       title: '1. Universe Watchlist',
-      count: counts.universe_count,
+      count: universeCount,
       subtitle: 'From universe.json',
       loading: buildingWatchlist,
       loadingLabel: 'Building...',
@@ -69,7 +71,7 @@ export function Funnel({
     {
       key: 'scanned',
       title: '2. Scanned Candidate',
-      count: counts.scanned_count,
+      count: counts ? counts.scanned_count : null,
       subtitle: 'Passed momentum score',
       loading: running,
       loadingLabel: 'Scanning...',
@@ -79,7 +81,7 @@ export function Funnel({
     {
       key: 'processed',
       title: '3. Processed (Gate 1)',
-      count: counts.processed_count,
+      count: counts ? counts.processed_count : null,
       subtitle: 'Survived hard limits',
       loading: running,
       loadingLabel: 'Evaluating...',
@@ -89,7 +91,7 @@ export function Funnel({
     {
       key: 'gate5',
       title: '4. Gate-5 BUY Signal',
-      count: counts.gate5_buy_count,
+      count: counts ? counts.gate5_buy_count : null,
       subtitle: 'AI & Edge Model OK',
       loading: running,
       loadingLabel: 'Evaluating...',
@@ -99,7 +101,7 @@ export function Funnel({
     {
       key: 'approved',
       title: '5. Risk Approved',
-      count: counts.approved_count,
+      count: counts ? counts.approved_count : null,
       subtitle: 'Passed size constraints',
       loading: running,
       loadingLabel: 'Evaluating...',
@@ -109,7 +111,7 @@ export function Funnel({
     {
       key: 'placed',
       title: '6. Orders Placed',
-      count: counts.placed_count,
+      count: counts ? counts.placed_count : null,
       subtitle: `PLACE_ORDERS = ${liveOrders ? 'true (LIVE)' : 'false'}`,
       loading: running,
       loadingLabel: 'Evaluating...',
