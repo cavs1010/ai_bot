@@ -104,6 +104,22 @@ Feature 04 — Continuous Pipeline Persistence, Feature 07 — Run Traceability
 
 ---
 
+### Pipeline Reads the Universe from Neon, Not `universe.json`
+
+**Why it appeared:**  
+The universe exists twice: `backend/01_scanner/data/universe.json` (what the Python pipeline scans) and the latest Neon `universe_scan_batches` batch (what a run is linked to). A run started with "rebuild universe" rewrites the file without creating a Neon batch, so its scanned stocks are linked to an older batch.
+
+**Potential Outcome:**  
+Node passes the latest Neon batch to Python (as it already passes the strategy config), Python scans exactly that batch, and `universe.json` is removed. Any universe rebuild creates a Neon batch.
+
+**Why it might matter:**  
+One source of truth for the universe (Rule 13): every run is linked to the exact batch it scanned.
+
+**Related to:**  
+Feature 04 — Continuous Pipeline Persistence, Feature 01 — Historical Watchlist Tables
+
+---
+
 # 🔍 Backlog Review
 
 > Review this section **after completing a milestone**, not while doing focused work.

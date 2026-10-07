@@ -668,7 +668,6 @@ export default function App() {
           run_universe: runUniverse,
           place_orders: placeOrders,
           ignore_market_hours: ignoreMarketHours,
-          live_portfolio: true,
         }),
       });
       const runSession = await res.json();

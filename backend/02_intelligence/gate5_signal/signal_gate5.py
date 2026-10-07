@@ -30,27 +30,6 @@ _RESULT_KEYS = {
 }
 
 
-def _skip_result(
-    ticker: str,
-    reason: str,
-    gate_results: dict,
-    trade_levels: dict | None = None,
-) -> dict:
-    """Structured SKIP when required inputs are missing — same shape as a normal run."""
-    print(f'[gate5] {ticker}: SKIP — {reason}')
-    return {
-        'passed': False,
-        'decision': 'SKIP',
-        'win_probability': 0.0,
-        'expected_value': 0.0,
-        'edge': 0.0,
-        'position_confidence': 'LOW',
-        'reason': reason,
-        'trade_levels': trade_levels or {},
-        'gate_summary': build_gate_summary(gate_results),
-    }
-
-
 def decide_gate5_signal(candidate: dict, gate_results: dict) -> dict:
     """
     Gate 5 — deterministic edge check after Gates 1–4 pass.
@@ -59,10 +38,13 @@ def decide_gate5_signal(candidate: dict, gate_results: dict) -> dict:
     probability via apply_edge_rules(), then BUY/SKIPs on MIN_EDGE_PCT. No Claude call.
 
     Args:
-        candidate:    Momentum scanner dict. Required keys: 'ticker', 'price', 'atr'.
-                      Optional: 'score' (int, default 2).
+        candidate:    Momentum scanner dict. Required keys: 'ticker', 'price', 'atr', 'score'.
         gate_results: Prior gate outputs. Required: gate_results['gate3'] with 'passed',
                       'direction', 'confidence', 'caution'. Optional gate1–gate4 for audit.
+
+    Raises:
+        ValueError if Gate 3 did not pass or a required input is missing: Gate 5 only
+        runs after Gate 3 passes, so either case is a pipeline bug, not a SKIP.
 
     Returns:
         dict with keys:
@@ -73,34 +55,33 @@ def decide_gate5_signal(candidate: dict, gate_results: dict) -> dict:
             edge                 (float) — expected_value / reward_risk.
             position_confidence  (str)   — 'HIGH' / 'MEDIUM' / 'LOW'.
             reason               (str)   — human-readable verdict or skip cause.
-            trade_levels         (dict)  — from build_trade_levels(); {} on early SKIP.
+            trade_levels         (dict)  — from build_trade_levels().
             gate_summary         (str)  — audit block from build_gate_summary().
 
     Prints:
         One line to stdout with the verdict — this is the `[gate5] …` line you see in logs:
             `[gate5] <ticker>: BUY — EV <ev> | win_prob=<p>% | <CONF>` — EV cleared MIN_EDGE_PCT.
             `[gate5] <ticker>: SKIP — EV <ev> | win_prob=<p>%`         — EV below the edge threshold.
-            `[gate5] <ticker>: SKIP — <reason>`  (no EV shown)         — guard tripped: missing
-                                                                        price/atr or Gate 3 not passed.
     """
     ticker = candidate['ticker']
     min_edge = MIN_EDGE_PCT
 
     gate3 = gate_results.get('gate3')
-    if not gate3 or not gate3.get('passed'):
-        return _skip_result(ticker, 'gate3_not_passed', gate_results)
+    if not gate3 or not gate3['passed']:
+        raise ValueError(f'[gate5] {ticker}: called without a passed Gate 3')
 
-    if 'price' not in candidate or 'atr' not in candidate:
-        return _skip_result(ticker, 'missing_price_or_atr', gate_results)
+    for key in ('price', 'atr', 'score'):
+        if key not in candidate:
+            raise ValueError(f'[gate5] {ticker}: candidate is missing {key}')
 
     trade_levels = build_trade_levels(candidate)
-    score = int(candidate.get('score', 2))
+    score = int(candidate['score'])
 
     edge_result = apply_edge_rules(
         score=score,
-        direction=gate3.get('direction', 'NEUTRAL'),
-        confidence=int(gate3.get('confidence', 0)),
-        caution=bool(gate3.get('caution', False)),
+        direction=gate3['direction'],
+        confidence=int(gate3['confidence']),
+        caution=bool(gate3['caution']),
         reward_risk=trade_levels['reward_risk'],
         min_edge_pct=min_edge,
     )
@@ -113,14 +94,14 @@ def decide_gate5_signal(candidate: dict, gate_results: dict) -> dict:
     if decision == 'BUY':
         reason = (
             f'EV {ev:.3f} ≥ {min_edge:.0%} min edge — score={score}, '
-            f'{gate3.get("direction", "?")} conf={gate3.get("confidence", "?")}, '
+            f'{gate3["direction"]} conf={gate3["confidence"]}, '
             f'win_prob={win_prob:.0%}'
         )
         print(f'[gate5] {ticker}: BUY — EV {ev:.3f} | win_prob={win_prob:.0%} | {position_conf}')
     else:
         reason = (
             f'EV {ev:.3f} below {min_edge:.0%} min edge — score={score}, '
-            f'{gate3.get("direction", "?")} conf={gate3.get("confidence", "?")}, '
+            f'{gate3["direction"]} conf={gate3["confidence"]}, '
             f'win_prob={win_prob:.0%}'
         )
         print(f'[gate5] {ticker}: SKIP — EV {ev:.3f} | win_prob={win_prob:.0%}')
@@ -191,15 +172,18 @@ if __name__ == '__main__':
     print(f'passed={r_weak["passed"]} EV={r_weak["expected_value"]:.3f} '
           f'win_prob={r_weak["win_probability"]:.0%}')
 
-    print('\n=== Case 3: gate3 not passed → SKIP, no trade levels ===')
-    r_no_g3 = decide_gate5_signal(base_candidate, {})
-    assert r_no_g3['decision'] == 'SKIP'
-    assert r_no_g3['reason'] == 'gate3_not_passed'
-    assert r_no_g3['trade_levels'] == {}
+    print('\n=== Case 3: gate3 not passed → ValueError ===')
+    try:
+        decide_gate5_signal({**base_candidate, 'score': 2}, {})
+        raise AssertionError('expected ValueError')
+    except ValueError:
+        pass
 
-    print('\n=== Case 4: missing price/atr → SKIP ===')
-    r_missing = decide_gate5_signal({'ticker': 'BAD'}, weak_gates)
-    assert r_missing['decision'] == 'SKIP'
-    assert r_missing['reason'] == 'missing_price_or_atr'
+    print('\n=== Case 4: missing price/atr/score → ValueError ===')
+    try:
+        decide_gate5_signal({'ticker': 'BAD'}, weak_gates)
+        raise AssertionError('expected ValueError')
+    except ValueError:
+        pass
 
-    print('\n[gate5] strong BUY + weak SKIP + guard checks passed ✅')
+    print('\n[gate5] strong BUY + weak SKIP + guard errors passed ✅')

@@ -75,96 +75,45 @@ def main():
     parser.add_argument('--run-universe', action='store_true', help="Force rebuild of universe.json (Stage 1)")
     parser.add_argument('--place-orders', action='store_true', help="Place actual paper orders on Alpaca if approved")
     parser.add_argument('--ignore-market-hours', action='store_true', help="Place orders even when Alpaca market clock is closed")
-    parser.add_argument('--live-portfolio', action='store_true', help="Use live Alpaca portfolio metrics if available")
     args = parser.parse_args()
 
     print_log("=== STARTING TRADING BOT PIPELINE RUN ===")
-    
-    # 1. Stage 1 — Universe Filter
-    run_universe = args.run_universe or not os.path.exists(UNIVERSE_PATH)
-    if run_universe:
+
+    # 1. Stage 1 — Universe Filter (only when asked; a missing universe.json is an error, not a rebuild trigger)
+    if args.run_universe:
         print_log("[universe] Rebuilding universe.json (Stage 1 weekly filter)...")
-        try:
-            count = run_universe_filter()
-            print_log(f"[universe] Success: Regenerated universe with {count} liquid stocks.")
-        except Exception as e:
-            print_log(f"[universe] Error running universe filter: {e}")
+        count = run_universe_filter()
+        if count is None:
+            raise RuntimeError("Universe filter failed; see the [universe] log above")
+        print_log(f"[universe] Success: Regenerated universe with {count} liquid stocks.")
     else:
         print_log("[universe] Skipping Stage 1. Reading existing universe.json.")
 
-    # Load and scan the watchlist
-    if not os.path.exists(UNIVERSE_PATH):
-        # Fallback to watchlist.csv if universe.json is missing
-        csv_fallback = str(scanner_dir / 'data' / 'watchlist.csv')
-        if os.path.exists(csv_fallback):
-            UNIVERSE_PATH_TO_READ = csv_fallback
-        else:
-            print_log("[error] universe.json does not exist and could not be generated. Aborting.")
-            sys.exit(1)
-    else:
-        UNIVERSE_PATH_TO_READ = UNIVERSE_PATH
-
-    try:
-        if UNIVERSE_PATH_TO_READ.endswith('.json'):
-            universe_df = pd.read_json(UNIVERSE_PATH_TO_READ)
-        else:
-            universe_df = pd.read_csv(UNIVERSE_PATH_TO_READ)
-        print_log(f"[universe] Loaded {len(universe_df)} stocks from {os.path.basename(UNIVERSE_PATH_TO_READ)}")
-    except Exception as e:
-        print_log(f"[error] Failed to load universe: {e}")
-        sys.exit(1)
+    # Load the universe once; a missing or unreadable file stops the run
+    universe_df = pd.read_json(UNIVERSE_PATH)
+    print_log(f"[universe] Loaded {len(universe_df)} stocks from {os.path.basename(UNIVERSE_PATH)}")
 
     # 2. Stage 2 — Momentum Scanner
     print_log("[scanner] Running Stage 2 (Momentum Scanner)...")
-    try:
-        candidates_df = run_scan()
-        if candidates_df is None or candidates_df.empty:
-            print_log("[scanner] No candidates met momentum score criteria. Aborting.")
-            candidates_df = pd.DataFrame()
-        else:
-            print_log(f"[scanner] Found {len(candidates_df)} candidates with momentum score >= {MIN_SCORE}")
-    except Exception as e:
-        print_log(f"[scanner] Error scanning watchlist: {e}")
-        candidates_df = pd.DataFrame()
+    candidates_df = run_scan(df=universe_df)
+    print_log(f"[scanner] Found {len(candidates_df)} candidates with momentum score >= {MIN_SCORE}")
 
-    # 3. Setup Portfolio Context & Fetch Shared Market-Wide Data
-    portfolio_value = 100_000.0
-    daily_pnl = 0.0
-    open_positions_count = 0
-    drawdown_pct = 0.0
-    
-    use_live_portfolio = args.live_portfolio
+    # 3. Live portfolio context and market-wide data; any failure stops the run
+    print_log("[portfolio] Querying live Alpaca account...")
+    portfolio_value = get_portfolio_value()
+    open_positions_count = len(get_open_positions())
+    daily_pnl = get_daily_pnl()
+    drawdown_pct = get_drawdown_pct()
+    print_log(f"[portfolio] Live metrics: PV=${portfolio_value:,.2f}, PnL=${daily_pnl:+,.2f}, Open={open_positions_count}, DD={drawdown_pct:.2%}")
+
     place_orders = args.place_orders
     ignore_market_hours = args.ignore_market_hours
 
-    if use_live_portfolio:
-        print_log("[portfolio] Querying live Alpaca account...")
-        try:
-            portfolio_value = get_portfolio_value()
-            live_positions = get_open_positions()
-            daily_pnl = get_daily_pnl()
-            drawdown_pct = get_drawdown_pct()
-            open_positions_count = len(live_positions) if live_positions is not None else 0
-
-            print_log(f"[portfolio] Live metrics: PV=${portfolio_value:,.2f}, PnL=${daily_pnl:+,.2f}, Open={open_positions_count}, DD={drawdown_pct:.2%}")
-        except Exception as e:
-            print_log(f"[portfolio] ❌ CRITICAL ALPACA API ERROR: Failed to fetch live portfolio metrics from Alpaca!")
-            print_log(f"[portfolio] ❌ Error details: {e}")
-            raise RuntimeError(f"Alpaca API connection failed: {e}") from e
-    else:
-        print_log("[portfolio] Using simulated sandbox portfolio limits ($100k account, 0 positions).")
-
     print_log("[gate1] Fetching market-wide shared indexes (SPY, VIX, Macro Calendar)...")
-    try:
-        shared = get_shared_market_data()
-        print_log(f"[gate1] Shared Market Data: VIX={shared.get('vix', {}).get('level')}, SPY change={shared.get('spy', {}).get('change_pct_today'):.2%}, Macro Hours={shared.get('macro_hours')}")
-    except Exception as e:
-        print_log(f"[gate1] Error fetching shared market data, using conservative fallback defaults: {e}")
-        shared = {
-            'vix': {'level': 18.0, 'change_pct_today': 0.0, 'prior_close': 18.0},
-            'spy': {'price': 500.0, 'change_pct_today': 0.0, 'prior_close': 500.0},
-            'macro_hours': 24.0
-        }
+    shared = get_shared_market_data()
+    if shared is None:
+        raise RuntimeError("Market-wide data (VIX, SPY, macro calendar) could not be fetched")
+    print_log(f"[gate1] Shared Market Data: VIX={shared['vix']['level']}, SPY change={shared['spy']['change_pct_today']:.2%}, Macro Hours={shared['macro_hours']}")
 
     # 4. Processing candidates through Gates 1-5, Risk Gate, and Execution
     rows = []
@@ -506,8 +455,8 @@ def main():
             "open_positions": int(open_positions_count),
             "max_positions": int(MAX_OPEN_POSITIONS),
             "drawdown_pct": round(float(drawdown_pct) * 100, 2),
-            "vix_level": float((shared.get('vix') or {}).get('level', 15.0)),
-            "spy_change_pct": round(float((shared.get('spy') or {}).get('change_pct_today', 0.0)) * 100, 2),
+            "vix_level": float(shared['vix']['level']),
+            "spy_change_pct": round(float(shared['spy']['change_pct_today']) * 100, 2),
             "hours_to_next_macro": float(shared['macro_hours']) if shared.get('macro_hours') is not None else None
         },
         "funnel": {
@@ -551,15 +500,12 @@ def main():
         }
         telemetry_payload["results"].append(formatted_row)
 
-    # Save structured telemetry directly to disk
-    try:
-        latest_run_file = scanner_dir / 'data' / 'latest_run.json'
-        latest_run_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(latest_run_file, 'w', encoding='utf-8') as f:
-            json.dump(telemetry_payload, f, indent=2)
-        print_log(f"[telemetry] Saved latest run data directly to {latest_run_file.name}")
-    except Exception as e:
-        print_log(f"[telemetry] Warning: Could not write latest_run.json directly: {e}")
+    # Save structured telemetry to disk; Node reads this file, so a failed write must stop the run
+    latest_run_file = scanner_dir / 'data' / 'latest_run.json'
+    latest_run_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(latest_run_file, 'w', encoding='utf-8') as f:
+        json.dump(telemetry_payload, f, indent=2)
+    print_log(f"[telemetry] Saved latest run data directly to {latest_run_file.name}")
 
     # Output the JSON token that server.ts can parse
     print_log("__JSON_OUTPUT_START__")

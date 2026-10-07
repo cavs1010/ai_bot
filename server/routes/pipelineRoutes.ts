@@ -52,7 +52,7 @@ pipelineRouter.get('/runs', async (req: Request, res: Response) => {
  * and spawns the Stage 2-6 Python analytical pipeline.
  */
 pipelineRouter.post('/runs', async (req: Request, res: Response) => {
-  const { run_universe, place_orders, ignore_market_hours, live_portfolio } = req.body || {};
+  const { run_universe, place_orders, ignore_market_hours } = req.body || {};
 
   // Concurrency Guard
   if (currentRunningId && activeRuns.has(currentRunningId)) {
@@ -110,7 +110,6 @@ pipelineRouter.post('/runs', async (req: Request, res: Response) => {
   if (run_universe) args.push('--run-universe');
   if (place_orders) args.push('--place-orders');
   if (ignore_market_hours) args.push('--ignore-market-hours');
-  if (live_portfolio) args.push('--live-portfolio');
 
   // Spawn analytical subprocess
   const child = PythonRunner.spawnProcess({

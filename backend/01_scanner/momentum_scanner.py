@@ -10,36 +10,18 @@ UNIVERSE_PATH = pathlib.Path(__file__).resolve().parent / 'data' / 'universe.jso
 WATCHLIST_PATH = str(UNIVERSE_PATH)   # plumbing path, not a strategy dial
 
 
-def load_watchlist(file_path: str | pathlib.Path | None = None) -> pd.DataFrame | None:
+def load_watchlist(file_path: str | pathlib.Path | None = None) -> pd.DataFrame:
     """
     Reads the Tier 1 universe JSON produced by universe_filter.py.
 
     Returns:
-        DataFrame with columns ticker, price, volume, atr, atr_pct, rsi, sma20, sma50, sector,
-        or None on failure.
+        DataFrame with columns ticker, price, volume, atr, atr_pct, rsi, sma20, sma50, sector.
+        Raises if the file is missing or unreadable; there is no substitute file.
     """
     target_path = pathlib.Path(file_path if file_path is not None else WATCHLIST_PATH)
-    try:
-        if not target_path.exists():
-            # Fallback check for csv extension if json does not exist
-            csv_path = target_path.with_suffix('.csv')
-            if csv_path.exists():
-                df = pd.read_csv(csv_path)
-                print(f'[scanner] loaded {len(df)} stocks from fallback {csv_path}')
-                return df
-            print(f'[scanner] universe file not found at {target_path}')
-            return None
-
-        if target_path.suffix == '.csv':
-            df = pd.read_csv(target_path)
-        else:
-            df = pd.read_json(target_path)
-
-        print(f'[scanner] loaded {len(df)} stocks from {target_path}')
-        return df
-    except Exception as e:
-        print(f'[scanner] failed to load watchlist from {target_path}: {e}')
-        return None
+    df = pd.read_json(target_path)
+    print(f'[scanner] loaded {len(df)} stocks from {target_path}')
+    return df
 
 
 def calculate_momentum_score(row: pd.Series) -> tuple[int, float]:
@@ -67,7 +49,7 @@ def calculate_momentum_score(row: pd.Series) -> tuple[int, float]:
     return score, float(row['atr'])
 
 
-def run_scan(min_score: int = MIN_SCORE, df: pd.DataFrame | None = None, top_n: int = TOP_N) -> pd.DataFrame | None:
+def run_scan(min_score: int = MIN_SCORE, df: pd.DataFrame | None = None, top_n: int = TOP_N) -> pd.DataFrame:
     """
     Runs the Tier 2 momentum scan on a Tier 1 watchlist.
 
@@ -84,13 +66,11 @@ def run_scan(min_score: int = MIN_SCORE, df: pd.DataFrame | None = None, top_n: 
         top_n: Maximum number of candidates to return. Default is TOP_N from the active strategy config.
 
     Returns:
-        DataFrame with columns ticker, price, score, atr, rsi, sma20, sma50, sector,
-        or None when the watchlist cannot be loaded.
+        DataFrame with columns ticker, price, score, atr, rsi, sma20, sma50, sector.
+        Raises if the watchlist cannot be loaded.
     """
     if df is None:
         df = load_watchlist()
-    if df is None:
-        return None
 
     df = df.copy()  # avoid mutating the caller's DataFrame when adding 'score'
     scores = df.apply(calculate_momentum_score, axis=1)
