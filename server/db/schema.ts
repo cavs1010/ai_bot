@@ -26,7 +26,7 @@ export interface UniverseWatchlistItem {
 
 // 3. pipeline_configs
 export interface PipelineConfig {
-  id?: number;
+  id: number;
   name: string;
   selection_params: Record<string, any>;
   money_params: Record<string, any>;
@@ -103,7 +103,7 @@ export interface OrderExecution {
   run_id: string; // uuid
   candidate_id?: number | null;
   symbol: string;
-  client_order_id: string;
+  client_order_id: string | null; // null for SIMULATED rows (no order sent to Alpaca)
   alpaca_order_id?: string | null;
   side: string;
   order_type: string;
