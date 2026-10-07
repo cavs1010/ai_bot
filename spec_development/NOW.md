@@ -233,8 +233,8 @@ Split the monolithic `frontend/src/App.tsx` into a layered architecture that fol
 - [x] UI wired to the Neon endpoints: run = `POST /api/pipeline/runs` + `GET …/stream`; portfolio sync = `POST /api/portfolio/snapshots`; Propose → Confirm = `POST /api/configs`.
 
 **Not done (moved to Milestone Backlog):**
-- [ ] Move data/API logic out of `App.tsx` (currently ~1,300 lines; 400-line ceiling).
-- [ ] Fast Replay button calls `/api/pipeline/replay`, which does not exist on the server.
+- [ ] Move data/API logic out of `App.tsx` (currently ~730 lines; 400-line ceiling).
+- [x] Fast Replay removed (button and its front-end logic): it called `/api/pipeline/replay`, a route that never existed.
 
 **Status:**  
 🟡 Under Review

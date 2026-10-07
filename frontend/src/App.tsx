@@ -202,202 +202,6 @@ export default function App() {
     });
   };
 
-  // Live SSE stdout log parser as fallback for text streams
-  const parseLiveLogLine = (logLine: string) => {
-    if (!logLine) return;
-
-    setRun(current => {
-      const prev = current!; // stream events only arrive after the run state is created
-      let results = [...prev.results];
-      let funnel = { ...prev.funnel };
-      let updated = false;
-
-      // 1. Candidate start: "[pipeline] processing candidate 1: NVDA (Sector: ...)"
-      const mStart = logLine.match(/\[pipeline\] processing candidate \d+: ([A-Z0-9]+)/);
-      if (mStart) {
-        const ticker = mStart[1];
-        const existingIdx = results.findIndex(r => r.ticker === ticker);
-        if (existingIdx === -1) {
-          results.push({
-            ticker,
-            final_decision: "EVALUATING...",
-            g3_direction: null,
-            g3_confidence: null,
-            ev: null,
-            win_prob: null,
-            position_confidence: null,
-            trade_levels: null,
-            risk_sizing: null,
-            risk_reject_reason: null,
-            notes: "Evaluating candidate..."
-          });
-          funnel.processed_count = (funnel.processed_count || 0) + 1;
-          updated = true;
-        }
-      }
-
-      // 2. Gate 1 Blocked: "[gate1] NVDA: BLOCKED — reason"
-      const mG1Block = logLine.match(/\[gate1\] ([A-Z0-9]+): BLOCKED — (.*)/);
-      if (mG1Block) {
-        const [, ticker, reason] = mG1Block;
-        const idx = results.findIndex(r => r.ticker === ticker);
-        const decision = `BLOCKED_G1:${reason.toLowerCase().includes('gap') ? 'premarket_gap' : 'hard_threat'}`;
-        if (idx !== -1) {
-          results[idx] = { ...results[idx], final_decision: decision, notes: `Gate 1: ${reason}` };
-        } else {
-          results.push({
-            ticker,
-            final_decision: decision,
-            g3_direction: null, g3_confidence: null, ev: null, win_prob: null, position_confidence: null, trade_levels: null, risk_sizing: null, risk_reject_reason: null,
-            notes: `Gate 1: ${reason}`
-          });
-        }
-        updated = true;
-      }
-
-      // 3. Gate 1 Passed: "[gate1] NVDA: passed all 8 checks"
-      const mG1Pass = logLine.match(/\[gate1\] ([A-Z0-9]+): passed all 8 checks/);
-      if (mG1Pass) {
-        const ticker = mG1Pass[1];
-        const idx = results.findIndex(r => r.ticker === ticker);
-        if (idx !== -1 && results[idx].final_decision === 'EVALUATING...') {
-          results[idx] = { ...results[idx], final_decision: 'PASSED_G1', notes: 'Gate 1 passed' };
-          updated = true;
-        }
-      }
-
-      // 4. Gate 2 Blocked: "[gate2] NVDA: BLOCKED — reason"
-      const mG2Block = logLine.match(/\[gate2\] ([A-Z0-9]+): BLOCKED — (.*)/);
-      if (mG2Block) {
-        const [, ticker, reason] = mG2Block;
-        const idx = results.findIndex(r => r.ticker === ticker);
-        if (idx !== -1) {
-          results[idx] = { ...results[idx], final_decision: 'BLOCKED_G2', notes: `Gate 2: ${reason}` };
-          updated = true;
-        }
-      }
-
-      // 5. Gate 2 Passed: "[gate2] NVDA: Passed news safety checks."
-      const mG2Pass = logLine.match(/\[gate2\] ([A-Z0-9]+): Passed news safety checks/);
-      if (mG2Pass) {
-        const ticker = mG2Pass[1];
-        const idx = results.findIndex(r => r.ticker === ticker);
-        if (idx !== -1) {
-          results[idx] = { ...results[idx], final_decision: 'PASSED_G2', notes: 'Gate 2 passed' };
-          updated = true;
-        }
-      }
-
-      // 6. Gate 3 Sentiment: "[gate3] NVDA: BULLISH conf=7" or "[gate3] NVDA: BLOCKED — NEUTRAL conf=5: ..."
-      const mG3Sentiment = logLine.match(/\[gate3\] ([A-Z0-9]+): (BULLISH|NEUTRAL|BEARISH) conf=(\d+)/);
-      if (mG3Sentiment) {
-        const [, ticker, dir, conf] = mG3Sentiment;
-        const idx = results.findIndex(r => r.ticker === ticker);
-        if (idx !== -1) {
-          results[idx] = {
-            ...results[idx],
-            g3_direction: dir,
-            g3_confidence: Number(conf)
-          };
-          updated = true;
-        }
-      }
-
-      const mG3Block = logLine.match(/\[gate3\] ([A-Z0-9]+): BLOCKED — (.*)/);
-      if (mG3Block) {
-        const [, ticker, reason] = mG3Block;
-        const idx = results.findIndex(r => r.ticker === ticker);
-        if (idx !== -1) {
-          results[idx] = { ...results[idx], final_decision: 'BLOCKED_G3', notes: `Gate 3: ${reason}` };
-          updated = true;
-        }
-      }
-
-      // 7. Gate 5 Buy Signal: "[gate5] NVDA: BUY — EV 0.688 | win_prob=56%"
-      const mG5Buy = logLine.match(/\[gate5\] ([A-Z0-9]+): BUY — EV ([\d\.]+) \| win_prob=(\d+)%/);
-      if (mG5Buy) {
-        const [, ticker, evVal, winProbVal] = mG5Buy;
-        const idx = results.findIndex(r => r.ticker === ticker);
-        if (idx !== -1) {
-          results[idx] = {
-            ...results[idx],
-            final_decision: 'BUY',
-            ev: Number(evVal),
-            win_prob: Number(winProbVal) / 100,
-            notes: 'Gate 5 Buy Signal generated'
-          };
-          funnel.gate5_buy_count = (funnel.gate5_buy_count || 0) + 1;
-          updated = true;
-        }
-      }
-
-      // 8. Risk Sizing Approved: "[risk] NVDA: APPROVED — 36 shares ($8,000.00, 8.0% of portfolio)"
-      const mRiskApprove = logLine.match(/\[risk\] ([A-Z0-9]+): APPROVED — (\d+) shares \(\$([\d\.,]+), ([\d\.]+)% of portfolio\)/);
-      if (mRiskApprove) {
-        const [, ticker, shares, valStr, pct] = mRiskApprove;
-        const idx = results.findIndex(r => r.ticker === ticker);
-        if (idx !== -1) {
-          results[idx] = {
-            ...results[idx],
-            risk_sizing: {
-              shares: Number(shares),
-              position_value: Number(valStr.replace(/,/g, '')),
-              position_pct: Number(pct)
-            }
-          };
-          funnel.approved_count = (funnel.approved_count || 0) + 1;
-          updated = true;
-        }
-      }
-
-      // 9. Executor Failed: "[executor] ❌ NVDA: Execution failed — ..." or "[executor] ❌ NVDA: ..."
-      const mExecFail = logLine.match(/\[executor\] ❌ ([A-Z0-9]+): Execution failed —? (.*)/) || logLine.match(/\[executor\] ❌ ([A-Z0-9]+): (.*)/);
-      if (mExecFail) {
-        const [, ticker, reason] = mExecFail;
-        const idx = results.findIndex(r => r.ticker === ticker);
-        if (idx !== -1) {
-          results[idx] = {
-            ...results[idx],
-            final_decision: 'EXEC_FAILED',
-            exec_error: reason,
-            notes: `Execution Failed: ${reason}`
-          };
-          updated = true;
-        }
-      }
-
-      // 10. Executor Placed / Queued
-      const mExecPlaced = logLine.match(/\[executor\] ([A-Z0-9]+): Order filled successfully! Decision: (.*)/);
-      if (mExecPlaced) {
-        const [, ticker, dec] = mExecPlaced;
-        const idx = results.findIndex(r => r.ticker === ticker);
-        if (idx !== -1) {
-          results[idx] = { ...results[idx], final_decision: dec, notes: 'Order filled on Alpaca' };
-          funnel.placed_count = (funnel.placed_count || 0) + 1;
-          updated = true;
-        }
-      }
-
-      const mExecQueued = logLine.match(/\[executor\] ([A-Z0-9]+): Order accepted & queued for market open! Decision: (.*)/);
-      if (mExecQueued) {
-        const [, ticker, dec] = mExecQueued;
-        const idx = results.findIndex(r => r.ticker === ticker);
-        if (idx !== -1) {
-          results[idx] = { ...results[idx], final_decision: dec, notes: 'Order accepted & queued for market open' };
-          funnel.placed_count = (funnel.placed_count || 0) + 1;
-          updated = true;
-        }
-      }
-
-      if (!updated) return prev;
-      return {
-        ...prev,
-        funnel,
-        results
-      };
-    });
-  };
-
   // A run starts with nothing measured yet; counts go up as candidates are processed
   const startRunState = (): RunState => ({
     timestamp: null,
@@ -478,7 +282,6 @@ export default function App() {
         }
         if (data.log) {
           setRunLog(prev => [...prev, data.log]);
-          parseLiveLogLine(data.log);
         } else if (data.result) {
           applyRunResult(data.result);
           showToast("Pipeline executed successfully! Telemetry updated from python backend.");
@@ -503,55 +306,6 @@ export default function App() {
 
     eventSource.onerror = (err) => {
       console.warn("SSE connection closed or error encountered:", err);
-      eventSource.close();
-      setIsRunning(false);
-      refreshPortfolio(false);
-    };
-  };
-
-  // Zero-Cost Fast Replay for instant UI testing ($0 LLM Token Cost)
-  const triggerFastReplay = () => {
-    setIsRunning(true);
-    setRunLog([]);
-    setPipelineRunError(null);
-
-    // Auto-sync live portfolio at the start of fast replay
-    refreshPortfolio(false);
-
-    setRun(startRunState());
-
-    const eventSource = new EventSource('/api/pipeline/replay');
-
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.candidate) {
-          handleCandidateUpdate(data.candidate);
-        }
-        if (data.log) {
-          setRunLog(prev => [...prev, data.log]);
-          parseLiveLogLine(data.log);
-        } else if (data.result) {
-          applyRunResult(data.result);
-          showToast("⚡ Replay complete! Data loaded ($0 Token Cost).");
-          refreshPortfolio(false);
-        } else if (data.error) {
-          setPipelineRunError(data.error);
-          setPipelineErrorExpanded(true);
-          refreshPortfolio(false);
-        } else if (data.done) {
-          eventSource.close();
-          setIsRunning(false);
-          markRunFinished();
-          refreshPortfolio(false);
-        }
-      } catch (err) {
-        console.error("Error parsing replay SSE message:", err);
-      }
-    };
-
-    eventSource.onerror = (err) => {
-      console.warn("Replay SSE connection ended:", err);
       eventSource.close();
       setIsRunning(false);
       refreshPortfolio(false);
@@ -924,7 +678,6 @@ export default function App() {
             stopMultiplier={dials.money_params.trade_risk.atr_stop_multiplier}
             onViewList={openUniverseModal}
             onLoadWatchlist={handleLoadWatchlist}
-            onFastReplay={triggerFastReplay}
             onRunScanner={() => triggerDryRun(false)}
           />
         )}

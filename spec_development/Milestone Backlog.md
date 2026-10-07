@@ -88,22 +88,6 @@ Milestone 3 Enabling Milestone (Reconcile UI branch with DB main), `docs/design_
 
 ---
 
-### Fast Replay ($0 Token) Pipeline Replay
-
-**Why it appeared:**  
-The "Fast Replay" button in the Last Run screen calls `GET /api/pipeline/replay`, but that route has never existed on the server, on either branch. The button currently fails silently.
-
-**Potential Outcome:**  
-Either remove the button, or implement a replay route that streams the last stored run (from `latest_run.json` or Neon `pipeline_runs` + child tables) through the same SSE event shape as a live run.
-
-**Why it might matter:**  
-Lets the UI be tested end to end without spending LLM tokens, and removes a broken control.
-
-**Related to:**  
-Feature 04 — Continuous Pipeline Persistence, Feature 07 — Run Traceability
-
----
-
 # 🔍 Backlog Review
 
 > Review this section **after completing a milestone**, not while doing focused work.

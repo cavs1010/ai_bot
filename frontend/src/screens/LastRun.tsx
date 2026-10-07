@@ -14,7 +14,6 @@ type LastRunProps = {
   stopMultiplier: number;
   onViewList: () => void;
   onLoadWatchlist: () => void;
-  onFastReplay: () => void;
   onRunScanner: () => void;
 };
 
@@ -29,7 +28,6 @@ export function LastRun({
   stopMultiplier,
   onViewList,
   onLoadWatchlist,
-  onFastReplay,
   onRunScanner,
 }: LastRunProps) {
   return (
@@ -44,7 +42,6 @@ export function LastRun({
         log={log}
         onViewList={onViewList}
         onLoadWatchlist={onLoadWatchlist}
-        onFastReplay={onFastReplay}
         onRunScanner={onRunScanner}
       />
       {run ? (

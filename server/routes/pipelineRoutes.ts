@@ -20,6 +20,9 @@ interface ActiveRunSession {
   childProcess?: any;
 }
 
+// Prefix of the per-candidate JSON lines printed by emit_candidate_update() in backend/run_pipeline_full.py
+const CANDIDATE_UPDATE_PREFIX = '__CANDIDATE_UPDATE__ ';
+
 const activeRuns = new Map<string, ActiveRunSession>();
 let currentRunningId: string | null = null;
 
@@ -112,30 +115,31 @@ pipelineRouter.post('/runs', async (req: Request, res: Response) => {
   if (ignore_market_hours) args.push('--ignore-market-hours');
 
   // Spawn analytical subprocess
+  let stdoutTail = '';
   const child = PythonRunner.spawnProcess({
     scriptPath: PATHS.pipelineFullScript,
     args,
     cwd: PATHS.root,
     env: toStrategyEnv(activeConfig),
     onStdout: (chunk) => {
-      const lines = chunk.split('\n');
+      // stdout arrives in arbitrary chunks: handle complete lines only, keep the unfinished tail for the next chunk
+      stdoutTail += chunk;
+      const lines = stdoutTail.split('\n');
+      stdoutTail = lines.pop()!;
       for (const line of lines) {
         if (!line.trim()) continue;
 
-        if (line.startsWith('__CANDIDATE_UPDATE_JSON_START__')) {
+        let evt: Record<string, unknown>;
+        if (line.startsWith(CANDIDATE_UPDATE_PREFIX)) {
           try {
-            const jsonStr = line.replace('__CANDIDATE_UPDATE_JSON_START__', '').replace('__CANDIDATE_UPDATE_JSON_END__', '').trim();
-            const candidate = JSON.parse(jsonStr);
-            const evt = { candidate, run_id: runId };
-            session.bufferedEvents.push(evt);
-            emitter.emit('event', evt);
-            continue;
-          } catch {
-            // ignore json parse error on partial line
+            evt = { candidate: JSON.parse(line.slice(CANDIDATE_UPDATE_PREFIX.length)), run_id: runId };
+          } catch (err: any) {
+            // A complete line that is not valid JSON is a pipeline bug: show it, never drop it
+            evt = { log: `[stream] unreadable candidate update (${err.message}): ${line}`, run_id: runId };
           }
+        } else {
+          evt = { log: line, run_id: runId };
         }
-
-        const evt = { log: line, run_id: runId };
         session.bufferedEvents.push(evt);
         emitter.emit('event', evt);
       }

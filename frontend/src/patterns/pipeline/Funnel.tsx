@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Fragment } from 'react';
-import { AlertTriangle, ArrowRight, Layers, Play, RefreshCw, Sparkles } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Layers, Play, RefreshCw } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { StageCard, type StageTone } from '../../components/ui/stage-card';
 import type { RunFunnelCounts } from '../../types/telemetry';
@@ -15,7 +15,6 @@ type FunnelProps = {
   log: string[];
   onViewList: () => void;
   onLoadWatchlist: () => void;
-  onFastReplay: () => void;
   onRunScanner: () => void;
 };
 
@@ -41,7 +40,6 @@ export function Funnel({
   log,
   onViewList,
   onLoadWatchlist,
-  onFastReplay,
   onRunScanner,
 }: FunnelProps) {
   const busy = running || buildingWatchlist;
@@ -179,17 +177,6 @@ export function Funnel({
             disabled={busy}
             busy={buildingWatchlist}
             block={false}
-          />
-          <Button
-            id="btn_fast_replay_action"
-            role="secondary"
-            label="Fast Replay ($0 Tokens)"
-            icon={<Sparkles className="h-4 w-4" />}
-            onClick={onFastReplay}
-            disabled={busy}
-            busy={false}
-            block={false}
-            title="Simulate / Replay pipeline telemetry in ~2s without making external LLM or API calls ($0 Token Cost)"
           />
           <Button
             id="btn_run_momentum_scanner"
