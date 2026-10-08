@@ -1,6 +1,5 @@
 import os
 import sys
-import json
 import pathlib
 import requests
 import pandas as pd
@@ -22,8 +21,9 @@ from strategy_config import (
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / '04_execution'))
 from alpaca_executor import get_portfolio_value
 
-UNIVERSE_PATH = pathlib.Path(__file__).resolve().parent / 'data' / 'universe.json'
-WATCHLIST_PATH = str(UNIVERSE_PATH)   # plumbing path, not a strategy dial
+# Prefix of the stdout line carrying the filtered universe. Node reads it and saves the
+# Neon batch (Rule 20: Python never writes to the database); no file is written.
+UNIVERSE_LINE_PREFIX = '__UNIVERSE_JSON__ '
 
 
 def get_max_share_price() -> float:
@@ -59,65 +59,47 @@ def get_earnings_tickers(days_ahead: int = EARNINGS_WINDOW_DAYS) -> set[str]:
     return {e['symbol'] for e in r.json()['earningsCalendar']}
 
 
-def save_watchlist(df: pd.DataFrame) -> None:
+def run_universe_filter(max_price: float | None = None, limit: int = SCREENER_LIMIT) -> pd.DataFrame:
     """
-    Saves the filtered stock universe to backend/01_scanner/data/universe.json.
-
-    Args:
-        df: DataFrame with columns ticker, price, volume, atr, atr_pct, rsi, sma20, sma50, sector.
-
-    Returns:
-        None
-    """
-    p = pathlib.Path(WATCHLIST_PATH)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    df.to_json(p, orient='records', indent=2)
-    print(f'[universe] saved {len(df)} tickers to {p}')
-
-
-def run_universe_filter(max_price: float | None = None, limit: int = SCREENER_LIMIT) -> int | None:
-    """
-    Runs the Tier 1 universe filter: large-cap US stocks → universe.json.
+    Runs the Tier 1 universe filter: large-cap US stocks → the universe watchlist.
 
     Args:
         max_price: Upper share-price bound for the screener. When None (default), it is
                    fetched dynamically from Alpaca via get_max_share_price(). Pass a value
                    to bypass the Alpaca call for reproducible runs, notebooks, or tests.
         limit:     Max rows requested from the TradingView screener before the ATR% and
-                   earnings filters are applied. Default SCREENER_LIMIT (200).
+                   earnings filters are applied (SCREENER_LIMIT).
 
     Returns:
-        Count of stocks saved, or None on failure.
+        DataFrame with columns ticker, price, volume, atr, atr_pct, rsi, sma20, sma50, sector;
+        empty if no stock matches the screener. Raises if TradingView, Finnhub or Alpaca fail.
     """
     if max_price is None:
         max_price = get_max_share_price()
     print(f'[universe] price ceiling: ${max_price:.2f}')
 
-    try:
-        print('[universe] querying TradingView screener...')
-        _, scanner_df = (Query()
-            .select('name', 'close', 'average_volume_10d_calc', 'ATR', 'RSI', 'SMA20', 'SMA50', 'sector')
-            .where(
-                col('market_cap_basic') > MIN_MARKET_CAP,
-                col('country') == 'United States',
-                col('is_primary') == True,
-                col('subtype') == 'common',
-                col('average_volume_10d_calc') > MIN_AVG_VOLUME,
-                col('close') > MIN_PRICE,
-                col('close') < max_price,
-            )
-            .order_by('average_volume_10d_calc', ascending=False)
-            .limit(limit)
-            .get_scanner_data()
+    print('[universe] querying TradingView screener...')
+    _, scanner_df = (Query()
+        .select('name', 'close', 'average_volume_10d_calc', 'ATR', 'RSI', 'SMA20', 'SMA50', 'sector')
+        .where(
+            col('market_cap_basic') > MIN_MARKET_CAP,
+            col('country') == 'United States',
+            col('is_primary') == True,
+            col('subtype') == 'common',
+            col('average_volume_10d_calc') > MIN_AVG_VOLUME,
+            col('close') > MIN_PRICE,
+            col('close') < max_price,
         )
-        df: pd.DataFrame = pd.DataFrame(scanner_df)
-    except Exception as e:
-        print(f'[universe] TradingView query failed: {e}')
-        return None
+        .order_by('average_volume_10d_calc', ascending=False)
+        .limit(limit)
+        .get_scanner_data()
+    )
+    df: pd.DataFrame = pd.DataFrame(scanner_df)
 
+    columns = ['ticker', 'price', 'volume', 'atr', 'atr_pct', 'rsi', 'sma20', 'sma50', 'sector']
     if df.empty:
         print('[universe] TradingView returned 0 records matching screener criteria')
-        return 0
+        return pd.DataFrame(columns=columns)
 
     # ATR (Average True Range) = average daily price move in dollars, e.g. ATR=6.24 means AAPL moves ~$6/day.
     # We convert to a percentage of price so stocks at different price levels are comparable.
@@ -137,35 +119,18 @@ def run_universe_filter(max_price: float | None = None, limit: int = SCREENER_LI
     watchlist: pd.DataFrame = pd.DataFrame(
         df[['name', 'close', 'average_volume_10d_calc', 'ATR', 'atr_pct', 'RSI', 'SMA20', 'SMA50', 'sector']].copy()
     )
-    watchlist.columns = ['ticker', 'price', 'volume', 'atr', 'atr_pct', 'rsi', 'sma20', 'sma50', 'sector']
+    watchlist.columns = columns
     watchlist['price'] = watchlist['price'].round(2)
     watchlist['volume'] = watchlist['volume'].astype(int)
     watchlist['atr'] = watchlist['atr'].round(2)
     watchlist['rsi'] = watchlist['rsi'].round(1)
     watchlist['sma20'] = watchlist['sma20'].round(2)
     watchlist['sma50'] = watchlist['sma50'].round(2)
-
-    save_watchlist(watchlist)
-    return len(watchlist)
+    return watchlist
 
 
 if __name__ == '__main__':
-    result = run_universe_filter()
-    if result is not None and result > 0:
-        data = json.loads(pathlib.Path(WATCHLIST_PATH).read_text(encoding='utf-8'))
-        tickers = [item['ticker'] for item in data]
-        output = {
-            "success": True,
-            "count": result,
-            "tickers": tickers
-        }
-        print("__JSON_OUTPUT_START__")
-        print(json.dumps(output, indent=2))
-        print("__JSON_OUTPUT_END__")
-        print(f'[universe] complete: {result} stocks saved to {WATCHLIST_PATH}')
-        sys.exit(0)
-    else:
-        print(f'[universe] Failed to generate universe: screener returned {result}')
-        sys.exit(1)
-
-
+    # Load Watchlist: the universe goes to Node on one stdout line; Node saves the Neon batch
+    watchlist = run_universe_filter()
+    print(UNIVERSE_LINE_PREFIX + watchlist.to_json(orient='records'))
+    print(f'[universe] complete: {len(watchlist)} stocks returned to Node')

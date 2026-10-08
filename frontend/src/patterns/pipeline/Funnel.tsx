@@ -48,7 +48,7 @@ export function Funnel({
       key: 'universe',
       title: '1. Universe Watchlist',
       count: universeCount,
-      subtitle: 'From universe.json',
+      subtitle: 'Latest Neon batch',
       loading: buildingWatchlist,
       loadingLabel: 'Building...',
       tone: 'accent',
@@ -163,9 +163,8 @@ export function Funnel({
 
       <div className="mt-5 border-t border-border pt-4 flex flex-col sm:flex-row items-center justify-between gap-4">
         <p className="text-body-sm text-text-muted max-w-xl">
-          💡 Use <strong>Load Watchlist</strong> to rebuild Stage 1 (
-          <code className="bg-surface px-1.5 py-0.5 rounded text-accent">universe.json</code>
-          ), or <strong>Run Momentum Scanner</strong> to scan the active universe through the 6-stage funnel.
+          💡 Use <strong>Load Watchlist</strong> to rebuild Stage 1 (a new Neon universe batch), or{' '}
+          <strong>Run Momentum Scanner</strong> to scan the latest batch through the 6-stage funnel.
         </p>
         <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
           <Button

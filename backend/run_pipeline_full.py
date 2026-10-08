@@ -5,7 +5,6 @@
 # Can be run directly from terminal: python3 backend/run_pipeline_full.py
 
 import sys
-import os
 import pathlib
 import json
 import argparse
@@ -22,7 +21,7 @@ exec_dir         = backend_dir / '04_execution'
 # Append to sys.path for bare-name imports
 for p in [
     backend_dir,                                  # → strategy_config.py
-    scanner_dir,                                  # → universe_filter, momentum_scanner
+    scanner_dir,                                  # → momentum_scanner
     intelligence_dir,                             # → constants, helpers/*
     risk_dir,                                     # → risk_gate
     exec_dir,                                     # → alpaca_executor
@@ -38,9 +37,6 @@ for p in [
 
 # Import our modular strategy elements
 from strategy_config import TOP_N, MIN_SCORE, MIN_EDGE_PCT, MAX_OPEN_POSITIONS
-import universe_filter
-import momentum_scanner
-from universe_filter import run_universe_filter
 from momentum_scanner import run_scan
 from hard_threat_gate1 import get_shared_market_data, screen_gate1_hard_threats
 from news_threat_gate2 import assess_gate2_news_threat
@@ -60,38 +56,22 @@ from alpaca_executor import (
 from helpers.fetchers.news import fetch_news
 from helpers.fetchers.market import get_market_context
 
-# Re-point the cwd-relative watchlist paths at the real file
-UNIVERSE_PATH = str(scanner_dir / 'data' / 'universe.json')
-WATCHLIST_PATH = UNIVERSE_PATH
-universe_filter.WATCHLIST_PATH = WATCHLIST_PATH
-momentum_scanner.WATCHLIST_PATH = WATCHLIST_PATH
-
 def print_log(msg: str):
     """Prints immediately to stdout with flushing so Express/Vite streams it in real-time."""
     print(msg, flush=True)
 
 def main():
     parser = argparse.ArgumentParser(description="Run the entire stock-selection pipeline.")
-    parser.add_argument('--run-universe', action='store_true', help="Force rebuild of universe.json (Stage 1)")
     parser.add_argument('--place-orders', action='store_true', help="Place actual paper orders on Alpaca if approved")
     parser.add_argument('--ignore-market-hours', action='store_true', help="Place orders even when Alpaca market clock is closed")
     args = parser.parse_args()
 
     print_log("=== STARTING TRADING BOT PIPELINE RUN ===")
 
-    # 1. Stage 1 — Universe Filter (only when asked; a missing universe.json is an error, not a rebuild trigger)
-    if args.run_universe:
-        print_log("[universe] Rebuilding universe.json (Stage 1 weekly filter)...")
-        count = run_universe_filter()
-        if count is None:
-            raise RuntimeError("Universe filter failed; see the [universe] log above")
-        print_log(f"[universe] Success: Regenerated universe with {count} liquid stocks.")
-    else:
-        print_log("[universe] Skipping Stage 1. Reading existing universe.json.")
-
-    # Load the universe once; a missing or unreadable file stops the run
-    universe_df = pd.read_json(UNIVERSE_PATH)
-    print_log(f"[universe] Loaded {len(universe_df)} stocks from {os.path.basename(UNIVERSE_PATH)}")
+    # 1. Stage 1 — Universe: the rows of the latest Neon universe batch, sent by Node on stdin.
+    # The universe is built only by Load Watchlist, so every scanned universe is a Neon batch.
+    universe_df = pd.read_json(sys.stdin)
+    print_log(f"[universe] Loaded {len(universe_df)} stocks from the latest Neon universe batch")
 
     # 2. Stage 2 — Momentum Scanner
     print_log("[scanner] Running Stage 2 (Momentum Scanner)...")

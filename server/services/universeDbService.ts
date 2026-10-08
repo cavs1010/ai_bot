@@ -80,8 +80,10 @@ export class UniverseDbService {
    * Records a brand new historical scan batch and all its stock items.
    * Every execution creates a new immutable batch and rows.
    */
-  static async createScanBatchWithItems(stocks: UniverseStockItem[]): Promise<UniverseScanBatch | null> {
-    if (!process.env.DATABASE_URL || stocks.length === 0) return null;
+  static async createScanBatchWithItems(stocks: UniverseStockItem[]): Promise<UniverseScanBatch> {
+    if (stocks.length === 0) {
+      throw new Error('The universe filter returned 0 stocks; no universe batch was created');
+    }
 
     const client = await dbPool.connect();
     try {

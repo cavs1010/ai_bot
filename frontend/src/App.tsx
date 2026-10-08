@@ -62,20 +62,16 @@ export default function App() {
     setIsFetchingUniverse(true);
     setUniverseError(null);
     try {
+      // The latest Neon universe batch (empty list when no batch exists yet)
       const res = await fetch('/api/universe');
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || 'universe.json not found or could not be loaded.');
-      }
       const json = await res.json();
-      if (json.success && Array.isArray(json.data)) {
-        setUniverseData(json.data);
-      } else {
-        setUniverseData([]);
+      if (!res.ok) {
+        throw new Error(json.error);
       }
+      setUniverseData(json.data);
     } catch (err: any) {
       console.error("Error fetching universe:", err);
-      setUniverseError(err.message || 'Error loading universe.json');
+      setUniverseError(err.message);
     } finally {
       setIsFetchingUniverse(false);
     }
@@ -237,7 +233,7 @@ export default function App() {
   };
 
   // Run Real Python Pipeline: create the run (POST, recorded in Neon pipeline_runs), then subscribe to its stream (GET)
-  const triggerDryRun = async (runUniverse: boolean = false) => {
+  const triggerDryRun = async () => {
     setIsRunning(true);
     setRunLog([]);
     setPipelineRunError(null);
@@ -253,7 +249,6 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          run_universe: runUniverse,
           place_orders: placeOrders,
           ignore_market_hours: ignoreMarketHours,
         }),
@@ -678,7 +673,7 @@ export default function App() {
             stopMultiplier={dials.money_params.trade_risk.atr_stop_multiplier}
             onViewList={openUniverseModal}
             onLoadWatchlist={handleLoadWatchlist}
-            onRunScanner={() => triggerDryRun(false)}
+            onRunScanner={triggerDryRun}
           />
         )}
 

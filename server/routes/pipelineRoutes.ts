@@ -55,7 +55,7 @@ pipelineRouter.get('/runs', async (req: Request, res: Response) => {
  * and spawns the Stage 2-6 Python analytical pipeline.
  */
 pipelineRouter.post('/runs', async (req: Request, res: Response) => {
-  const { run_universe, place_orders, ignore_market_hours } = req.body || {};
+  const { place_orders, ignore_market_hours } = req.body || {};
 
   // Concurrency Guard
   if (currentRunningId && activeRuns.has(currentRunningId)) {
@@ -76,11 +76,17 @@ pipelineRouter.post('/runs', async (req: Request, res: Response) => {
   const startTime = Date.now();
   const isDryRun = !place_orders;
 
-  // The run uses the active strategy config and is recorded in pipeline_runs; if either fails, nothing starts
+  // The run uses the active strategy config and the latest Neon universe batch, and is recorded
+  // in pipeline_runs; if any of these fails, nothing starts
   let activeConfig;
+  let universe;
   let dbRun;
   try {
     activeConfig = await ConfigDbService.getActiveConfig();
+    universe = await UniverseDbService.getLatestUniverse();
+    if (!universe.batch) {
+      throw new Error('No universe batch in Neon: run Load Watchlist first');
+    }
     dbRun = await PipelineDbService.createRun({
       is_dry_run: isDryRun,
       config_id: activeConfig.id,
@@ -110,7 +116,6 @@ pipelineRouter.post('/runs', async (req: Request, res: Response) => {
 
   // Build Python args
   const args: string[] = [];
-  if (run_universe) args.push('--run-universe');
   if (place_orders) args.push('--place-orders');
   if (ignore_market_hours) args.push('--ignore-market-hours');
 
@@ -121,6 +126,7 @@ pipelineRouter.post('/runs', async (req: Request, res: Response) => {
     args,
     cwd: PATHS.root,
     env: toStrategyEnv(activeConfig),
+    stdin: JSON.stringify(universe.items), // the universe Python scans: exactly this Neon batch
     onStdout: (chunk) => {
       // stdout arrives in arbitrary chunks: handle complete lines only, keep the unfinished tail for the next chunk
       stdoutTail += chunk;
@@ -178,13 +184,9 @@ pipelineRouter.post('/runs', async (req: Request, res: Response) => {
         latest = ScannerService.getLatestRun();
         results = latest.results as Array<Record<string, any>>;
 
-        // The run scanned the latest universe batch; without one there is nothing to link it to
-        const { batch } = await UniverseDbService.getLatestUniverse();
-        if (!batch) {
-          throw new Error('No universe batch in Neon to link this run to');
-        }
-
-        await PipelineDbService.saveScannedStocks(dbRunId, batch.id, results.map((r) => ({
+        // Linked to the exact batch Python scanned, not "the latest" at the end (a new
+        // Load Watchlist during the run would otherwise link the run to the wrong batch)
+        await PipelineDbService.saveScannedStocks(dbRunId, universe.batch!.id, results.map((r) => ({
           ticker: r.ticker,
           final_decision: r.final_decision,
           rule_evaluations: r.scan,

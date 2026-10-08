@@ -6,30 +6,13 @@ import pandas as pd
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))   # → backend/
 from strategy_config import TOP_N, MIN_SCORE, RSI_MIN, RSI_MAX
 
-UNIVERSE_PATH = pathlib.Path(__file__).resolve().parent / 'data' / 'universe.json'
-WATCHLIST_PATH = str(UNIVERSE_PATH)   # plumbing path, not a strategy dial
-
-
-def load_watchlist(file_path: str | pathlib.Path | None = None) -> pd.DataFrame:
-    """
-    Reads the Tier 1 universe JSON produced by universe_filter.py.
-
-    Returns:
-        DataFrame with columns ticker, price, volume, atr, atr_pct, rsi, sma20, sma50, sector.
-        Raises if the file is missing or unreadable; there is no substitute file.
-    """
-    target_path = pathlib.Path(file_path if file_path is not None else WATCHLIST_PATH)
-    df = pd.read_json(target_path)
-    print(f'[scanner] loaded {len(df)} stocks from {target_path}')
-    return df
-
 
 def calculate_momentum_score(row: pd.Series) -> tuple[int, float]:
     """
     Scores a stock 0–3 based on three momentum criteria.
 
     Scoring (1 point each):
-      1. RSI in [50, 70]  — momentum zone, not overbought
+      1. RSI in [RSI_MIN, RSI_MAX] — momentum zone, not overbought
       2. price > sma20    — short-term uptrend
       3. sma20 > sma50    — bullish structure (golden-cross alignment)
 
@@ -49,7 +32,7 @@ def calculate_momentum_score(row: pd.Series) -> tuple[int, float]:
     return score, float(row['atr'])
 
 
-def run_scan(min_score: int = MIN_SCORE, df: pd.DataFrame | None = None, top_n: int = TOP_N) -> pd.DataFrame:
+def run_scan(df: pd.DataFrame, min_score: int = MIN_SCORE, top_n: int = TOP_N) -> pd.DataFrame:
     """
     Runs the Tier 2 momentum scan on a Tier 1 watchlist.
 
@@ -57,21 +40,15 @@ def run_scan(min_score: int = MIN_SCORE, df: pd.DataFrame | None = None, top_n: 
     candidates sorted by score descending.
 
     Args:
+        df: The universe to score: the rows of the latest Neon universe batch, passed in by
+            the caller (must have the columns read by calculate_momentum_score). Not mutated.
         min_score: Minimum momentum score (0–3) a stock must reach to be included.
                    Default is MIN_SCORE from the active strategy config.
-        df: Pre-loaded watchlist DataFrame to score (must have the columns read by
-            calculate_momentum_score). When None (default), the watchlist is loaded
-            from WATCHLIST_PATH via load_watchlist(). Pass a DataFrame to score an
-            in-memory watchlist without disk I/O. The input is not mutated.
         top_n: Maximum number of candidates to return. Default is TOP_N from the active strategy config.
 
     Returns:
         DataFrame with columns ticker, price, score, atr, rsi, sma20, sma50, sector.
-        Raises if the watchlist cannot be loaded.
     """
-    if df is None:
-        df = load_watchlist()
-
     df = df.copy()  # avoid mutating the caller's DataFrame when adding 'score'
     scores = df.apply(calculate_momentum_score, axis=1)
     df['score'] = [s[0] for s in scores]
@@ -87,17 +64,11 @@ def run_scan(min_score: int = MIN_SCORE, df: pd.DataFrame | None = None, top_n: 
 
 
 if __name__ == '__main__':
-    result = run_scan()
-    if result is not None:
-        print(result.to_string(index=False))
+    # Test: pipe a universe (JSON array of rows, as Node sends it) into stdin
+    universe = pd.read_json(sys.stdin)
+    result = run_scan(universe)
+    print(result.to_string(index=False))
 
-    # Variation: scoring a pre-loaded DataFrame should match the disk-loaded path.
-    watchlist = load_watchlist()
-    if watchlist is not None:
-        from_df = run_scan(df=watchlist)
-        assert from_df is not None and from_df.equals(result)
-        print('[scanner] run_scan(df=...) matches run_scan() ✅')
-
-    capped = run_scan(top_n=5)
-    assert capped is not None and len(capped) <= 5
+    capped = run_scan(universe, top_n=5)
+    assert len(capped) <= 5
     print('[scanner] run_scan(top_n=5) returned <= 5 rows ✅')

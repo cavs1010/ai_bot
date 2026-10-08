@@ -8,24 +8,27 @@ export const universeRouter = Router();
  * Returns active universe watchlist tickers and stock details from Neon DB.
  */
 universeRouter.get('/', async (req: Request, res: Response) => {
-  const result = await ScannerService.getUniverseAsync();
-  if (!result.exists || !result.data) {
+  try {
+    const result = await ScannerService.getUniverseAsync();
+    if (!result.data) {
+      return res.json({
+        success: true,
+        data: [],
+        tickers: [],
+        status: 'no_data',
+        message: 'Universe has not been generated yet. Click "Load Watchlist" to scan.',
+      });
+    }
     return res.json({
       success: true,
-      data: [],
-      tickers: [],
-      status: 'no_data',
-      message: 'Universe has not been generated yet. Click "Load Watchlist" to scan.',
+      data: result.data.stocks,
+      tickers: result.data.tickers,
+      count: result.data.stocks.length,
+      status: 'success',
     });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
   }
-  const stocksList = result.data.stocks || result.data.tickers.map((t) => ({ ticker: t, price: 0 }));
-  return res.json({
-    success: true,
-    data: stocksList,
-    tickers: result.data.tickers,
-    count: stocksList.length,
-    status: 'success',
-  });
 });
 
 /**
@@ -33,12 +36,16 @@ universeRouter.get('/', async (req: Request, res: Response) => {
  * Returns timestamp and ticker count for universe status checks.
  */
 universeRouter.get('/status', async (req: Request, res: Response) => {
-  const result = await ScannerService.getUniverseAsync();
-  return res.json({
-    exists: result.exists,
-    lastModified: result.lastModified || null,
-    count: result.data?.tickers?.length || 0,
-  });
+  try {
+    const result = await ScannerService.getUniverseAsync();
+    return res.json({
+      exists: result.exists,
+      lastModified: result.data ? result.data.generated_at : null,
+      count: result.data ? result.data.tickers.length : null,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 /**
@@ -55,14 +62,12 @@ const handleRefreshUniverse = async (req: Request, res: Response) => {
         details: result.error,
       });
     }
-    const universe = result.data;
-    const count = Array.isArray(universe) ? universe.length : (universe?.tickers?.length || 0);
     return res.json({
       success: true,
       status: 'success',
-      count,
-      message: 'Universe watchlist updated successfully',
-      data: universe,
+      count: result.count,
+      batch_id: result.batch!.id,
+      message: `Universe watchlist saved to Neon as batch #${result.batch!.id}`,
     });
   } catch (err: any) {
     return res.status(500).json({

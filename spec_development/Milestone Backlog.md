@@ -77,7 +77,7 @@ Relational Run History, Parameter Configuration & Audit Data Architecture, Dokpl
 The local repo-cleanup milestone (`hygiene/repo-cleanup`) was merged into Milestone 3 as an enabling milestone on 2026-10-04 instead of being finished on its own. Notebooks, root junk, spec unification and the UI token file were completed there; two criteria were not.
 
 **Potential Outcome:**  
-1. **Finish the frontend split:** move the data/API logic (portfolio sync, pipeline run + stream, SSE log parser, config save, universe fetch) out of `frontend/src/App.tsx` so it drops under the 400-line ceiling, and move the inline mock telemetry / default dials out of `App.tsx`. Replace leftover hardcoded palette classes in `App.tsx`, `StrategyDials` header area and `MarketClockBadge` with token names.
+1. **Finish the frontend split:** move the remaining data/API logic (pipeline run + stream, config load/save, universe fetch) out of `frontend/src/App.tsx` into hooks, and split the layout JSX (header, tabs, drawer, modals) into components, so `App.tsx` drops under the 400-line ceiling. Replace leftover hardcoded palette classes in `App.tsx`, `StrategyDials` header area and `MarketClockBadge` with token names.
 2. **Hygiene CLI (`npm run check`):** one command that fails on any `*.ipynb`, unused declared JS deps, TypeScript compile errors, and any `.py` / `.ts` / `.tsx` over 400 lines. `npm audit` stays separate.
 
 **Why it might matter:**  
@@ -85,6 +85,22 @@ Keeps the agreed architecture (`components/ui/`, `patterns/<domain>/`, `screens/
 
 **Related to:**  
 Milestone 3 Enabling Milestone (Reconcile UI branch with DB main), `docs/design_system_primer.md`
+
+---
+
+### Run Momentum Scanner Auto-Loads the Watchlist When None Exists
+
+**Why it appeared:**  
+Today a pipeline run refuses to start when Neon has no universe batch ("run Load Watchlist first"). The user may want the run to build the universe itself in that case.
+
+**Potential Outcome:**  
+When Run Momentum Scanner is clicked and Neon has no universe batch, Node first runs the same Load Watchlist step (universe filter → new Neon batch), then starts the pipeline with that batch. Done in Node, reusing Load Watchlist, so every universe is still a Neon batch (Python never builds or stores a universe on its own).
+
+**Why it might matter:**  
+One click from a fresh database to a full run, without giving up one source of truth for the universe.
+
+**Related to:**  
+Feature 04 — Continuous Pipeline Persistence, Feature 01 — Historical Watchlist Tables
 
 ---
 

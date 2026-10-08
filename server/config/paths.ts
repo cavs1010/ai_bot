@@ -9,8 +9,6 @@ export const PATHS = {
   root: PROJECT_ROOT,
   backend: path.join(PROJECT_ROOT, 'backend'),
   scanner: path.join(PROJECT_ROOT, 'backend', '01_scanner'),
-  scannerData: path.join(PROJECT_ROOT, 'backend', '01_scanner', 'data'),
-  universeJson: path.join(PROJECT_ROOT, 'backend', '01_scanner', 'data', 'universe.json'),
   universeScript: path.join(PROJECT_ROOT, 'backend', '01_scanner', 'universe_filter.py'),
   latestRunJson: path.join(PROJECT_ROOT, 'backend', '01_scanner', 'data', 'latest_run.json'),
   pipelineFullScript: path.join(PROJECT_ROOT, 'backend', 'run_pipeline_full.py'),

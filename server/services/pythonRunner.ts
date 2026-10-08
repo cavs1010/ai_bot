@@ -6,6 +6,7 @@ export interface PythonExecutionOptions {
   args?: string[];
   cwd?: string;
   env?: NodeJS.ProcessEnv;
+  stdin?: string; // data handed to the script on stdin (e.g. the universe rows), then closed
   onStdout?: (data: string) => void;
   onStderr?: (data: string) => void;
 }
@@ -41,6 +42,10 @@ export class PythonRunner {
         ...(options.env || {}),
       },
     });
+
+    if (options.stdin !== undefined) {
+      child.stdin.end(options.stdin);
+    }
 
     if (options.onStdout) {
       child.stdout.on('data', (data) => options.onStdout!(data.toString()));
