@@ -325,44 +325,6 @@ pipelineRouter.get('/runs/:runId/scanned-stocks', async (req: Request, res: Resp
 });
 
 /**
- * POST /api/pipeline/runs/:runId/scanned-stocks
- * Explicit State Mutation: Bulk inserts candidate stock evaluation rows into scanned_stocks.
- */
-pipelineRouter.post('/runs/:runId/scanned-stocks', async (req: Request, res: Response) => {
-  const { runId } = req.params;
-  const { stocks, batch_id } = req.body || {};
-
-  if (!Array.isArray(stocks) || stocks.length === 0) {
-    return res.status(400).json({
-      success: false,
-      error: 'Body must contain a non-empty "stocks" array.',
-    });
-  }
-
-  try {
-    let resolvedBatchId = batch_id;
-    if (!resolvedBatchId) {
-      const latestUniverse = await UniverseDbService.getLatestUniverse();
-      resolvedBatchId = latestUniverse.batch?.id || 1;
-    }
-
-    const saved = await PipelineDbService.saveScannedStocks(runId, resolvedBatchId, stocks);
-    return res.status(201).json({
-      success: true,
-      run_id: runId,
-      batch_id: resolvedBatchId,
-      data: saved,
-      count: saved.length,
-    });
-  } catch (err: any) {
-    return res.status(500).json({
-      success: false,
-      error: err.message || 'Failed to persist scanned stocks',
-    });
-  }
-});
-
-/**
  * GET /api/pipeline/runs/:runId/gate-evaluations
  * Strict Read-Only Endpoint: Returns all gate evaluation records for a specific run session.
  */
@@ -385,37 +347,6 @@ pipelineRouter.get('/runs/:runId/gate-evaluations', async (req: Request, res: Re
 });
 
 /**
- * POST /api/pipeline/runs/:runId/gate-evaluations
- * Explicit State Mutation: Bulk persists gate evaluation records into gate_evaluations in Neon DB.
- */
-pipelineRouter.post('/runs/:runId/gate-evaluations', async (req: Request, res: Response) => {
-  const { runId } = req.params;
-  const { evaluations } = req.body || {};
-
-  if (!Array.isArray(evaluations) || evaluations.length === 0) {
-    return res.status(400).json({
-      success: false,
-      error: 'Body must contain a non-empty "evaluations" array.',
-    });
-  }
-
-  try {
-    const saved = await PipelineDbService.saveGateEvaluations(runId, evaluations);
-    return res.status(201).json({
-      success: true,
-      run_id: runId,
-      data: saved,
-      count: saved.length,
-    });
-  } catch (err: any) {
-    return res.status(500).json({
-      success: false,
-      error: err.message || 'Failed to persist gate evaluations',
-    });
-  }
-});
-
-/**
  * GET /api/pipeline/runs/:runId/order-executions
  * Strict Read-Only Endpoint: Returns all generated order execution tickets for a specific run.
  */
@@ -433,37 +364,6 @@ pipelineRouter.get('/runs/:runId/order-executions', async (req: Request, res: Re
     return res.status(500).json({
       success: false,
       error: err.message || 'Failed to fetch order executions for run',
-    });
-  }
-});
-
-/**
- * POST /api/pipeline/runs/:runId/order-executions
- * Explicit State Mutation: Bulk persists order execution tickets into order_executions in Neon DB.
- */
-pipelineRouter.post('/runs/:runId/order-executions', async (req: Request, res: Response) => {
-  const { runId } = req.params;
-  const { orders } = req.body || {};
-
-  if (!Array.isArray(orders) || orders.length === 0) {
-    return res.status(400).json({
-      success: false,
-      error: 'Body must contain a non-empty "orders" array.',
-    });
-  }
-
-  try {
-    const saved = await PipelineDbService.saveOrderExecutions(runId, orders);
-    return res.status(201).json({
-      success: true,
-      run_id: runId,
-      data: saved,
-      count: saved.length,
-    });
-  } catch (err: any) {
-    return res.status(500).json({
-      success: false,
-      error: err.message || 'Failed to persist order executions',
     });
   }
 });
