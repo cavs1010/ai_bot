@@ -49,7 +49,7 @@ universeRouter.get('/status', async (req: Request, res: Response) => {
 });
 
 /**
- * POST /api/universe/refresh and POST /api/universe/generate
+ * POST /api/universe/generate (Load Watchlist)
  * Triggers Stage 1 filter script and creates a new scan batch in Neon DB.
  */
 const handleRefreshUniverse = async (req: Request, res: Response) => {
@@ -78,8 +78,4 @@ const handleRefreshUniverse = async (req: Request, res: Response) => {
   }
 };
 
-universeRouter.post('/refresh', handleRefreshUniverse);
 universeRouter.post('/generate', handleRefreshUniverse);
-// Graceful GET handlers for direct browser inspection or GET calls
-universeRouter.get('/generate', handleRefreshUniverse);
-universeRouter.get('/refresh', handleRefreshUniverse);

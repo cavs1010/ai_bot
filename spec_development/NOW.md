@@ -106,7 +106,7 @@ Implement Feature 04: Continuous Pipeline Persistence. Create table schemas for 
 - **Schema Design:** 8 relational tables with typed columns + `payload JSONB`.
 - **UI Controls:** Single new UI button added ("Save Config" in Strategy tile); all analysis/trading steps run as a continuous, automated sequence.
 - **Snapshot Change-Detection (Option 1):** Skips inserting duplicate rows if total equity, cash, buying power, and positions are unchanged.
-- **HTTP Idempotency (Rule 24):** `GET /api/portfolio/live` is strictly read-only; `POST /api/portfolio/snapshot` is used for snapshot recordings.
+- **HTTP Idempotency (Rule 24):** `GET /api/portfolio/live` is strictly read-only; `POST /api/portfolio/snapshots` is used for snapshot recordings.
 - **Timezone:** All timestamps stored and formatted in Brisbane local time (`Australia/Brisbane`, UTC+10).
 
 ## When This Is Finished...
@@ -147,7 +147,7 @@ Set up PostgreSQL client in Node.js, configure connection pooling with `DATABASE
 ### Task 02 — `portfolio_snapshots` Table & Change-Detection Gatekeeper
 
 **Objective:**  
-Create `portfolio_snapshots` migration in Neon PostgreSQL, integrate snapshot recording via `POST /api/portfolio/snapshot`, enforce Brisbane local timezone (`Australia/Brisbane`, UTC+10), and implement Option 1 Change-Detection Gatekeeper to avoid redundant snapshot inserts.
+Create `portfolio_snapshots` migration in Neon PostgreSQL, integrate snapshot recording via `POST /api/portfolio/snapshots`, enforce Brisbane local timezone (`Australia/Brisbane`, UTC+10), and implement Option 1 Change-Detection Gatekeeper to avoid redundant snapshot inserts.
 
 **Status:**  
 ✅ Completed (Approved on 2026-08-30)
@@ -237,7 +237,7 @@ Split the monolithic `frontend/src/App.tsx` into a layered architecture that fol
 - [x] Fast Replay removed (button and its front-end logic): it called `/api/pipeline/replay`, a route that never existed.
 
 **Status:**  
-🟡 Under Review
+✅ Completed (approved by user on 2026-10-09; the `App.tsx` split stays in the Milestone Backlog)
 
 
 ### Iteration 04 — Python Playground & Scratchpad Cleanup
@@ -292,6 +292,9 @@ Feature 04 cannot be verified end to end from the UI until both branches are rec
 **Can I reasonably continue without solving it?**  
 No
 
+**Status:**  
+✅ Resolved by the enabling milestone below (approved by user on 2026-10-09)
+
 ---
 
 ## 🛠️ Enabling Milestone
@@ -312,17 +315,22 @@ One branch that keeps the local UI and design system, runs on the DB backend fro
 
 **Verification Plan** *(agreed 2026-10-05)*:
 0. **Hard-coded value audit** — Business data and business configuration (thresholds, dial defaults, gate definitions, ticker lists, risk limits, seed presets, fallback payloads) must come from Neon, or a live API for market data, never from values written in code. Code may only hold UI copy, design tokens, type contracts, and environment/path config. Includes checking that the Python pipeline receives its config from Node (active `pipeline_configs` row) rather than its own constants or files. Present findings with file:line evidence; fix only after user confirmation (Rule 8). When complete, add it to `AGENTS.md` under the next free rule number (per Rule 0) (Rule 25 stays for mock/fallback data; no overlap).
+   - [x] **Audit and fixes done (2026-10-09):** the Python pipeline gets every setting from the active Neon config (`strategy_config.py`, no values); `pipeline_configs` holds them in `selection_params` / `money_params`; invented values and failure-as-pass fallbacks removed across Node, Python and the UI.
+   - [x] **Rule added to `AGENTS.md`:** Rule 30, Business Values Live in the Database.
    - [ ] **Pending check — pre-market gap during the pre-market session:** run `venv/Scripts/python.exe backend/02_intelligence/helpers/fetchers/premarket.py` between 6:00 PM and 11:30 PM Brisbane (4:00–9:30 AM New York) on a trading day. Expected: NVDA's pre-market price and its gap against the **previous session's** close (check the close against the daily bars). Already verified: "not applicable" before pre-market and during the regular session.
 1. **Verify writes** — User performs each UI action; AI checks the resulting rows in Neon (columns, Brisbane timestamps, shared `run_id`). Order: Load Watchlist → Portfolio sync → Save Config → Pipeline run (live LLM calls; only on explicit go-ahead).
-   - [ ] **Before the pipeline run — the universe comes only from Neon:** Node passes the latest Neon universe batch to Python (as it already passes the strategy config), Python scans exactly that batch, `universe.json` is deleted, and any universe rebuild creates a Neon batch. Why: the universe currently exists twice (`universe.json` and the Neon batch) and the two can disagree, which breaks Rule 13.
+   - [x] **Writes verified in Neon (2026-10-09):** Load Watchlist (batch #25, 93 rows), Save Config (`pipeline_configs` v4), Portfolio sync (unchanged state reuses snapshot #18), Pipeline run (run `9b93dea5…`: 6 candidates, real gate reasoning, 2 `SIMULATED` orders, linked to the exact batch scanned). All timestamp columns now store Brisbane local time.
+   - [x] **Before the pipeline run — the universe comes only from Neon:** Node passes the latest Neon universe batch to Python (as it already passes the strategy config), Python scans exactly that batch, `universe.json` is deleted, and any universe rebuild creates a Neon batch. Why: the universe currently exists twice (`universe.json` and the Neon batch) and the two can disagree, which breaks Rule 13.
 2. **Decide reads** — UI reads from Neon for the watchlist and the strategy config (dials load from `GET /api/configs/active`). Decide whether these gaps are fixed here or in Feature 07: Last Run screen (`GET /api/run/latest` reads a JSON file, not Neon), portfolio (shows Alpaca live, not snapshots).
+   - [x] **Decided (2026-10-09):** the run screen is for executing — it shows only what happens in the current session (nothing until Load Watchlist or a run) and no longer loads the previous run. The header portfolio stays live from Alpaca. Viewing previous runs and portfolio snapshots belongs to Feature 07's history views.
 3. **Rule 24 audit & fix (with Rule 13 check)** — Audit every `GET` route in `server/routes/` for side effects (DB writes, subprocesses, state changes) and list duplicate route aliases/mounts that break Rule 13. Present findings with file:line evidence; fix only after user confirmation (Rule 8). Known so far: `GET /api/universe/generate` and `GET /api/universe/refresh` trigger a refresh; duplicates `POST /api/portfolio/snapshot` vs `/snapshots`, `pipelineRouter` also mounted at `/api/run`, `configRouter` mounted at both `/api/configs` and `/api`.
+   - [x] **Fixed (2026-10-09):** removed `GET /api/universe/generate` and `GET /api/universe/refresh` (the only GET routes with side effects), `POST /api/universe/refresh`, `POST /api/portfolio/snapshot`, and the duplicate `/api/run` and `/api` router mounts; the config router is mounted once at `/api/configs`.
 
 **Return To:**  
 Feature 04
 
 **Status:**  
-🟡 Under Review
+✅ Completed (approved by user on 2026-10-09)
 
 ---
 
@@ -332,43 +340,65 @@ Feature 04
 > 
 > AI can assist with the review, but **final approval remains human**.
 
+**Reviewing:** Enabling Milestone — Reconcile UI branch with DB main *(review prepared 2026-10-09)*
+
 ## Status
 
-🟡 Under Review
+✅ Approved by the user on 2026-10-09.
+
+## Scope Check
+
+| Minimum scope item | Result |
+|---|---|
+| Backend and DB layer taken from `main` unchanged | ⚠️ Deliberately not met: the approved verification plan (steps 0–3) changed the backend |
+| UI wired to the DB endpoints | ✅ Runs, snapshots, config save **and load**, universe — verified with real rows |
+| Frontend follows the Project Structure | 🟡 Folders ✅; `App.tsx` ~730 lines vs the 400-line ceiling (in Milestone Backlog) |
+| `AGENTS.md` merged | ✅ Restructured by user decision: Rule 0, each rule written once, Project Structure section, Rule 30, provider-neutral wording |
+| Repo-cleanup leftovers recorded in the backlog | ✅ |
+| History views out of scope | ✅ Left to Feature 07 |
+| Verification plan steps 0–3 | ✅ Except the pending pre-market check |
 
 ## The Three Review Questions
 
 ### 1. Does this match exactly what we decided to build?
 
-**Answer:** Under Review
+**Answer:** Yes for the outcome; the scope grew through user-approved decisions.
 
-**Notes:** Milestone 3 specification matches the approved 8-table relational architecture and single-data-gatekeeper design.
+**Notes:** Approved additions: strategy config redesign (`selection_params` / `money_params`, column descriptions); Python reads every setting from the database (`strategy_config.py`, no values); universe stored only in the database (`universe.json` deleted); invented values and failure-as-pass fallbacks removed across Node, Python and the UI; simulated buys saved as `SIMULATED`; all timestamps in Brisbane local time; Rule 24 / Rule 13 route cleanup; Fast Replay removed; the run screen shows only the current session.
 
 ---
 
 ### 2. Did the AI introduce anything we did not request or make incorrect assumptions?
 
-**Answer:** Under Review
+**Answer:** Yes, several mistakes — each caught and corrected during the milestone.
 
-**Notes:** Scope strictly bound to 8 tables, 1 new button ("Save Config"), and direct Neon persistence verification.
+**Notes:** `config.py` split into 11 files without its explanations (reverted to the `strategy_config.py` board); unnecessary checks in `configDbService` (removed); `$1` type bug in Save Config (caught by the user's test); New York time misread from Git Bash UTC output (false alarm on the pre-market check); system `python` used once to edit a file (Rule 9 breach); a misread instruction nearly changed `design_system_primer.md` (not changed). Additions beyond the immediate ask (`hooks/`, `utils/time.ts`, Gate 5 raising instead of inventing a SKIP, stream line buffering, `fetch_news` "answered" fix) were flagged before being built and approved.
 
 ---
 
 ### 3. Do I understand what was built well enough to maintain it later?
 
-**Answer:** Under Review
-
-**Notes:** Architecture and table schemas documented and aligned with user.
+**Answer:** Yes — "I completely understand what we did."
 
 ---
 
 ## Issues Found
 
-- None.
+None blocking. Open:
+
+1. Pending check: pre-market gap during the pre-market session (step 0).
+2. `App.tsx` ~730 lines (Milestone Backlog: finish the `App.tsx` split).
+3. `GET /api/pipeline/runs/:id/gate-evaluations` calls a service method that does not exist (unused; Feature 07).
+4. A run's results are not saved in one transaction.
+5. `latest_run.json` is still a file handoff from Python to Node for run results.
+6. Duplicate old pipeline `backend/02_intelligence/pipeline/run_pipeline.py` (Rule 13).
+7. Leftover `|| null` defaults and repeated `DATABASE_URL` checks in `universeDbService`, `portfolioDbService` and the `pipelineDbService` readers.
+8. `docs/backend_architecture_primer.md` describes a target layout the repo does not have yet, names the dial board `config.py` (now `strategy_config.py`) and says the scanner writes `universe.json` (deleted).
+9. Strategy questions (not code): the EV threshold barely filters; Gate 4 `FLAG_FOR_REVIEW` is auto-approved; `mode = LIVE` names paper orders.
 
 ## Required Actions
 
-- User authorization to start Deep Session Task 01 (Database Infrastructure & `universe_watchlist` Table).
+- Return to Feature 04 and decide whether issues 3 and 4 are fixed as part of its review.
 
 ---
 
@@ -389,7 +419,7 @@ Feature 04
 - **Strict HTTP Verb Discipline & Idempotency (Rule 24)**:
   - `GET` requests must be strictly read-only and idempotent. Never trigger database writes, snapshot creations, or state mutations on a `GET` request.
   - All state mutations (e.g. creating portfolio snapshots, saving configs, executing trades) must explicitly use `POST`, `PUT`/`PATCH`, or `DELETE`.
-  - Added dedicated endpoint `POST /api/portfolio/snapshot` for manual/explicit snapshot recordings, while `GET /api/portfolio/live` remains pure read-only.
+  - Added dedicated endpoint `POST /api/portfolio/snapshots` for manual/explicit snapshot recordings, while `GET /api/portfolio/live` remains pure read-only.
 - **Deduplication Guards**:
   - Implemented a 5-second deduplication threshold in `PortfolioDbService` to prevent duplicate row creation from accidental double-clicks or rapid consecutive events.
 - **Brisbane Local Timezone (`Australia/Brisbane`, UTC+10)**:

@@ -22,10 +22,6 @@ async function startServer() {
   app.use('/api/configs', configRouter);
   app.use('/api/portfolio', portfolioRouter);
 
-  // Backward compatibility aliases
-  app.use('/api/run', pipelineRouter);
-  app.use('/api', configRouter);
-
   // Health check & DB schema inspection endpoint
   app.get('/api/health', async (req, res) => {
     let dbStatus = 'disconnected';

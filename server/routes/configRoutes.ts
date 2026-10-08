@@ -7,7 +7,7 @@ export const configRouter = Router();
  * POST /api/configs
  * Save a new strategy configuration or increment version for an existing name.
  */
-configRouter.post('/configs', async (req: Request, res: Response) => {
+configRouter.post('/', async (req: Request, res: Response) => {
   try {
     const { name, is_default, selection_params, money_params } = req.body;
 
@@ -43,7 +43,7 @@ configRouter.post('/configs', async (req: Request, res: Response) => {
  * GET /api/configs
  * List all saved configurations
  */
-configRouter.get('/configs', async (req: Request, res: Response) => {
+configRouter.get('/', async (req: Request, res: Response) => {
   try {
     const configs = await ConfigDbService.getAllConfigs();
     return res.json({
@@ -63,7 +63,7 @@ configRouter.get('/configs', async (req: Request, res: Response) => {
  * GET /api/configs/active
  * Get current active/default configuration
  */
-configRouter.get('/configs/active', async (req: Request, res: Response) => {
+configRouter.get('/active', async (req: Request, res: Response) => {
   try {
     const config = await ConfigDbService.getActiveConfig();
     return res.json({
@@ -83,7 +83,7 @@ configRouter.get('/configs/active', async (req: Request, res: Response) => {
  * DELETE /api/configs/:id
  * Delete a configuration by ID
  */
-configRouter.delete('/configs/:id', async (req: Request, res: Response) => {
+configRouter.delete('/:id', async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {

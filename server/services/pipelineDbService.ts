@@ -1,3 +1,4 @@
+import type { PoolClient } from 'pg';
 import { dbPool } from '../db/pool';
 import { PipelineRun } from '../db/schema';
 
@@ -151,10 +152,37 @@ export class PipelineDbService {
   }
 
   /**
+   * Saves a finished run's results — scanned stocks, gate verdicts and orders — in one transaction:
+   * either all three tables are written or none is.
+   */
+  static async saveRunResults(
+    runId: string,
+    batchId: number,
+    stocks: Parameters<typeof PipelineDbService.saveScannedStocks>[3],
+    evaluations: Parameters<typeof PipelineDbService.saveGateEvaluations>[2],
+    orders: Parameters<typeof PipelineDbService.saveOrderExecutions>[2]
+  ): Promise<void> {
+    const client = await dbPool.connect();
+    try {
+      await client.query('BEGIN');
+      await PipelineDbService.saveScannedStocks(client, runId, batchId, stocks);
+      await PipelineDbService.saveGateEvaluations(client, runId, evaluations);
+      await PipelineDbService.saveOrderExecutions(client, runId, orders);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
    * Bulk persists evaluated candidate stocks into scanned_stocks in a single atomic database query.
    * Uses composite primary key (run_id, ticker, batch_id) with Brisbane local timestamps.
    */
   static async saveScannedStocks(
+    client: PoolClient, // the run-results transaction (saveRunResults)
     runId: string,
     batchId: number,
     stocks: Array<{
@@ -168,7 +196,6 @@ export class PipelineDbService {
       return [];
     }
 
-    const client = await dbPool.connect();
     try {
       const valuePlaceholders: string[] = [];
       const values: any[] = [];
@@ -226,8 +253,6 @@ export class PipelineDbService {
     } catch (err) {
       console.error(`[PipelineDbService] Error bulk saving scanned_stocks for run ${runId}:`, err);
       throw err;
-    } finally {
-      client.release();
     }
   }
 
@@ -270,10 +295,28 @@ export class PipelineDbService {
   }
 
   /**
+   * Fetches all gate verdicts recorded for a specific pipeline run, in gate order per ticker.
+   */
+  static async getGateEvaluationsForRun(runId: string): Promise<any[]> {
+    const res = await dbPool.query(
+      `SELECT id, run_id, ticker, gate_id, passed, score, reasoning, sub_evaluations, created_at
+       FROM gate_evaluations
+       WHERE run_id = $1
+       ORDER BY ticker ASC, gate_id ASC;`,
+      [runId]
+    );
+    return res.rows.map((r) => ({
+      ...r,
+      score: r.score !== null ? parseFloat(r.score) : null,
+    }));
+  }
+
+  /**
    * Bulk persists evaluated gate decisions into gate_evaluations in a single atomic database query.
    * Enforces Brisbane local timestamps (Australia/Brisbane, UTC+10).
    */
   static async saveGateEvaluations(
+    client: PoolClient, // the run-results transaction (saveRunResults)
     runId: string,
     evaluations: Array<{
       ticker: string;
@@ -289,7 +332,6 @@ export class PipelineDbService {
       return [];
     }
 
-    const client = await dbPool.connect();
     try {
       const valuePlaceholders: string[] = [];
       const values: any[] = [];
@@ -357,8 +399,6 @@ export class PipelineDbService {
     } catch (err) {
       console.error(`[PipelineDbService] Error bulk saving gate_evaluations for run ${runId}:`, err);
       throw err;
-    } finally {
-      client.release();
     }
   }
 
@@ -367,6 +407,7 @@ export class PipelineDbService {
    * Enforces Brisbane local timestamps (Australia/Brisbane, UTC+10).
    */
   static async saveOrderExecutions(
+    client: PoolClient, // the run-results transaction (saveRunResults)
     runId: string,
     orders: Array<{
       symbol: string;
@@ -387,7 +428,6 @@ export class PipelineDbService {
       return [];
     }
 
-    const client = await dbPool.connect();
     try {
       const valuePlaceholders: string[] = [];
       const values: any[] = [];
@@ -475,8 +515,6 @@ export class PipelineDbService {
     } catch (err) {
       console.error(`[PipelineDbService] Error bulk saving order_executions for run ${runId}:`, err);
       throw err;
-    } finally {
-      client.release();
     }
   }
 

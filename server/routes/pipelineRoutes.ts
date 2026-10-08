@@ -184,21 +184,23 @@ pipelineRouter.post('/runs', async (req: Request, res: Response) => {
         latest = ScannerService.getLatestRun();
         results = latest.results as Array<Record<string, any>>;
 
-        // Linked to the exact batch Python scanned, not "the latest" at the end (a new
-        // Load Watchlist during the run would otherwise link the run to the wrong batch)
-        await PipelineDbService.saveScannedStocks(dbRunId, universe.batch!.id, results.map((r) => ({
-          ticker: r.ticker,
-          final_decision: r.final_decision,
-          rule_evaluations: r.scan,
-        })));
-
-        await PipelineDbService.saveGateEvaluations(dbRunId, results.flatMap((r) =>
-          r.gate_evaluations.map((ge: Record<string, any>) => ({ ticker: r.ticker, ...ge }))
-        ));
-
-        await PipelineDbService.saveOrderExecutions(dbRunId, results
-          .filter((r) => r.order)
-          .map((r) => ({ symbol: r.ticker, ...r.order })));
+        // One transaction for all three tables, linked to the exact batch Python scanned
+        // (not "the latest" at the end: a Load Watchlist during the run would be a different batch)
+        await PipelineDbService.saveRunResults(
+          dbRunId,
+          universe.batch!.id,
+          results.map((r) => ({
+            ticker: r.ticker,
+            final_decision: r.final_decision,
+            rule_evaluations: r.scan,
+          })),
+          results.flatMap((r) =>
+            r.gate_evaluations.map((ge: Record<string, any>) => ({ ticker: r.ticker, ...ge }))
+          ),
+          results
+            .filter((r) => r.order)
+            .map((r) => ({ symbol: r.ticker, ...r.order }))
+        );
       } catch (saveErr: any) {
         runError = `Saving run results to Neon failed: ${saveErr.message}`;
       }

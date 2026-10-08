@@ -30,7 +30,7 @@ Every file goes in the folder this tree assigns to it. This is the only place in
 frontend/src/
 ├── index.css        # The only token file (@theme) + control looks (@layer components)
 ├── App.tsx          # Switches between screens
-├── components/ui/   # One file per reusable control: badge, button, switch, tabs, modal, text-field, dial-field, dial-section, …
+├── components/ui/   # Reusable controls: badge, button, switch, tabs, modal, text-field, dial-field, dial-section, …
 ├── patterns/        # Recurring combinations of controls, grouped by domain
 │   ├── pipeline/    #   Funnel, CandidateTable, ApprovedSignals
 │   ├── portfolio/   #   PortfolioSummary
@@ -49,17 +49,17 @@ frontend/src/
 
 ## ⛔ TIER 1: Hard Stops
 
-2. 🚫 **Single-Task Focus**: Work only on the single active sub-task in `spec_development/NOW.md`. Never jump ahead to, implement, or mark as completed subsequent tasks or features unless the user explicitly says so.
+2. 🚫 **Single-Task Focus**: Work only on the single active sub-task in `spec_development/NOW.md`. Never jump ahead to or implement subsequent tasks or features unless the user explicitly says so.
    *Why:* Scope bleed mixes unreviewed work into the active task. When a task is finished, pause and wait for instruction.
 
-3. 🚫 **Human Review Before "Completed"**: Never mark a task, feature, or milestone `✅ Completed` without explicit user confirmation. Use `🟡 Under Review` or `Ready for Review`.
+3. 🚫 **Human Review Before "Completed"**: Never mark a task, feature, or milestone `✅ Completed` without explicit user confirmation. Until then its status is `🟡 Under Review`.
    *Why:* Final approval is always human.
 
-5. 🚫 **No Full Pipeline Runs Without Permission**: Never run scripts that make live LLM/API calls (e.g. `run_pipeline_full.py`) without explicit user permission.
-   *Why:* They consume real API quota and tokens.
+5. 🚫 **No LLM or Order Runs Without Permission**: Never run anything that makes LLM calls or places orders (e.g. `run_pipeline_full.py`) without explicit user permission. Read-only market-data calls need no permission.
+   *Why:* They spend real API tokens or act on the trading account.
 
-7. 🚫 **No Ad-Hoc Test Scripts or Tool Clutter**: Never run ad-hoc verification scripts (`node -e`, `tsx -e`, temporary evaluators), background tasks, or speculative diagnostics (redundant file viewers, linters, test `curl`s) to check routine edits. Make direct surgical edits only.
-   *Why:* They clutter the user's timeline and slow work down without adding evidence.
+7. 🚫 **No Unrequested One-Off Scripts**: Never run one-off scripts (`node -e`, `tsx -e`, `python -c`, temporary evaluators) or speculative diagnostics without the user's approval. The project's own checks — the type checker and a module's documented self-test — may be run when they produce the evidence Rules 8 and 26 require.
+   *Why:* Unrequested scripts clutter the user's timeline; evidence must come from checks the project already owns.
 
 10. 🚫 **Answer First, Edit Only When Authorized**: When the user asks a question, a clarification, or "does it make sense?", answer it and do not modify files. Edit only after explicit authorization ("proceed", "implement this", "go ahead").
     *Why:* Conceptual alignment must come before execution; editing while the user is checking understanding bypasses their control.
@@ -70,7 +70,7 @@ frontend/src/
 22. 🚫 **Native Tool Calls Only**: Never output, format, or simulate tool logs, transcript headers (e.g. `"The following action was requested:"`), or mock diffs as chat text. All file and environment actions go through real tool calls. If a tool fails, report it in plain language.
     *Why:* Simulated logs are indistinguishable from real actions and mislead the user.
 
-25. 🚫 **Zero Mock or Fallback Data**: Never inject mock datasets, hardcoded ticker arrays, or fallback payloads to mask API failures, network blocks, or missing dependencies. Market, scan, and quant data come only from live services (TradingView, Alpaca, Finnhub) or Neon. On failure, fail fast with the exact error.
+25. 🚫 **Zero Mock or Fallback Data**: Never inject mock datasets or fallback payloads to mask API failures, network blocks, or missing dependencies. Data comes only from live external services or the database. When a value is missing or a source fails, fail fast with the exact error.
     *Why:* Fake data hides the root cause and makes results untrustworthy.
 
 26. 🚫 **Zero Unverified Environment Claims**: Never claim that runtime dependencies (Python packages, system tools, environment variables) are installed or working without concrete verification.
@@ -80,25 +80,22 @@ frontend/src/
 
 ## 🏗️ TIER 2: Locked Architectural Contracts
 
+4. 🎛️ **Single Entry Point UI Controls**: Never create duplicate or competing buttons/icons for the same action. Use one clearly labeled control (e.g. "View List →").
+   *Why:* Competing controls make behavior unpredictable.
+
 9. 🐍 **Single Python Runtime**: All Python executions, subprocesses, and package installs MUST use the project virtual environment via the `getPythonExecutable()` resolver. Never use system Python or install outside the virtual environment.
    *Why:* Mixed environments cause `ModuleNotFoundError`, broken pipes, and corrupted IPC.
 
-11. 🧭 **Simplest Mechanism First**: Before proposing an approach, analyze the problem from first principles and check whether simple deterministic logic, a calculation, or an existing lifecycle event solves it. Never default to heavy mechanisms (polling, background servers, unrequested intervals, extra layers).
-    *Why:* Reflexive patterns add overhead and maintenance cost the problem does not need.
-
-13. 🎯 **Single Source of Truth**: Every parameter, identifier, contract, and setting has exactly ONE authoritative definition. Never add fallback chains (`A || B`), duplicate aliases, dual naming, or defensive guessing. If a value is missing, fail explicitly.
+13. 🎯 **Single Source of Truth**: Every parameter, identifier, contract, and setting has exactly ONE authoritative definition. Never add fallback chains (`A || B`), duplicate aliases, dual naming, or defensive guessing.
     *Why:* Fallbacks hide misconfigurations and create competing versions of the truth.
 
-19. 🧱 **Honor Agreed Architecture**: Follow the architecture and commitments already agreed with the user. No mid-stream pivots without the user's approval.
-    *Why:* Silent pivots invalidate decisions the user has already reviewed.
-
-20. 🦘 **Neon via Node Only, Brisbane Time**: All database operations happen in TypeScript/Node against Neon. Python never touches the database or imports database modules; it only does analytical calculations. Every database timestamp is saved and shown in Brisbane local time (`Australia/Brisbane`, UTC+10).
+20. 🦘 **Database via Node Only, Brisbane Time**: All database operations happen in TypeScript/Node. Python never touches the database or imports database modules; it only does analytical calculations. Every database timestamp is saved and shown in Brisbane local time (`Australia/Brisbane`, UTC+10).
     *Why:* One gatekeeper keeps data access auditable; one timezone keeps timestamps comparable across tables.
 
-21. 🗄️ **Zero Runtime DDL, Approved DDL via Neon MCP**: Application code (`server.ts`, services, `schema.ts`) never runs DDL (`CREATE TABLE IF NOT EXISTS`, `ALTER TABLE`, `ensureTable()`); services only run DML (`SELECT`, `INSERT`, `UPDATE`, `DELETE`) and `schema.ts` only holds TypeScript types. Schema changes are run by the AI through the Neon MCP, only after showing the exact SQL and getting explicit approval for that specific change; then verify the result in Neon and update `schema.ts` in the same change.
+21. 🗄️ **Zero Runtime DDL, Approved DDL via the Database MCP**: Application code (`server.ts`, services, `schema.ts`) never runs DDL (`CREATE TABLE IF NOT EXISTS`, `ALTER TABLE`, `ensureTable()`); services only run DML (`SELECT`, `INSERT`, `UPDATE`, `DELETE`) and `schema.ts` only holds TypeScript types. Schema changes are run by the AI through the database provider's MCP tool, only after showing the exact SQL and getting explicit approval for that specific change; then verify the result in the database and update `schema.ts` in the same change.
     *Why:* The live schema and the TypeScript contract must stay one source of truth, and every schema change must be human-approved.
 
-23. 🗂️ **Frontend Modularity & File Ceiling**: Before adding UI code, decide whether the target file will become monolithic and extract components in the same change, never "later". No component file exceeds 300–400 lines. New tabs, modals, and overlays live in their own files and are imported into `App.tsx` as lean tags. Large static constants never live inside component files.
+23. 🗂️ **Frontend Modularity & File Ceiling**: Before adding UI code, decide whether the target file will become monolithic and extract components in the same change, never "later". No component file exceeds 400 lines. New tabs, modals, and overlays live in their own files and are imported into `App.tsx` as lean tags. Large static constants never live inside component files.
     *Why:* Deferred extraction turns into permanent monoliths.
 
 24. 🌐 **HTTP Verb Semantics**: `GET` is strictly read-only (no DB writes, subprocesses, or side effects). `POST` creates records or starts jobs. `PUT`/`PATCH` update existing records. `DELETE` removes records. Long-running work is started by a mutating call and observed through a separate read-only `GET .../stream` or `GET .../status`.
@@ -108,17 +105,17 @@ frontend/src/
     *Why:* One definition per control keeps the design system consistent. Example: `OrderToggles` imports `Switch` twice.
 
 28. 🗂️ **Shared Domain Types**: A domain type (data or API contract) used by more than one file lives in the shared types file for its domain. Props types (`XxxProps`) and private helper types stay in their component file. Never import a domain type from a component file, never define the same shape twice, never create a catch-all `types.ts`.
-    *Why:* Applies Rule 13 to frontend types. Example: `Candidate` and `Telemetry` live in the telemetry types file; `CandidateTableProps` stays in `CandidateTable.tsx`.
+    *Why:* Applies Rule 13 to frontend types. Example: `Candidate` and `RunState` live in the telemetry types file; `CandidateTableProps` stays in `CandidateTable.tsx`.
+
+30. 🗄️ **Business Values Live in the Database**: Strategy settings, thresholds, limits, defaults and presets that drive trading decisions are stored in the database and read from there; market data comes from live APIs. Code holds only UI text, design tokens, type contracts, environment/path configuration, fixed lookup tables (e.g. sector → ETF) and implementation settings (e.g. the LLM model) — never a business value, not even as a default.
+    *Why:* A value written in code silently disagrees with the one in the database; with one home, changing a setting in the app changes what the pipeline actually does.
 
 ---
 
 ## 🤝 TIER 3: Collaboration Protocols
 
-1. 🤝 **Specs Only With User Approval**: Never pre-fill, complete, or finalize spec documents (e.g. `NOW.md`) or implementations ahead of the user. Present proposed features and milestone changes in chat first, wait for explicit approval, then document only the concise final decision.
+1. 🤝 **Specs Only With User Approval**: Never pre-fill, complete, or finalize spec documents (e.g. `NOW.md`) ahead of the user. Present proposed features and milestone changes in chat first, wait for explicit approval, then document only the concise final decision.
    *Why:* Specs record the user's decisions, not the AI's guesses.
-
-4. 🎛️ **Single Entry Point UI Controls**: Never create duplicate or competing buttons/icons for the same action. Use one clearly labeled control (e.g. "View List →").
-   *Why:* Competing controls make behavior unpredictable.
 
 6. 🗺️ **Consult `NOW.md` First**: Before answering "what is the focus now?" or any project-state question, read `spec_development/NOW.md`.
    *Why:* `NOW.md` is the single source of truth for milestones and tasks.
@@ -126,11 +123,17 @@ frontend/src/
 8. 🔍 **Root Cause Before Fixing**: When something fails, isolate the exact root cause with evidence (reproduction, traces), present it to the user, and change no code until the user confirms it.
    *Why:* Speculative patches mask symptoms and destabilize the codebase.
 
-12. ❓ **Clarify Unknown Context**: If critical context, requirements, constraints, or preferences are unspecified, stop and ask before proposing specs or solutions.
+12. ❓ **Ask When Context Is Missing**: If a requirement, constraint, or preference is unspecified, ask the user before proposing specs or solutions.
     *Why:* Proposals built on assumptions waste iterations.
 
 17. 📱 **User Governs Mobile Iterations**: Only the user decides which tasks belong in `📱 Mobile Iterations`. Never self-assign tasks there.
     *Why:* Mobile tasks depend on the user's availability and judgment.
 
+19. 🧱 **Honor Agreed Architecture**: Follow the architecture and commitments already agreed with the user. No mid-stream pivots without the user's approval.
+    *Why:* Silent pivots invalidate decisions the user has already reviewed.
+
 29. 💡 **Capture Ideas in the Backlog**: When the user shares a new idea, future milestone, or improvement, add it to `spec_development/Milestone Backlog.md` under `## 💡 Candidates` using the capture format (`Why it appeared`, `Potential Outcome`, `Why it might matter`, `Related to`). Keep `NOW.md` focused on active work.
     *Why:* Ideas are kept without interrupting the active task.
+
+31. 🧾 **One Change at a Time, the User Commits**: Make one reviewable change, report exactly what changed (each file and what the edit does), then stop. The user reviews the diff, stages and commits it, and says when to continue. Never stage or commit.
+    *Why:* The user reviews every diff and owns the commit history.

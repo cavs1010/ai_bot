@@ -154,7 +154,6 @@ const handleCreateSnapshot = async (req: Request, res: Response) => {
 };
 
 portfolioRouter.post('/snapshots', handleCreateSnapshot);
-portfolioRouter.post('/snapshot', handleCreateSnapshot);
 
 // GET /api/portfolio/snapshots (Retrieve snapshot history from Neon)
 portfolioRouter.get('/snapshots', async (req: Request, res: Response) => {
