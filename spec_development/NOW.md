@@ -16,18 +16,34 @@
 
 ## Name
 
-[Milestone N — Name]
+Python Backend Architecture Cleanup
 
 ## Expected Outcome
 
-[What exists when this milestone is done]
+The Python backend follows the package structure and dependency boundaries in
+`docs/backend_architecture_primer.md`: one entry point, one intelligence runner,
+separate gates and pure rules, and dedicated external clients. Existing production
+trading decisions, stdout telemetry and JSON contracts are preserved.
+
+Work only on `dev/bs-clean-up`. Scope is the Python backend; Node changes are limited
+to the launch-path wiring required by the new entry point. Node continues to own
+database persistence and supply the Neon universe batch to Python. No frontend,
+API redesign, database schema changes or new trading features are included.
 
 ## Completion Criteria
 
 The milestone is completed when:
 
-- [Criterion]
+- The backend uses the primer's named packages and `backend.…` imports, without repeated module-level `sys.path` manipulation.
+- `backend/cli.py` coordinates stages; `backend/intelligence/run.py` owns the single Gates 1–5 sequence.
+- Gates receive fetched facts and use rules or the shared LLM client; pure rules make no network calls.
+- External clients live in `data/`, `llm/` and `broker/`; the entry supplies broker account figures to scanner and risk stages.
+- `backend/config.py` is the only reader of `STRATEGY_CONFIG`; business settings continue to come from the database.
+- Production Gate 4 handling, failure behavior, universe input and output contracts remain intact.
+- Required Node launch paths point to the new entry, using the existing Python resolver.
+- Structural review and appropriate project-owned checks pass; LLM calls and order runs require separate permission under Rule 5.
 - Every bug in 🐞 is fixed, or moved to the Milestone Backlog with the user's approval.
+- At the end of the milestone work, the verified backend architecture is added to `AGENTS.md` alongside the frontend structure, after approval of the exact wording under Rule 0.
 - The final review has been approved.
 
 ---
@@ -40,10 +56,18 @@ The milestone is completed when:
 
 ## 🔵 Active Feature
 
-[Feature currently being built]
+**Feature 01 — Python Package Structure**
+
+Move existing modules into the primer's named package layout and update imports
+and affected launch paths while preserving behavior and input/output contracts.
+
+**Active sub-task:** Establish `backend` as an importable package with
+`backend/__init__.py`. Make this one reviewable change, then wait for the user's
+review and commit before continuing (Rule 31).
 
 **Questions to Resolve:**  
-- [Question]
+- Reconcile the primer's scanner-file references with the agreed Neon-backed universe flow; retain Node persistence and stdin universe input.
+- Clarify client import boundaries where current fetchers use config, lookup tables or other clients, before changing those boundaries.
 
 ---
 
@@ -51,8 +75,17 @@ The milestone is completed when:
 
 In the expected execution order:
 
-1. **[Feature — Name]**  
-   [Short description]
+1. **Feature 02 — Single Entry and Intelligence Runner**
+   Separate entry orchestration and output formatting from the gate sequence. Preserve the full runner's production policy: Gate 4 `FLAG_FOR_REVIEW` continues with a warning.
+2. **Feature 03 — Decision and Client Boundaries**
+   Move data gathering out of gates into the intelligence runner, and broker account reads out of the scanner into the entry. Keep calculations pure and external access in clients.
+3. **Feature 04 — Architecture and Contract Review**
+   Verify the final structure, dependency directions, configuration ownership and Node/Python contracts against the primer and agreed scope.
+
+**Final documentation step:** After implementation, verification and bug resolution,
+document the resulting backend architecture in `AGENTS.md`, using the same approach
+as its frontend structure. Present the exact wording for user approval under Rule 0
+before editing that file. Do this only at the end of the milestone work, before closure.
 
 ---
 
@@ -91,29 +124,6 @@ None yet.
 >
 > Leave this section empty when nothing is blocking.
 
-**Problem:**  
-[Problem]
-
-**Impact:**  
-[Impact]
-
-**Can I reasonably continue without solving it?**  
-Yes / No
-
-**Enabling Milestone:**  
-[Name]
-
-**Outcome:**  
-[Outcome]
-
-**Minimum Scope:**  
-- [Scope item]
-
-**Return To:**  
-[Feature]
-
-**Status:**  
-[Status]
 
 ---
 
@@ -123,7 +133,7 @@ Yes / No
 > 
 > AI can assist with the review, but **final approval remains human**.
 
-**Reviewing:** [Feature or milestone]
+**Reviewing:** Milestone plan — 🟡 Under Review. Implementation has not started.
 
 ## The Three Review Questions
 
@@ -151,11 +161,11 @@ Yes / No
 
 ## Issues Found
 
-- [Issue]
+None recorded yet.
 
 ## Required Actions
 
-- [Action]
+User review of this plan before implementation.
 
 ---
 
