@@ -55,8 +55,7 @@ In the expected execution order:
 1. **Feature 06 — Unified End-to-End Pipeline Verification**  
    Execute the full pipeline and verify complete relational integrity across all pipeline tables with zero orphaned records.
 
-2. **Feature 07 — Config Version Management, Historical Profile Loader & Execution Run Traceability**  
-   Provide a mechanism to browse and load historical portfolio and strategy config presets from `pipeline_configs`, allow switching/activating specific configurations, and ensure strict traceability by explicitly linking the exact `config_id` / version used to each full workflow execution in `pipeline_runs`. Includes the UI history views for saved configs, run history, and portfolio snapshots (decided 2026-10-04).
+*Feature 07 (config version management and history views) was moved to the Milestone Backlog on 2026-10-12.*
 
 ---
 

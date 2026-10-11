@@ -120,6 +120,23 @@ Feature 04 — Continuous Pipeline Persistence, Feature 01 — Historical Watchl
 
 ---
 
+### History Views & Config Version Management
+
+**Why it appeared:**  
+Planned as Feature 07 of Milestone 3, then moved here on 2026-10-12 so the milestone could close. Milestone 3 already stores every config version in `pipeline_configs` and links every run to its `config_id`, but the UI can only see the active config and the current session's run.
+
+**Potential Outcome:**  
+1. **Config versions:** browse saved config versions, load one into the dials, and make it the active (default) one.
+2. **History views:** screens for previous runs (candidates, Gates 1–5 verdicts and reasons, orders, the config version used) and for portfolio snapshots, all read from Neon through the existing read-only `GET` endpoints.
+
+**Why it might matter:**  
+Makes the stored history usable: past runs can be explained and compared, and a strategy change can be undone by switching back to an earlier config version.
+
+**Related to:**  
+Milestone 3 (`pipeline_configs`, `pipeline_runs`, `portfolio_snapshots`), Trade Lifecycle & Realized P&L (its trade history needs the same kind of screens)
+
+---
+
 # 🔍 Backlog Review
 
 > Review this section **after completing a milestone**, not while doing focused work.
