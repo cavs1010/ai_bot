@@ -17,21 +17,21 @@
 
 ## Name
 
-Milestone 3 — Neon PostgreSQL Database & Trade Lifecycle Architecture
+Milestone 3 — Database Persistence for the Pipeline
 
 ## Expected Outcome
 
-A serverless PostgreSQL database (via Neon) storing the complete trading lifecycle across 8 relational tables (`universe_watchlist`, `portfolio_snapshots`, `pipeline_configs`, `pipeline_runs`, `scanned_stocks`, `gate_evaluations`, `order_executions`, and `trades`). Node.js/Express acts as the single data gatekeeper, recording data at explicit lifecycle triggers and verifying persistence directly in Neon.
+A PostgreSQL database storing everything the pipeline does: universe batches (`universe_scan_batches`, `universe_watchlist_items`), `portfolio_snapshots`, strategy presets (`pipeline_configs`), gate definitions (`pipeline_gates`), and each run's `pipeline_runs`, `scanned_stocks`, `gate_evaluations` and `order_executions`. Node.js/Express acts as the single data gatekeeper, recording data at explicit triggers and verifying persistence directly in the database.
 
 ## Completion Criteria
 
 The milestone is completed when:
 
 - Neon PostgreSQL connection is established via centralized `DATABASE_URL` in the Node.js backend.
-- 8 relational tables are created with strongly typed core columns + `payload JSONB` for zero-overhead extensibility.
-- Explicit event triggers are implemented: "Load Watchlist" (watchlist sync), "Update Portfolio" (snapshot), "Save Config" (parameter preset), and automated continuous pipeline execution (runs, scans, gates, orders, trades).
-- Mandatory DB verification is completed for each individual feature, confirming exact row and column persistence in Neon.
-- End-to-end full pipeline execution is verified across all 8 relational tables with 100% data integrity.
+- The pipeline tables listed above are created, with typed columns and a description on each column.
+- Explicit event triggers are implemented: "Load Watchlist" (universe batch), "Update Portfolio" (snapshot), "Save Config" (parameter preset), and pipeline execution (runs, scans, gates, orders).
+- Mandatory DB verification is completed for each individual feature, confirming exact row and column persistence in the database.
+- End-to-end full pipeline execution is verified across all pipeline tables with 100% data integrity.
 - The final review has been approved.
 
 ---
@@ -44,12 +44,7 @@ The milestone is completed when:
 
 ## 🔵 Active Feature
 
-### Feature 04 — Continuous Pipeline Persistence (`pipeline_runs`, `scanned_stocks`, `gate_evaluations`, `order_executions`)
-
-**Expected Outcome:**  
-Persist run session metadata, scanned candidates, Gates 1–5 verdicts with LLM reasoning, and generated order tickets under a unified `run_id`.
-
-**Status:** 🟡 In Progress
+No active feature yet: Feature 06 is next.
 
 ---
 
@@ -57,13 +52,10 @@ Persist run session metadata, scanned candidates, Gates 1–5 verdicts with LLM 
 
 In the expected execution order:
 
-1. **Feature 05 — `trades` Table & Position Lifecycle Reconciliation**  
-   Record order fills, track position lifecycle (`OPEN` to `CLOSED`), holding duration, and realized PnL.
+1. **Feature 06 — Unified End-to-End Pipeline Verification**  
+   Execute the full pipeline and verify complete relational integrity across all pipeline tables with zero orphaned records.
 
-2. **Feature 06 — Unified End-to-End Pipeline Verification**  
-   Execute full automated pipeline and verify complete relational integrity across all 8 tables in Neon with zero orphaned records.
-
-3. **Feature 07 — Config Version Management, Historical Profile Loader & Execution Run Traceability**  
+2. **Feature 07 — Config Version Management, Historical Profile Loader & Execution Run Traceability**  
    Provide a mechanism to browse and load historical portfolio and strategy config presets from `pipeline_configs`, allow switching/activating specific configurations, and ensure strict traceability by explicitly linking the exact `config_id` / version used to each full workflow execution in `pipeline_runs`. Includes the UI history views for saved configs, run history, and portfolio snapshots (decided 2026-10-04).
 
 ---
@@ -78,6 +70,9 @@ In the expected execution order:
 
 - **Feature 03 — Strategy Tile "Save Config" Button & `pipeline_configs` Table**  
   Created `pipeline_configs` table in Neon Database with Brisbane local timestamp (`Australia/Brisbane`, UTC+10), implemented `configDbService.ts` and Express routes (`GET /api/configs`, `GET /api/configs/active`, `POST /api/configs`), and wired the single "Save Config" button in the Strategy Tile with active preset synchronization. *(Approved by human on 2026-09-02)*
+
+- **Feature 04 — Continuous Pipeline Persistence (`pipeline_runs`, `scanned_stocks`, `gate_evaluations`, `order_executions`)**  
+  Each run records its metadata, scanned candidates (linked to the exact universe batch), Gates 1–5 verdicts with the gates' own reasoning, and orders (real Alpaca fills or `SIMULATED`) under one `run_id`, saved in one transaction. Verified with a simulated run and a live paper run. *(Approved by human on 2026-10-09)*
 
 
 ---
@@ -112,10 +107,10 @@ Implement Feature 04: Continuous Pipeline Persistence. Create table schemas for 
 ## When This Is Finished...
 
 **Next Current Focus:**  
-Feature 05 (`trades` Table & Position Lifecycle Reconciliation).
+Feature 06 (Unified End-to-End Pipeline Verification).
 
 **Deep Session AI Tasks This Unlocks:**  
-Deep Session Task 05: Position lifecycle reconciliation & trade execution logging.
+Deep Session Task 06: end-to-end integrity verification across the pipeline tables.
 
 **Mobile Iterations This Unlocks:**  
 [To be defined by user based on mobile availability and workflow.]
@@ -175,7 +170,7 @@ Create `pipeline_configs` table in Neon PostgreSQL with Brisbane local timestamp
 Implement pipeline run persistence service in Node.js to record execution runs, scanned candidates, Gates 1–5 verdicts with full LLM reasoning payloads, and generated order tickets in Neon under a unified `run_id` with Brisbane local timestamps.
 
 **Status:**  
-🟡 In Progress
+✅ Completed (Approved on 2026-10-09)
 
 ---
 
@@ -261,19 +256,7 @@ Clean up or archive the 19 interactive notebook files across backend subdirector
 > 
 > First, we decide whether it is necessary to complete the current milestone.
 
-## Live Position PnL Sync Reconciliation
-
-**Description:**  
-Automated background reconciliation routine that checks Alpaca filled orders on a schedule to automatically update closed `trades` rows and record exact realized PnL.
-
-**Is this required to achieve the current milestone outcome?**  
-No (handled in Feature 05 / future refinement).
-
-**Decision:**
-- Move to Roadmap / future
-
-**Reason:**  
-Feature 05 will implement the core lifecycle trigger; continuous background polling daemon can be enhanced in a future milestone.
+None currently.
 
 --- 
 
@@ -431,13 +414,12 @@ None blocking. Open:
 
 ## Next Milestone
 
-[Milestone 4 — Backtest Engine & Strategy Analytics]
+Chosen from the Milestone Backlog when this milestone is approved; the backlog has no fixed order.
 
 ---
 
 **Once this milestone is approved:**
 
 1. Save this document in `Completed Milestones/`.
-2. Update `Roadmap.md`.
-3. Create the new `Now.md`.
-4. Begin the next milestone.
+2. Create the new `NOW.md` for the milestone chosen from the Milestone Backlog.
+3. Begin the next milestone.

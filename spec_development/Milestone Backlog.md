@@ -4,7 +4,7 @@
 > 
 > Items here are **candidates**, not commitments.
 > 
-> They only enter `Roadmap.md` after being reviewed and intentionally selected.
+> They only become a milestone when one is reviewed and chosen after the current milestone closes. The backlog has no fixed order.
 
 ---
 
@@ -88,6 +88,22 @@ Milestone 3 Enabling Milestone (Reconcile UI branch with DB main), `docs/design_
 
 ---
 
+### Trade Lifecycle & Realized P&L (milestone)
+
+**Why it appeared:**  
+Orders are recorded when they are placed (`order_executions`), but nothing records what happens next: Alpaca's trailing stops sell positions at any time, outside any pipeline run, and the app never learns about the close. It was planned as Feature 05 of Milestone 3, then judged too large and too different for a feature: it concerns what happens after the order, over days.
+
+**Potential Outcome:**  
+A `trades` record per position: entry fill, exit fill, `OPEN` → `CLOSED`, holding duration and realized P&L, linked to the run and order that opened it. Includes deciding how closes are detected (on Sync, on a schedule, or from Alpaca's account activity feed) and the automated reconciliation that checks Alpaca for filled exits and updates closed trades.
+
+**Why it might matter:**  
+Realized results per trade are what the strategy has to be judged and tuned on; without them, paper trading produces no measurable outcome.
+
+**Related to:**  
+Milestone 3 (`order_executions`, `portfolio_snapshots`), Autonomous Nightly Execution Engine & Daemon
+
+---
+
 ### Run Momentum Scanner Auto-Loads the Watchlist When None Exists
 
 **Why it appeared:**  
@@ -124,7 +140,7 @@ Yes / No
 
 ### Decision
 
-- → Add to `Roadmap.md`
+- → Choose as the next milestone (create the new `NOW.md`)
     
 - → Keep in Backlog
     
@@ -141,11 +157,11 @@ Yes / No
 
 `Discover something → Capture it here → Return to Current Focus`
 
-**Do not redesign the Roadmap in the middle of focused work.**
+**Do not change milestone plans in the middle of focused work.**
 
 ### 🏁 After Completing a Milestone
 
-`Finish Milestone → Review Backlog → Re-evaluate priorities → Choose next Milestone → Update Roadmap → Create Now.md`
+`Finish Milestone → Review Backlog → Choose next Milestone → Create NOW.md`
 
 ---
 
