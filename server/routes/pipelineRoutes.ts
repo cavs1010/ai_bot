@@ -20,7 +20,7 @@ interface ActiveRunSession {
   childProcess?: any;
 }
 
-// Prefix of the per-candidate JSON lines printed by emit_candidate_update() in backend/run_pipeline_full.py
+// Prefix of the per-candidate JSON lines printed by emit_candidate_update() in backend/cli.py
 const CANDIDATE_UPDATE_PREFIX = '__CANDIDATE_UPDATE__ ';
 
 const activeRuns = new Map<string, ActiveRunSession>();

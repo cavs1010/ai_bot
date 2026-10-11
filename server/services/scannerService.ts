@@ -4,7 +4,7 @@ import { PythonRunner } from './pythonRunner';
 import { ConfigDbService, toStrategyEnv } from './configDbService';
 import { UniverseDbService, UniverseScanBatch, UniverseStockItem } from './universeDbService';
 
-// Prefix of the stdout line carrying the filtered universe, printed by backend/01_scanner/universe_filter.py
+// Prefix of the stdout line carrying the filtered universe, printed by backend/scanner/universe.py
 const UNIVERSE_LINE_PREFIX = '__UNIVERSE_JSON__ ';
 
 // The latest Neon universe batch, as returned by GET /api/universe

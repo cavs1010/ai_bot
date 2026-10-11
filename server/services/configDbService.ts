@@ -4,7 +4,7 @@ import { PipelineConfig } from '../db/schema';
 const CONFIG_COLUMNS = 'id, name, version, is_default, selection_params, money_params, created_at';
 
 /**
- * Environment for a Python run: the strategy settings it must use, read by backend/strategy_config.py.
+ * Environment for a Python run: the strategy settings it must use, read by backend/config.py.
  */
 export function toStrategyEnv(config: PipelineConfig): NodeJS.ProcessEnv {
   return {

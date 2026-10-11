@@ -1,0 +1,1 @@
+"""Intelligence gate decisions."""

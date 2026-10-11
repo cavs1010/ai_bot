@@ -162,7 +162,7 @@ Port `3000` is kept permanently open in your firewall so you **always have guara
 - **Quant Engine:** Python 3.11 with isolated `.venv` (`alpaca-py`, `ta`, `pandas`, `yfinance`)
 - **Container Port:** `3000` (Internal)
 - **Health Check:** `http://localhost:3000/api/health`
-- **Persistent Data Path:** `/app/backend/01_scanner/data`
+- **Persistent Data Path:** `/app/backend/scanner/data`
 
 ---
 
@@ -218,7 +218,7 @@ Port `3000` is kept permanently open in your firewall so you **always have guara
 2. Click **Add Mount**:
    - **Type:** Volume or Bind Mount
    - **Host Path (VPS):** `/var/lib/dokploy/trading-bot-data` (or named volume `trading_bot_data`)
-   - **Mount Path (Container):** `/app/backend/01_scanner/data`
+   - **Mount Path (Container):** `/app/backend/scanner/data`
    - **Type:** Bind Mount
 3. Click **Save Mount**.
 

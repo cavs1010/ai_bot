@@ -61,9 +61,10 @@ The milestone is completed when:
 Move existing modules into the primer's named package layout and update imports
 and affected launch paths while preserving behavior and input/output contracts.
 
-**Active sub-task:** Establish `backend` as an importable package with
-`backend/__init__.py`. Make this one reviewable change, then wait for the user's
-review and commit before continuing (Rule 31).
+**Active sub-task:** Establish the backend package structure, updating imports and
+required launch paths while preserving existing behavior and contracts. Group
+related file moves, import updates and verification into one coherent reviewable
+change, then wait for the user's review and commit before continuing (Rule 31).
 
 **Questions to Resolve:**  
 - Reconcile the primer's scanner-file references with the agreed Neon-backed universe flow; retain Node persistence and stdin universe input.
@@ -133,7 +134,10 @@ None yet.
 > 
 > AI can assist with the review, but **final approval remains human**.
 
-**Reviewing:** Milestone plan — 🟡 Under Review. Implementation has not started.
+**Reviewing:** Feature 01 — 🟡 Under Review. Package moves, imports and launch paths
+are ready for review. Static comparison preserves trading logic and output
+formatting; Python runtime verification is pending. The Node type checker produces
+the same errors as the committed baseline.
 
 ## The Three Review Questions
 
@@ -165,7 +169,7 @@ None recorded yet.
 
 ## Required Actions
 
-User review of this plan before implementation.
+User review and commit of the coherent Feature 01 change before continuing.
 
 ---
 

@@ -40,7 +40,7 @@ COPY . .
 RUN npm run build && npm prune --production
 
 # 5. Ensure persistent data directory exists
-RUN mkdir -p /app/backend/01_scanner/data
+RUN mkdir -p /app/backend/scanner/data
 
 # 6. Container health check for Dokploy / Traefik monitoring
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

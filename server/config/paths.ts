@@ -8,10 +8,10 @@ export const PROJECT_ROOT = process.cwd();
 export const PATHS = {
   root: PROJECT_ROOT,
   backend: path.join(PROJECT_ROOT, 'backend'),
-  scanner: path.join(PROJECT_ROOT, 'backend', '01_scanner'),
-  universeScript: path.join(PROJECT_ROOT, 'backend', '01_scanner', 'universe_filter.py'),
-  latestRunJson: path.join(PROJECT_ROOT, 'backend', '01_scanner', 'data', 'latest_run.json'),
-  pipelineFullScript: path.join(PROJECT_ROOT, 'backend', 'run_pipeline_full.py'),
+  scanner: path.join(PROJECT_ROOT, 'backend', 'scanner'),
+  universeScript: path.join(PROJECT_ROOT, 'backend', 'scanner', 'universe.py'),
+  latestRunJson: path.join(PROJECT_ROOT, 'backend', 'scanner', 'data', 'latest_run.json'),
+  pipelineFullScript: path.join(PROJECT_ROOT, 'backend', 'cli.py'),
   dist: path.join(PROJECT_ROOT, 'dist'),
 } as const;
 
