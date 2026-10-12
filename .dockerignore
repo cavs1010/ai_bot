@@ -35,4 +35,5 @@ Thumbs.db
 *.log
 logs
 .cache
-backend/02_intelligence/helpers/fetchers/.cache
+backend/data/.cache
+backend/scanner/data
