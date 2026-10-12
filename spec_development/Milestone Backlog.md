@@ -10,6 +10,26 @@
 
 ## 💡 Candidates
 
+### Verify the Premarket Gap During an Actual Premarket Session
+
+**Why it appeared:**
+Python Backend Architecture Cleanup closed with the session-active premarket path
+untested. The completed pipeline runs verified only the not-applicable path.
+
+**Potential Outcome:**
+During a trading day's 4:00–9:30 a.m. New York premarket session, verify the live
+gap against the previous session's close and confirm the saved Gate 1 evidence.
+Keep order placement off for this verification.
+
+**Why it might matter:**
+Confirms the entry-supplied session facts and extended-hours price calculation
+under the condition where the premarket check actually applies.
+
+**Related to:**
+Python Backend Architecture Cleanup, pending premarket verification from Database Persistence
+
+---
+
 ### Preserve Filled-Order Audits When Protective Stop Placement Fails
 
 **Why it appeared:**
