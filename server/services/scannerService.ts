@@ -4,7 +4,7 @@ import { PythonRunner } from './pythonRunner';
 import { ConfigDbService, toStrategyEnv } from './configDbService';
 import { UniverseDbService, UniverseScanBatch, UniverseStockItem } from './universeDbService';
 
-// Prefix of the stdout line carrying the filtered universe, printed by backend/scanner/universe.py
+// Prefix of the stdout line carrying the filtered universe, printed by backend/cli.py
 const UNIVERSE_LINE_PREFIX = '__UNIVERSE_JSON__ ';
 
 // The latest Neon universe batch, as returned by GET /api/universe
@@ -64,7 +64,8 @@ export class ScannerService {
       // The universe filter uses the active strategy config; without one, it throws here
       const activeConfig = await ConfigDbService.getActiveConfig();
       const result = await PythonRunner.runToCompletion({
-        scriptPath: PATHS.universeScript,
+        scriptPath: PATHS.pipelineFullScript,
+        args: ['--load-watchlist'],
         cwd: PATHS.root,
         env: toStrategyEnv(activeConfig),
       });

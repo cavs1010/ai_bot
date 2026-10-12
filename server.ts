@@ -10,7 +10,10 @@ import { configRouter } from './server/routes/configRoutes';
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT === undefined ? 3000 : Number(process.env.PORT);
+  if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
+    throw new Error('PORT must be an integer between 1 and 65535');
+  }
 
   // Standard middleware
   app.use(cors());

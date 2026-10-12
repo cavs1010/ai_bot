@@ -108,10 +108,12 @@ python -m backend.data.data_fetcher
 ### 🔍 Phase 3 — Tier 1 universe filter (weekly)
 
 ```bash
-python -m backend.scanner.universe
+python -m backend.cli --load-watchlist
 ```
 
-**✅ Expected:** `[universe] complete: ~60–80 stocks saved to data/watchlist.csv`
+**Expected:** `[universe] complete: N stocks returned to Node`. Use **Load Watchlist**
+in the app to supply the active strategy configuration and save the resulting batch
+to Neon; the Python entry only prints the universe.
 
 - Works **without** Alpaca keys (uses fallback price ceiling `$360`)
 - Works **without** Finnhub key (skips earnings filter with a warning)
@@ -167,7 +169,7 @@ ENV=copy .env.example → .env, fill API keys
 
 TERMINAL_TESTS (in order):
   python -m backend.data.data_fetcher
-  python -m backend.scanner.universe
+  python -m backend.cli --load-watchlist
   python -m backend.scanner.momentum   # receives the universe on stdin
 
 KEY_PATHS:

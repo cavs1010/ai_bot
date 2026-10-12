@@ -62,10 +62,10 @@ Move data gathering out of gates into the intelligence runner, and broker accoun
 reads out of the scanner into the entry. Keep calculations pure and external
 access in clients.
 
-**Active sub-task:** Separate fetched facts from gate decisions and supply scanner
-account figures from the entry, preserving existing decisions and contracts as
-one reviewable change. Resolve the client import question before changing those
-boundaries, then wait for the user's review and commit (Rule 31).
+**Active sub-task:** Supply the scanner's live portfolio value from `cli.py` and
+route Load Watchlist through that entry, preserving the price-ceiling formula and
+Node's Neon persistence. Present this wiring as one reviewable change and wait
+for user testing, review and commit before continuing with client imports (Rule 31).
 
 **Questions to Resolve:**  
 - Reconcile the primer's scanner-file references with the agreed Neon-backed universe flow; retain Node persistence and stdin universe input.
@@ -137,9 +137,9 @@ None yet.
 
 **Reviewing:** Feature 03 — implementation in progress. Gate 1 fetching has moved
 to the intelligence runner, and Gates 2 and 3 use the shared news formatter in
-`intelligence/utils/`. Client
-import clarification and scanner entry wiring remain pending; no live pipeline
-verification has run. Feature 01's Node type-check errors remain outside this change.
+`intelligence/utils/`. Scanner entry wiring is ready for the user's Load Watchlist
+check. Client import clarification remains pending; no live pipeline verification
+has run. Feature 01's Node type-check errors remain outside this change.
 
 ## The Three Review Questions
 

@@ -18,6 +18,7 @@ scanner_dir = backend_dir / 'scanner'
 # Import our modular strategy elements
 from backend.config import TOP_N, MIN_SCORE, MAX_OPEN_POSITIONS
 from backend.scanner.momentum import run_scan
+from backend.scanner.universe import run_universe_filter
 from backend.risk.gate import validate_trade
 from backend.broker.alpaca import (
     get_portfolio_value,
@@ -36,9 +37,18 @@ def print_log(msg: str):
 
 def main():
     parser = argparse.ArgumentParser(description="Run the entire stock-selection pipeline.")
+    parser.add_argument('--load-watchlist', action='store_true', help="Build the universe and return it to Node without running intelligence or placing orders")
     parser.add_argument('--place-orders', action='store_true', help="Place actual paper orders on Alpaca if approved")
     parser.add_argument('--ignore-market-hours', action='store_true', help="Place orders even when Alpaca market clock is closed")
     args = parser.parse_args()
+
+    if args.load_watchlist:
+        portfolio_value = get_portfolio_value()
+        watchlist = run_universe_filter(portfolio_value)
+        # Node saves the Neon batch; Python only returns the fetched universe.
+        print_log('__UNIVERSE_JSON__ ' + watchlist.to_json(orient='records'))
+        print_log(f'[universe] complete: {len(watchlist)} stocks returned to Node')
+        return
 
     print_log("=== STARTING TRADING BOT PIPELINE RUN ===")
 

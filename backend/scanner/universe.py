@@ -1,5 +1,4 @@
 import os
-import sys
 import requests
 import pandas as pd
 from datetime import datetime, timedelta
@@ -15,23 +14,15 @@ from backend.config import (
     EARNINGS_WINDOW_DAYS, SCREENER_LIMIT, MAX_POSITION_SIZE_PCT, PRICE_CEILING_BUFFER,
 )
 
-# Live account state comes from the execution layer (one Alpaca client for the whole backend)
-from backend.broker.alpaca import get_portfolio_value
 
-# Prefix of the stdout line carrying the filtered universe. Node reads it and saves the
-# Neon batch (Rule 20: Python never writes to the database); no file is written.
-UNIVERSE_LINE_PREFIX = '__UNIVERSE_JSON__ '
-
-
-def get_max_share_price() -> float:
+def get_max_share_price(portfolio_value: float) -> float:
     """
-    Returns the dynamic maximum share price based on Alpaca portfolio value.
+    Returns the maximum share price from the live portfolio value supplied by the entry.
 
     Returns:
         portfolio_value * MAX_POSITION_SIZE_PCT * PRICE_CEILING_BUFFER.
-        Raises if Alpaca is unavailable; there is no fallback ceiling.
     """
-    return get_portfolio_value() * MAX_POSITION_SIZE_PCT * PRICE_CEILING_BUFFER
+    return portfolio_value * MAX_POSITION_SIZE_PCT * PRICE_CEILING_BUFFER
 
 
 def get_earnings_tickers(days_ahead: int = EARNINGS_WINDOW_DAYS) -> set[str]:
@@ -56,23 +47,21 @@ def get_earnings_tickers(days_ahead: int = EARNINGS_WINDOW_DAYS) -> set[str]:
     return {e['symbol'] for e in r.json()['earningsCalendar']}
 
 
-def run_universe_filter(max_price: float | None = None, limit: int = SCREENER_LIMIT) -> pd.DataFrame:
+def run_universe_filter(portfolio_value: float, limit: int = SCREENER_LIMIT) -> pd.DataFrame:
     """
     Runs the Tier 1 universe filter: large-cap US stocks → the universe watchlist.
 
     Args:
-        max_price: Upper share-price bound for the screener. When None (default), it is
-                   fetched dynamically from Alpaca via get_max_share_price(). Pass a value
-                   to bypass the Alpaca call for reproducible runs, notebooks, or tests.
+        portfolio_value: Live Alpaca portfolio value, fetched by the entry. Used to
+                         calculate the upper share-price bound with the strategy dials.
         limit:     Max rows requested from the TradingView screener before the ATR% and
                    earnings filters are applied (SCREENER_LIMIT).
 
     Returns:
         DataFrame with columns ticker, price, volume, atr, atr_pct, rsi, sma20, sma50, sector;
-        empty if no stock matches the screener. Raises if TradingView, Finnhub or Alpaca fail.
+        empty if no stock matches the screener. Raises if TradingView or Finnhub fail.
     """
-    if max_price is None:
-        max_price = get_max_share_price()
+    max_price = get_max_share_price(portfolio_value)
     print(f'[universe] price ceiling: ${max_price:.2f}')
 
     print('[universe] querying TradingView screener...')
@@ -124,10 +113,3 @@ def run_universe_filter(max_price: float | None = None, limit: int = SCREENER_LI
     watchlist['sma20'] = watchlist['sma20'].round(2)
     watchlist['sma50'] = watchlist['sma50'].round(2)
     return watchlist
-
-
-if __name__ == '__main__':
-    # Load Watchlist: the universe goes to Node on one stdout line; Node saves the Neon batch
-    watchlist = run_universe_filter()
-    print(UNIVERSE_LINE_PREFIX + watchlist.to_json(orient='records'))
-    print(f'[universe] complete: {len(watchlist)} stocks returned to Node')
