@@ -45,6 +45,30 @@ frontend/src/
 └── utils/           # Logic only: marketClock, strategyDials, time
 ```
 
+```text
+backend/
+├── __init__.py
+├── cli.py              # Entry: arguments, stage orchestration and stdout/JSON output
+├── config.py           # Reads Node-supplied STRATEGY_CONFIG
+├── scanner/
+│   ├── universe.py     # TradingView screen; receives portfolio and earnings facts
+│   ├── momentum.py     # Scores the supplied universe
+│   └── data/           # Generated latest_run.json telemetry
+├── intelligence/
+│   ├── run.py          # Gates 1–5 sequence, fact gathering and client coordination
+│   ├── constants.py    # Fixed lookup tables
+│   ├── gates/          # One decision module per gate
+│   ├── rules/          # Pure trading calculations and criteria
+│   └── utils/          # Shared pure helpers without trading rules
+├── risk/
+│   └── gate.py         # Trade sizing and account-limit checks
+├── data/               # Market, news, calendar, filing and premarket clients
+├── llm/
+│   └── client.py       # Shared model client
+└── broker/
+    └── alpaca.py       # Broker account reads and order placement
+```
+
 ---
 
 ## ⛔ TIER 1: Hard Stops
@@ -55,7 +79,7 @@ frontend/src/
 3. 🚫 **Human Review Before "Completed"**: Never mark a task, feature, or milestone `✅ Completed` without explicit user confirmation. Until then its status is `🟡 Under Review`.
    *Why:* Final approval is always human.
 
-5. 🚫 **No LLM or Order Runs Without Permission**: Never run anything that makes LLM calls or places orders (e.g. `run_pipeline_full.py`) without explicit user permission. Read-only market-data calls need no permission.
+5. 🚫 **No LLM or Order Runs Without Permission**: Never run anything that makes LLM calls or places orders (e.g. `backend/cli.py`) without explicit user permission. Read-only market-data calls need no permission.
    *Why:* They spend real API tokens or act on the trading account.
 
 7. 🚫 **No Unrequested One-Off Scripts**: Never run one-off scripts (`node -e`, `tsx -e`, `python -c`, temporary evaluators) or speculative diagnostics without the user's approval. The project's own checks — the type checker and a module's documented self-test — may be run when they produce the evidence Rules 8 and 26 require.
@@ -109,6 +133,9 @@ frontend/src/
 
 30. 🗄️ **Business Values Live in the Database**: Strategy settings, thresholds, limits, defaults and presets that drive trading decisions are stored in the database and read from there; market data comes from live APIs. Code holds only UI text, design tokens, type contracts, environment/path configuration, fixed lookup tables (e.g. sector → ETF) and implementation settings (e.g. the LLM model) — never a business value, not even as a default.
     *Why:* A value written in code silently disagrees with the one in the database; with one home, changing a setting in the app changes what the pipeline actually does.
+
+32. **Python Backend Dependency Boundaries**: Python modules MUST use `backend.…` imports without modifying `sys.path`. The entry coordinates stages and supplies broker facts; the intelligence runner owns the Gates 1–5 sequence and coordinates data clients. Gates may use rules, utilities, configuration and the shared LLM client, but MUST NOT import data or broker clients. Rules and utilities MUST remain pure. Clients MUST receive strategy settings and lookup inputs as arguments and MUST NOT import other application modules. Follow the dependency directions in `docs/backend_architecture_primer.md`.
+    *Why:* Explicit inputs keep external access separate from trading decisions and make dependencies auditable.
 
 ---
 

@@ -144,7 +144,8 @@ its neighbours to discover what comes next.
 
 ## 4. Who may import whom
 
-An import is allowed when the arrow exists. Anything else waits for a change to this guide.
+Rule 32 in `AGENTS.md` defines the Python dependency requirements. This diagram shows
+the agreed dependency directions referenced by that rule.
 
 ```
 cli.py ──► scanner, intelligence/run, risk, data, broker, config
