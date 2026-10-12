@@ -56,15 +56,16 @@ The milestone is completed when:
 
 ## 🔵 Active Feature
 
-**Feature 02 — Single Entry and Intelligence Runner**
+**Feature 03 — Decision and Client Boundaries**
 
-Separate entry orchestration and output formatting from the gate sequence. Preserve
-the production policy: Gate 4 `FLAG_FOR_REVIEW` continues with a warning.
+Move data gathering out of gates into the intelligence runner, and broker account
+reads out of the scanner into the entry. Keep calculations pure and external
+access in clients.
 
-**Active sub-task:** Consolidate the production Gates 1–5 sequence in
-`backend/intelligence/run.py`; keep batch orchestration, risk, execution and stdout
-formatting in `backend/cli.py`. Preserve decisions, failure behavior and telemetry
-as one reviewable change, then wait for the user's review and commit (Rule 31).
+**Active sub-task:** Separate fetched facts from gate decisions and supply scanner
+account figures from the entry, preserving existing decisions and contracts as
+one reviewable change. Resolve the client import question before changing those
+boundaries, then wait for the user's review and commit (Rule 31).
 
 **Questions to Resolve:**  
 - Reconcile the primer's scanner-file references with the agreed Neon-backed universe flow; retain Node persistence and stdin universe input.
@@ -76,9 +77,7 @@ as one reviewable change, then wait for the user's review and commit (Rule 31).
 
 In the expected execution order:
 
-1. **Feature 03 — Decision and Client Boundaries**
-   Move data gathering out of gates into the intelligence runner, and broker account reads out of the scanner into the entry. Keep calculations pure and external access in clients.
-2. **Feature 04 — Architecture and Contract Review**
+1. **Feature 04 — Architecture and Contract Review**
    Verify the final structure, dependency directions, configuration ownership and Node/Python contracts against the primer and agreed scope.
 
 **Final documentation step:** After implementation, verification and bug resolution,
@@ -92,6 +91,9 @@ before editing that file. Do this only at the end of the milestone work, before 
 
 **Feature 01 — Python Package Structure** — ✅ Completed. Package moves, imports
 and launch paths reviewed and committed; the user verified Load Watchlist.
+
+**Feature 02 — Single Entry and Intelligence Runner** — ✅ Completed. The user
+approved and committed the consolidated production gate sequence.
 
 ---
 
@@ -133,10 +135,11 @@ None yet.
 > 
 > AI can assist with the review, but **final approval remains human**.
 
-**Reviewing:** Feature 02 — 🟡 Under Review. The production gate sequence now lives
-in the intelligence runner. Static review covers branch behavior, progress messages
-and output contracts; a live pipeline run still requires separate permission under
-Rule 5. Feature 01's Node type-check errors remain outside this change.
+**Reviewing:** Feature 03 — implementation in progress. Gate 1 fetching has moved
+to the intelligence runner, and Gates 2 and 3 use the shared news formatter in
+`intelligence/utils/`. Client
+import clarification and scanner entry wiring remain pending; no live pipeline
+verification has run. Feature 01's Node type-check errors remain outside this change.
 
 ## The Three Review Questions
 
@@ -168,7 +171,8 @@ None recorded yet.
 
 ## Required Actions
 
-User review and commit of the coherent Feature 02 change before continuing.
+Resolve the client import question, finish Feature 03 and present the coherent
+change for user testing, review and commit before continuing.
 
 ---
 

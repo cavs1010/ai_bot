@@ -94,6 +94,14 @@ A **gate** is one decision in the intelligence sequence. Gates live as modules, 
 in `backend/intelligence/gates/`. One module per gate. The module holds the verdict for that
 step: pass, block, or skip, plus the fields the rest of the run needs.
 
+A **utility** is a shared intelligence helper that contains no trading rule or decision.
+New shared functions for formatting, conversion or other pure preparation live in
+`backend/intelligence/utils/`. For example, `utils/news.py` formats fetched headlines
+for model prompts, and `utils/gate_summary.py` formats gate results for audit output.
+Utilities are pure: they make no network calls and do not import gates, stages,
+clients, configuration or rules. Functions that calculate trading values or apply
+trading criteria belong in `rules/`; helpers used by only one gate can stay private there.
+
 `intelligence/run.py` walks the gates in order and stops at the first failure. It fetches
 shared facts once — the market snapshot for the batch, the headlines once per ticker — and
 passes those facts into the gates. A gate calls `rules` for a calculation and `llm` when the
@@ -141,9 +149,10 @@ An import is allowed when the arrow exists. Anything else waits for a change to 
 cli.py ──► scanner, intelligence/run, risk, broker, config
 scanner ──► config, and its own TradingView read
 intelligence/run ──► gates, data, config
-gates ──► rules, llm, config
+gates ──► rules, utils, llm, config
 risk ──► rules, config
 rules ──► constants, config
+utils ──► standard library only
 data, llm, broker ──► their third-party libraries only
 ```
 
@@ -184,6 +193,9 @@ shape. The client owns the call.
    point in the sequence where it belongs. Fetch shared facts in `run.py` and pass them in.
 5. **Change `cli.py` only when the order of stages changes**, or when a new account figure has
    to be read from the broker and handed to a stage.
+6. **Put new shared helpers with no trading rules in `intelligence/utils/`.** This includes
+   formatting, conversion and pure preparation. Pass in the values they need; trading
+   calculations and verdicts remain in `rules/` and `gates/`.
 
 Step 4 is the discipline that keeps the run readable as gates are added. A new check becomes a
 named module in `gates/` or `rules/`, then one call from the runner. It does not become a new
@@ -223,11 +235,14 @@ backend/
 │   │   ├── sentiment.py
 │   │   ├── contradiction.py
 │   │   └── signal.py           # edge and expected value
-│   └── rules/
-│       ├── ev.py
-│       ├── sentiment.py
-│       ├── trade_levels.py
-│       └── portfolio.py
+│   ├── rules/
+│   │   ├── ev.py
+│   │   ├── sentiment.py
+│   │   ├── trade_levels.py
+│   │   └── portfolio.py
+│   └── utils/
+│       ├── news.py             # shared headline formatting for model prompts
+│       └── gate_summary.py     # shared gate-result formatting for audit output
 ├── risk/
 │   └── gate.py                 # size and account limits
 ├── data/
@@ -251,6 +266,7 @@ backend/
 | Gate sequence | `backend/intelligence/run.py`. |
 | One verdict per gate | One module in `backend/intelligence/gates/`. |
 | Pure calculations | `backend/intelligence/rules/`. |
+| Shared helpers without trading rules | `backend/intelligence/utils/`. |
 | Account limits and size | `backend/risk/gate.py`. |
 | Market, news, calendars, filings | `backend/data/`. |
 | Model call | `backend/llm/client.py`. |

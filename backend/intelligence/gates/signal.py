@@ -15,7 +15,8 @@
 
 from backend.config import MIN_EDGE_PCT
 from backend.intelligence.rules.ev import apply_edge_rules
-from backend.intelligence.rules.trade_levels import build_gate_summary, build_trade_levels
+from backend.intelligence.rules.trade_levels import build_trade_levels
+from backend.intelligence.utils.gate_summary import build_gate_summary
 
 _RESULT_KEYS = {
     'passed', 'decision', 'win_probability', 'expected_value', 'edge',

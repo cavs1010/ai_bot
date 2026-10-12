@@ -12,9 +12,9 @@
 #
 # Reuses the SAME headlines Gate 2 received — the pipeline fetches once, the gate never re-fetches.
 #
-# Imports: helpers/fetchers/news    (format_news_for_prompt),
-#          helpers/llm/client       (build_agent, run_agent),
-#          helpers/logic/sentiment_rules (apply_pass_rules)
+# Imports: intelligence/utils/news      (format_news_for_prompt),
+#          llm/client                   (build_agent, run_agent),
+#          intelligence/rules/sentiment (apply_pass_rules)
 #
 # Test: python -m backend.intelligence.gates.sentiment
 
@@ -22,7 +22,7 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
-from backend.data.news import format_news_for_prompt
+from backend.intelligence.utils.news import format_news_for_prompt
 from backend.llm.client import build_agent, run_agent
 from backend.intelligence.rules.sentiment import apply_pass_rules
 

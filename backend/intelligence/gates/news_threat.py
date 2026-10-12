@@ -7,8 +7,8 @@
 # Asks Claude ONE focused question: is there a catastrophic threat in the news?
 # (Not sentiment — that is Gate 3.) Any threat → block.
 #
-# Imports: helpers/fetchers/news (format_news_for_prompt),
-#          helpers/llm/client   (build_agent, run_agent)
+# Imports: intelligence/utils/news (format_news_for_prompt),
+#          llm/client              (build_agent, run_agent)
 #
 # Test: python -m backend.intelligence.gates.news_threat
 
@@ -16,7 +16,7 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
-from backend.data.news import format_news_for_prompt
+from backend.intelligence.utils.news import format_news_for_prompt
 from backend.llm.client import build_agent, run_agent
 
 

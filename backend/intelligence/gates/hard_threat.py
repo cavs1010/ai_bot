@@ -1,54 +1,7 @@
-# gate1_hard_threat/hard_threat_gate1.py — Hard Threat Screen (rules only, zero Claude cost)
-# Phase 4.1 | Intelligence Layer
-#
-# Functions:
-#   get_shared_market_data()
-#       → {vix, spy, macro_hours} | None
-#       Call ONCE per batch run (not per ticker) — VIX/SPY/macro are market-wide.
-#
-#   screen_gate1_hard_threats(candidate, shared, portfolio_value, daily_pnl)
-#       → {passed: bool, block_reason: str | None, checks: dict}
-#       Call once per candidate. Uses pre-fetched shared data + per-ticker fetches.
-#
-# Thresholds from: the active Neon config (selection_params.gate1, money_params daily loss limit)
-# No Claude call — first gate, runs in milliseconds
-#
-# Test: python -m backend.intelligence.gates.hard_threat
+"""Gate 1 hard-threat decisions from fetched facts; no network access."""
 
 from backend.config import BLOCK_THRESHOLDS, MAX_DAILY_LOSS_PCT
-from backend.intelligence.constants import SECTOR_ETF_MAP
-from backend.data.market import get_vix_snapshot, get_spy_snapshot, get_sector_etf_snapshot
-from backend.data.calendars import get_ticker_earnings_window, get_hours_to_next_macro_event
-from backend.data.premarket import get_premarket_gap
-from backend.data.filings import get_recent_8k_filings
 from backend.intelligence.rules.portfolio import check_daily_loss_limit
-
-
-def get_shared_market_data() -> dict:
-    """
-    Fetches market-wide signals shared across all Gate 1 screenings in a batch run.
-
-    VIX, SPY, and macro timing are identical for every candidate on a given night.
-    Call this once before the candidate loop and pass the result to each
-    screen_gate1_hard_threats() call to avoid redundant fetches.
-
-    Returns:
-        dict with keys:
-            vix         (dict)         — {level, change_pct_today, prior_close}
-            spy         (dict)         — {price, change_pct_today, prior_close}
-            macro_hours (float | None) — hours to next high-impact US event; None = no event in 7 days
-        Raises RuntimeError if VIX, SPY or the macro calendar cannot be fetched: without the
-        market backdrop no candidate can be screened, so the run stops.
-    """
-    vix = get_vix_snapshot()
-    if vix is None:
-        raise RuntimeError('VIX could not be fetched')
-    spy = get_spy_snapshot()
-    if spy is None:
-        raise RuntimeError('SPY could not be fetched')
-    macro_hours = get_hours_to_next_macro_event()   # raises if the calendar cannot be fetched
-
-    return {'vix': vix, 'spy': spy, 'macro_hours': macro_hours}
 
 
 def _unavailable(check: str) -> dict:
@@ -59,6 +12,7 @@ def _unavailable(check: str) -> dict:
 def screen_gate1_hard_threats(
     candidate: dict,
     shared: dict,
+    facts: dict,
     portfolio_value: float,
     daily_pnl: float,
 ) -> dict:
@@ -71,7 +25,8 @@ def screen_gate1_hard_threats(
 
     Args:
         candidate:       Momentum scanner output dict. Required keys: 'ticker', 'sector'.
-        shared:          Pre-fetched market-wide data from get_shared_market_data().
+        shared:          Pre-fetched market-wide VIX, SPY and macro data.
+        facts:           Pre-fetched sector mapping, sector ETF, gap, earnings and filings.
         portfolio_value: Total portfolio value at start of day (dollars).
         daily_pnl:       Realized + unrealized P&L for today (dollars, negative = loss).
 
@@ -91,18 +46,18 @@ def screen_gate1_hard_threats(
     ticker = candidate['ticker']
     sector = candidate['sector']
 
-    # ── STEP 1: Unpack shared + fetch per-ticker data ─────────────────────────
+    # ── STEP 1: Unpack shared + per-ticker facts ─────────────────────────
     # Shared signals are the same for all candidates — unpacked, not re-fetched.
     vix_data    = shared['vix']
     spy_data    = shared['spy']
     macro_hours = shared['macro_hours']
 
-    # Per-ticker: each stock has its own sector ETF, pre-market price, earnings date, filings.
-    sector_mapped = sector in SECTOR_ETF_MAP
-    sector_data   = get_sector_etf_snapshot(sector) if sector_mapped else None
-    gap_data      = get_premarket_gap(ticker)
-    earnings_data = get_ticker_earnings_window(ticker)
-    filings_data  = get_recent_8k_filings(ticker)
+    # Per-ticker facts are supplied by the intelligence runner.
+    sector_mapped = facts['sector_mapped']
+    sector_data   = facts['sector']
+    gap_data      = facts['premarket_gap']
+    earnings_data = facts['earnings']
+    filings_data  = facts['filings_8k']
 
     # ── STEP 2: Evaluate checks in priority order ─────────────────────────────
     checks = {}
@@ -244,53 +199,3 @@ def screen_gate1_hard_threats(
         'block_reason': block_reason,
         'checks':       checks,
     }
-
-
-if __name__ == '__main__':
-    # Fetch shared data once — as the pipeline would before its candidate loop
-    print('=== get_shared_market_data() ===')
-    shared = get_shared_market_data()   # raises if VIX, SPY or the macro calendar fail
-    macro_str = f'{shared["macro_hours"]}h away' if shared['macro_hours'] is not None else 'None (no event in 7 days)'
-    print(f'[gate1] vix:         level={shared["vix"]["level"]}')
-    print(f'[gate1] spy:         price={shared["spy"]["price"]}')
-    print(f'[gate1] macro_hours: {macro_str}')
-
-    print()
-
-    # Test 1: Happy path — small loss, calm market day
-    print('=== screen_gate1_hard_threats — AAPL, happy path ===')
-    candidate = {'ticker': 'AAPL', 'sector': 'Electronic Technology'}
-    result = screen_gate1_hard_threats(candidate, shared, portfolio_value=100_000, daily_pnl=-500)
-    print(f'passed:       {result["passed"]}')
-    print(f'block_reason: {result["block_reason"]}')
-    for name, check in result['checks'].items():
-        status = '✅ PASS' if check['passed'] else '❌ BLOCK'
-        print(f'  {status}  {name}')
-
-    # Verify structural contract: 8 checks, each has 'passed' key
-    assert len(result['checks']) == 8, f'Expected 8 checks, got {len(result["checks"])}'
-    for name, check in result['checks'].items():
-        assert 'passed' in check, f"check '{name}' missing 'passed' key"
-        assert 'reason' in check, f"check '{name}' missing 'reason' key"
-    print('[gate1] structure contract verified ✅')
-
-    print()
-
-    # Test 3: Sector missing from SECTOR_ETF_MAP blocks as sector_unmapped (never passes)
-    print('=== screen_gate1_hard_threats — unmapped sector ===')
-    unmapped = screen_gate1_hard_threats({'ticker': 'AAPL', 'sector': 'Not A Sector'}, shared,
-                                         portfolio_value=100_000, daily_pnl=-500)
-    assert unmapped['checks']['sector']['reason'] == 'sector_unmapped'
-    assert unmapped['passed'] is False
-    print('[gate1] unmapped sector correctly blocked ✅')
-
-    print()
-
-    # Test 2: Forced block — daily loss of -5% exceeds the 3% limit
-    # This does NOT require any network call to trigger.
-    print('=== screen_gate1_hard_threats — forced loss_limit block ===')
-    blocked = screen_gate1_hard_threats(candidate, shared, portfolio_value=100_000, daily_pnl=-5_000)
-    assert blocked['passed'] is False
-    assert blocked['block_reason'] == 'loss_limit', \
-        f'Expected loss_limit block, got: {blocked["block_reason"]}'
-    print(f'[gate1] loss_limit block correctly triggered ✅  block_reason={blocked["block_reason"]}')

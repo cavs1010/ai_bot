@@ -3,13 +3,63 @@
 from collections.abc import Callable
 
 from backend.config import MIN_EDGE_PCT
-from backend.intelligence.gates.hard_threat import get_shared_market_data, screen_gate1_hard_threats
+from backend.intelligence.gates.hard_threat import screen_gate1_hard_threats
+from backend.intelligence.constants import SECTOR_ETF_MAP
+from backend.data.market import get_vix_snapshot, get_spy_snapshot, get_sector_etf_snapshot
+from backend.data.calendars import get_ticker_earnings_window, get_hours_to_next_macro_event
+from backend.data.premarket import get_premarket_gap
+from backend.data.filings import get_recent_8k_filings
 from backend.data.news import fetch_news
 from backend.intelligence.gates.news_threat import assess_gate2_news_threat
 from backend.intelligence.gates.sentiment import evaluate_gate3_sentiment
 from backend.data.market import get_market_context
 from backend.intelligence.gates.contradiction import detect_gate4_contradiction
 from backend.intelligence.gates.signal import decide_gate5_signal
+
+
+def get_shared_market_data() -> dict:
+    """
+    Fetches market-wide signals shared across all Gate 1 screenings in a batch run.
+
+    VIX, SPY, and macro timing are identical for every candidate on a given night.
+    Call this once before the candidate loop and pass the result to each
+    screen_gate1_hard_threats() call to avoid redundant fetches.
+
+    Returns:
+        dict with keys:
+            vix         (dict)         — {level, change_pct_today, prior_close}
+            spy         (dict)         — {price, change_pct_today, prior_close}
+            macro_hours (float | None) — hours to next high-impact US event; None = no event in 7 days
+        Raises RuntimeError if VIX, SPY or the macro calendar cannot be fetched: without the
+        market backdrop no candidate can be screened, so the run stops.
+    """
+    vix = get_vix_snapshot()
+    if vix is None:
+        raise RuntimeError('VIX could not be fetched')
+    spy = get_spy_snapshot()
+    if spy is None:
+        raise RuntimeError('SPY could not be fetched')
+    macro_hours = get_hours_to_next_macro_event()   # raises if the calendar cannot be fetched
+
+    return {'vix': vix, 'spy': spy, 'macro_hours': macro_hours}
+
+
+def get_candidate_facts(candidate: dict) -> dict:
+    """Fetch Gate 1 inputs in the production order before evaluating its checks."""
+    ticker = candidate['ticker']
+    sector = candidate['sector']
+    sector_mapped = sector in SECTOR_ETF_MAP
+    sector_data = get_sector_etf_snapshot(sector) if sector_mapped else None
+    gap_data = get_premarket_gap(ticker)
+    earnings_data = get_ticker_earnings_window(ticker)
+    filings_data = get_recent_8k_filings(ticker)
+    return {
+        'sector_mapped': sector_mapped,
+        'sector': sector_data,
+        'premarket_gap': gap_data,
+        'earnings': earnings_data,
+        'filings_8k': filings_data,
+    }
 
 
 def run_pipeline(
@@ -34,7 +84,8 @@ def run_pipeline(
     sector = candidate['sector']
 
     # Gate 1 — Hard Threat Screen
-    g1 = screen_gate1_hard_threats(candidate, shared, portfolio_value, daily_pnl)
+    facts = get_candidate_facts(candidate)
+    g1 = screen_gate1_hard_threats(candidate, shared, facts, portfolio_value, daily_pnl)
     if not g1['passed']:
         reason = g1['block_reason']
         decision = f"BLOCKED_G1:{reason}"

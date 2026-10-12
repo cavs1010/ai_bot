@@ -191,17 +191,6 @@ def fetch_news(
     return raw
 
 
-def format_news_for_prompt(news_items: list[dict]) -> str:
-    """Formats news items for Gate 2/3 LLM prompts. Empty list → ''."""
-    lines = []
-    for item in news_items:
-        line = f"{item['headline']} [Source: {item['source']}] [Reliability: {item['reliability']}]"
-        if item.get('summary'):
-            line += f" — {item['summary']}"
-        lines.append(line)
-    return '\n'.join(lines)
-
-
 if __name__ == '__main__':
     assert classify_source('Reuters') == 'HIGH'
     assert classify_source('benzinga', 'https://www.reuters.com/x') == 'HIGH'
@@ -213,7 +202,8 @@ if __name__ == '__main__':
         print('[news] NVDA: no API keys or all sources failed')
     elif articles:
         print(f'[news] NVDA: {len(articles)} articles')
-        print(format_news_for_prompt(articles[:2]))
+        for article in articles[:2]:
+            print(article)
     else:
         print('[news] NVDA: no news in window')
 
