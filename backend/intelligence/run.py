@@ -2,9 +2,9 @@
 
 from collections.abc import Callable
 
-from backend.config import MIN_EDGE_PCT
+from backend.config import MIN_EDGE_PCT, NEWS_LOOKBACK_DAYS, NEWS_MAX_RESULTS, EARNINGS_THREAT_DAYS, FILING_LOOKBACK_DAYS
 from backend.intelligence.gates.hard_threat import screen_gate1_hard_threats
-from backend.intelligence.constants import SECTOR_ETF_MAP
+from backend.intelligence.constants import SECTOR_ETF_MAP, SOURCE_RELIABILITY_TIERS
 from backend.data.market import get_vix_snapshot, get_spy_snapshot, get_sector_etf_snapshot
 from backend.data.calendars import get_ticker_earnings_window, get_hours_to_next_macro_event
 from backend.data.premarket import get_premarket_gap
@@ -12,7 +12,6 @@ from backend.data.filings import get_recent_8k_filings
 from backend.data.news import fetch_news
 from backend.intelligence.gates.news_threat import assess_gate2_news_threat
 from backend.intelligence.gates.sentiment import evaluate_gate3_sentiment
-from backend.data.market import get_market_context
 from backend.intelligence.gates.contradiction import detect_gate4_contradiction
 from backend.intelligence.gates.signal import decide_gate5_signal
 
@@ -44,15 +43,18 @@ def get_shared_market_data() -> dict:
     return {'vix': vix, 'spy': spy, 'macro_hours': macro_hours}
 
 
-def get_candidate_facts(candidate: dict) -> dict:
+def get_candidate_facts(candidate: dict, premarket_session: dict) -> dict:
     """Fetch Gate 1 inputs in the production order before evaluating its checks."""
     ticker = candidate['ticker']
     sector = candidate['sector']
     sector_mapped = sector in SECTOR_ETF_MAP
-    sector_data = get_sector_etf_snapshot(sector) if sector_mapped else None
-    gap_data = get_premarket_gap(ticker)
-    earnings_data = get_ticker_earnings_window(ticker)
-    filings_data = get_recent_8k_filings(ticker)
+    sector_data = get_sector_etf_snapshot(SECTOR_ETF_MAP[sector]) if sector_mapped else None
+    gap_data = get_premarket_gap(
+        ticker, premarket_session['now'], premarket_session['active'],
+        premarket_session['regular_open'],
+    )
+    earnings_data = get_ticker_earnings_window(ticker, days_ahead=EARNINGS_THREAT_DAYS)
+    filings_data = get_recent_8k_filings(ticker, days_back=FILING_LOOKBACK_DAYS)
     return {
         'sector_mapped': sector_mapped,
         'sector': sector_data,
@@ -62,11 +64,22 @@ def get_candidate_facts(candidate: dict) -> dict:
     }
 
 
+def get_market_context(shared: dict, facts: dict) -> dict:
+    """Give Gate 4 the same fetched market facts already used by Gate 1."""
+    return {
+        'vix': shared['vix'],
+        'spy': shared['spy'],
+        'sector': facts['sector'],
+        'hours_to_next_macro': shared['macro_hours'],
+    }
+
+
 def run_pipeline(
     candidate: dict,
     portfolio_value: float,
     daily_pnl: float,
     shared: dict,
+    premarket_session: dict,
     *,
     on_log: Callable[[str], None],
     on_update: Callable[[dict], None],
@@ -81,10 +94,9 @@ def run_pipeline(
     market context blocks the candidate, and Gate 4 flags warn and continue.
     """
     ticker = candidate['ticker']
-    sector = candidate['sector']
 
     # Gate 1 — Hard Threat Screen
-    facts = get_candidate_facts(candidate)
+    facts = get_candidate_facts(candidate, premarket_session)
     g1 = screen_gate1_hard_threats(candidate, shared, facts, portfolio_value, daily_pnl)
     if not g1['passed']:
         reason = g1['block_reason']
@@ -103,7 +115,10 @@ def run_pipeline(
 
     # Gate 2 & 3 News Fetch and Evaluation
     on_log(f"[gate2] Fetching recent news headlines for {ticker}...")
-    headlines = fetch_news(ticker)
+    headlines = fetch_news(
+        ticker, days_back=NEWS_LOOKBACK_DAYS, max_results=NEWS_MAX_RESULTS,
+        reliability_tiers=SOURCE_RELIABILITY_TIERS,
+    )
     if headlines is None:
         # No news source answered: Gate 2 cannot assess the stock, so it is blocked (never "no news")
         g2 = {'passed': False, 'reason': 'news_unavailable', 'news_provider': None}
@@ -153,17 +168,7 @@ def run_pipeline(
 
     # Gate 4 — Contradiction Check (Claude)
     on_log(f"[gate4] Loading market backdrop for contradiction analysis...")
-    market_context = get_market_context(sector)
-    if market_context is None:
-        # Gate 4 cannot assess without the backdrop; this block is its outcome
-        g4 = {'action': 'BLOCK', 'reason': 'unable to fetch market backdrop metrics', 'market_context': None}
-        on_log(f"[gate4] {ticker}: BLOCKED — unable to fetch market backdrop metrics.")
-        on_update({
-            "final_decision": "BLOCKED_G4:no_market_context",
-            "notes": "Gate 4 blocked: unable to fetch market context"
-        })
-        return {'ticker': ticker, 'gates': {'gate1': g1, 'gate2': g2, 'gate3': g3, 'gate4': g4}, 'final_decision': "BLOCKED_G4:no_market_context"}
-
+    market_context = get_market_context(shared, facts)
     g4 = detect_gate4_contradiction(candidate, g3, market_context)
     if g4['action'] == 'BLOCK':
         on_log(f"[gate4] {ticker}: BLOCKED — direct market-vs-stock contradiction found: {g4.get('reason')}")

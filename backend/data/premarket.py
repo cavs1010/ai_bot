@@ -1,9 +1,10 @@
-# helpers/fetchers/premarket.py — pre-market gap calculation via yfinance
+# premarket.py — pre-market gap calculation via yfinance
 # Phase 4 | Intelligence Layer | Shared helper
 # Used by: Gate 1 run()
 #
 # Functions:
-#   get_premarket_gap(ticker) → {applicable: True, gap_pct, prior_close, premarket_price, direction}
+#   get_premarket_gap(ticker, now, session_active, regular_open)
+#       → {applicable: True, gap_pct, prior_close, premarket_price, direction}
 #                             | {applicable: False, reason}   (no pre-market session in progress)
 #                             | None                          (fetch failed during pre-market)
 #
@@ -11,29 +12,24 @@
 # At any other time the latest bars mix different sessions, so no gap is calculated.
 #
 # Data sources:
-#   trading day     — Alpaca market calendar (weekends and exchange holidays excluded)
+#   trading day     — supplied by the entry from Alpaca's market calendar
 #   prior_close     — yfinance daily bars: the last session before today
 #   premarket_price — yfinance 1-min bars with prepost=True: today's bars before 9:30 AM ET
 #
-# Test: python -m backend.data.premarket
 
 from datetime import datetime, time
-from zoneinfo import ZoneInfo
 import yfinance as yf
 
-from backend.broker.alpaca import is_trading_day
 
-NEW_YORK = ZoneInfo('America/New_York')
-PREMARKET_OPEN = time(4, 0)
-REGULAR_OPEN = time(9, 30)
-
-
-def get_premarket_gap(ticker: str) -> dict | None:
+def get_premarket_gap(ticker: str, now: datetime, session_active: bool, regular_open: time) -> dict | None:
     """
     Fetches the pre-market gap for a ticker using yfinance extended-hours bars.
 
     Args:
         ticker: Stock ticker symbol, e.g. 'NVDA', 'AAPL'.
+        now: New York observation time supplied by the entry.
+        session_active: Whether the entry confirmed an active premarket session.
+        regular_open: New York regular-session opening time supplied by the entry.
 
     Returns:
         During the pre-market session, dict with keys:
@@ -45,8 +41,7 @@ def get_premarket_gap(ticker: str) -> dict | None:
         Outside the pre-market session: {'applicable': False, 'reason': ...} — nothing is fetched.
         None if the fetch fails or returns no data during the pre-market session.
     """
-    now = datetime.now(NEW_YORK)
-    if not (PREMARKET_OPEN <= now.time() < REGULAR_OPEN and is_trading_day(now.date())):
+    if not session_active:
         return {'applicable': False, 'reason': 'no pre-market session in progress'}
 
     try:
@@ -61,7 +56,7 @@ def get_premarket_gap(ticker: str) -> dict | None:
         # 2. Pre-market price: today's most recent 1-min bar before 9:30 AM ET
         # Index is already America/New_York — no tz conversion needed
         df_1m = yf.Ticker(ticker).history(period='1d', interval='1m', prepost=True)
-        premarket_bars = df_1m[(df_1m.index.date == now.date()) & (df_1m.index.time < REGULAR_OPEN)]
+        premarket_bars = df_1m[(df_1m.index.date == now.date()) & (df_1m.index.time < regular_open)]
         if premarket_bars.empty:
             print(f'[premarket] {ticker}: no pre-market bars returned for today')
             return None
@@ -87,16 +82,3 @@ def get_premarket_gap(ticker: str) -> dict | None:
         'premarket_price':  premarket_price,
         'direction':        direction,
     }
-
-
-if __name__ == '__main__':
-    result = get_premarket_gap('NVDA')
-    if result is None:
-        print('[premarket] get_premarket_gap returned None (fetch failed)')
-    elif not result['applicable']:
-        print(f'[premarket] NVDA: not applicable — {result["reason"]}')
-    else:
-        print(f'[premarket] ticker:           NVDA')
-        print(f'[premarket] prior close:      {result["prior_close"]}')
-        print(f'[premarket] pre-market price: {result["premarket_price"]}')
-        print(f'[premarket] gap:              {result["gap_pct"]:+.2%} ({result["direction"]})')

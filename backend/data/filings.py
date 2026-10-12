@@ -1,21 +1,18 @@
-# helpers/fetchers/filings.py — SEC EDGAR 8-K filings via RSS feed (feedparser)
+# filings.py — SEC EDGAR 8-K filings via RSS feed (feedparser)
 # Phase 4 | Intelligence Layer | Shared helper
 # Used by: Gate 1 run()
 #
 # Functions:
-#   get_recent_8k_filings(ticker, days_back=1) → [{form_type, filed_at, title, url}] | None
+#   get_recent_8k_filings(ticker, days_back) → [{form_type, filed_at, title, url}] | None
 #
 # Data source:
 #   SEC EDGAR company search atom feed — no API key required.
 #   SEC fair-access policy requires a descriptive User-Agent on every request.
 #
-# Test: python -m backend.data.filings
+# Test: python -m backend.data.filings --days-back <configured window>
 
 import datetime
 import feedparser
-
-# Strategy settings come from the active Neon config, passed in by Node.
-from backend.config import FILING_LOOKBACK_DAYS
 
 # SEC fair-access policy: identify the application and contact email in User-Agent
 feedparser.USER_AGENT = 'ai-trading-bot/1.0 cavs1010@gmail.com'
@@ -27,13 +24,13 @@ _EDGAR_URL = (
 )
 
 
-def get_recent_8k_filings(ticker: str, days_back: int = FILING_LOOKBACK_DAYS) -> list[dict] | None:
+def get_recent_8k_filings(ticker: str, days_back: int) -> list[dict] | None:
     """
     Fetches recent 8-K filings for a ticker from the SEC EDGAR atom feed.
 
     Args:
         ticker:    Stock ticker symbol, e.g. 'AAPL', 'NVDA'.
-        days_back: How many calendar days back to include. Default 1 (today + yesterday).
+        days_back: How many calendar days back to include, supplied by the caller.
                    Use 0 for today only.
 
     Returns:
@@ -78,6 +75,11 @@ def get_recent_8k_filings(ticker: str, days_back: int = FILING_LOOKBACK_DAYS) ->
 
 
 if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--days-back', type=int, required=True)
+    test_args = parser.parse_args()
+
     # Happy path — recent window (30 days) to guarantee results
     print('=== get_recent_8k_filings("AAPL", days_back=30) ===')
     filings_30d = get_recent_8k_filings('AAPL', days_back=30)
@@ -93,8 +95,8 @@ if __name__ == '__main__':
     print()
 
     # Default window (1 day)
-    print('=== get_recent_8k_filings("AAPL") — default days_back=1 ===')
-    filings_1d = get_recent_8k_filings('AAPL')
+    print('=== get_recent_8k_filings("AAPL") — caller-supplied window ===')
+    filings_1d = get_recent_8k_filings('AAPL', days_back=test_args.days_back)
     if filings_1d is None:
         print('[filings] fetch failed')
     elif not filings_1d:
@@ -108,6 +110,6 @@ if __name__ == '__main__':
 
     # No-results path — unknown ticker returns [] (SEC returns 200 with 0 entries)
     print('=== get_recent_8k_filings("ZZZZINVALID") ===')
-    bad = get_recent_8k_filings('ZZZZINVALID')
+    bad = get_recent_8k_filings('ZZZZINVALID', days_back=test_args.days_back)
     assert bad == [], f'Expected empty list for unknown ticker, got: {bad}'
     print('[filings] unknown ticker correctly returned [] ✅')

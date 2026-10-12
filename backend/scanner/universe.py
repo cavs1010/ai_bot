@@ -1,17 +1,11 @@
-import os
-import requests
 import pandas as pd
-from datetime import datetime, timedelta
-from dotenv import load_dotenv
 from tradingview_screener.query import Query
 from tradingview_screener.column import col
-
-load_dotenv()
 
 # Strategy settings come from the active Neon config, passed in by Node
 from backend.config import (
     MIN_AVG_VOLUME, MIN_PRICE, MIN_ATR_PCT, MAX_ATR_PCT, MIN_MARKET_CAP,
-    EARNINGS_WINDOW_DAYS, SCREENER_LIMIT, MAX_POSITION_SIZE_PCT, PRICE_CEILING_BUFFER,
+    SCREENER_LIMIT, MAX_POSITION_SIZE_PCT, PRICE_CEILING_BUFFER,
 )
 
 
@@ -25,41 +19,20 @@ def get_max_share_price(portfolio_value: float) -> float:
     return portfolio_value * MAX_POSITION_SIZE_PCT * PRICE_CEILING_BUFFER
 
 
-def get_earnings_tickers(days_ahead: int = EARNINGS_WINDOW_DAYS) -> set[str]:
-    """
-    Fetches tickers with earnings announcements in the next N days from Finnhub.
-
-    Args:
-        days_ahead: Number of calendar days to look forward (EARNINGS_WINDOW_DAYS).
-
-    Returns:
-        Set of ticker strings with upcoming earnings; empty if none are scheduled.
-        Raises if FINNHUB_API_KEY is missing or Finnhub fails: the filter is never skipped.
-    """
-    key = os.getenv('FINNHUB_API_KEY')
-    if not key:
-        raise RuntimeError('FINNHUB_API_KEY is not set; the earnings filter cannot run')
-    today = datetime.now().strftime('%Y-%m-%d')
-    future = (datetime.now() + timedelta(days=days_ahead)).strftime('%Y-%m-%d')
-    url = f'https://finnhub.io/api/v1/calendar/earnings?from={today}&to={future}&token={key}'
-    r = requests.get(url, timeout=10)
-    r.raise_for_status()
-    return {e['symbol'] for e in r.json()['earningsCalendar']}
-
-
-def run_universe_filter(portfolio_value: float, limit: int = SCREENER_LIMIT) -> pd.DataFrame:
+def run_universe_filter(portfolio_value: float, earnings_tickers: set[str], limit: int = SCREENER_LIMIT) -> pd.DataFrame:
     """
     Runs the Tier 1 universe filter: large-cap US stocks → the universe watchlist.
 
     Args:
         portfolio_value: Live Alpaca portfolio value, fetched by the entry. Used to
                          calculate the upper share-price bound with the strategy dials.
+        earnings_tickers: Fetched upcoming earnings symbols supplied by the entry.
         limit:     Max rows requested from the TradingView screener before the ATR% and
                    earnings filters are applied (SCREENER_LIMIT).
 
     Returns:
         DataFrame with columns ticker, price, volume, atr, atr_pct, rsi, sma20, sma50, sector;
-        empty if no stock matches the screener. Raises if TradingView or Finnhub fail.
+        empty if no stock matches the screener. Raises if TradingView fails.
     """
     max_price = get_max_share_price(portfolio_value)
     print(f'[universe] price ceiling: ${max_price:.2f}')
@@ -95,9 +68,8 @@ def run_universe_filter(portfolio_value: float, limit: int = SCREENER_LIMIT) -> 
     )
     print(f'[universe] {len(df)} stocks after ATR% filter ({MIN_ATR_PCT}%–{MAX_ATR_PCT}%)')
 
-    earnings = get_earnings_tickers()
     before = len(df)
-    df = pd.DataFrame(df[~df['name'].isin(list(earnings))])
+    df = pd.DataFrame(df[~df['name'].isin(list(earnings_tickers))])
     print(f'[universe] {before - len(df)} stocks removed for upcoming earnings')
 
     assert df[['RSI', 'SMA20', 'SMA50']].notna().to_numpy().any(axis=0).all(), '[universe] momentum columns missing from TradingView response'

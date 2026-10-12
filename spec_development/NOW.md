@@ -62,14 +62,15 @@ Move data gathering out of gates into the intelligence runner, and broker accoun
 reads out of the scanner into the entry. Keep calculations pure and external
 access in clients.
 
-**Active sub-task:** Supply the scanner's live portfolio value from `cli.py` and
-route Load Watchlist through that entry, preserving the price-ceiling formula and
-Node's Neon persistence. Present this wiring as one reviewable change and wait
-for user testing, review and commit before continuing with client imports (Rule 31).
+**Active sub-task:** Enforce the approved strict client boundaries: pass settings,
+lookup values and premarket session facts from the entry and runner, move shared
+source coordination out of clients, and clean obsolete helpers and documentation.
+Present this as one reviewable change with verification, then wait for user tests,
+review and commit before continuing (Rule 31).
 
-**Questions to Resolve:**  
-- Reconcile the primer's scanner-file references with the agreed Neon-backed universe flow; retain Node persistence and stdin universe input.
-- Clarify client import boundaries where current fetchers use config, lookup tables or other clients, before changing those boundaries.
+**Agreed boundaries:** Node owns the Neon universe and supplies it on stdin.
+Clients receive settings and lookup values as arguments and import no other
+application modules; the entry and intelligence runner coordinate external sources.
 
 ---
 
@@ -135,11 +136,11 @@ None yet.
 > 
 > AI can assist with the review, but **final approval remains human**.
 
-**Reviewing:** Feature 03 — implementation in progress. Gate 1 fetching has moved
-to the intelligence runner, and Gates 2 and 3 use the shared news formatter in
-`intelligence/utils/`. Scanner entry wiring is ready for the user's Load Watchlist
-check. Client import clarification remains pending; no live pipeline verification
-has run. Feature 01's Node type-check errors remain outside this change.
+**Reviewing:** Feature 03 — 🟡 Under Review. Strict client input wiring and cleanup
+are ready for verification. The previous Load Watchlist change was tested by the
+user and its 90 saved stocks were independently confirmed through Neon MCP.
+This batch still needs Load Watchlist and an orders-off pipeline test. Feature 01's
+Node type-check errors remain outside this change.
 
 ## The Three Review Questions
 
@@ -171,8 +172,8 @@ None recorded yet.
 
 ## Required Actions
 
-Resolve the client import question, finish Feature 03 and present the coherent
-change for user testing, review and commit before continuing.
+Verify the strict client changes, then obtain user testing, review and commit
+before proceeding to Feature 04.
 
 ---
 

@@ -9,19 +9,21 @@ import pathlib
 import json
 import argparse
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, time
+from zoneinfo import ZoneInfo
 
 # Define paths
 backend_dir = pathlib.Path(__file__).resolve().parent
 scanner_dir = backend_dir / 'scanner'
 
 # Import our modular strategy elements
-from backend.config import TOP_N, MIN_SCORE, MAX_OPEN_POSITIONS
+from backend.config import TOP_N, MIN_SCORE, MAX_OPEN_POSITIONS, EARNINGS_WINDOW_DAYS
 from backend.scanner.momentum import run_scan
 from backend.scanner.universe import run_universe_filter
 from backend.risk.gate import validate_trade
 from backend.broker.alpaca import (
     get_portfolio_value,
+    is_trading_day,
     get_open_positions,
     get_daily_pnl,
     get_drawdown_pct,
@@ -30,10 +32,19 @@ from backend.broker.alpaca import (
     ENTRY_ORDER_TYPE,
 )
 from backend.intelligence.run import get_shared_market_data, run_pipeline
+from backend.data.calendars import get_earnings_tickers
 
 def print_log(msg: str):
     """Prints immediately to stdout with flushing so Express/Vite streams it in real-time."""
     print(msg, flush=True)
+
+def get_premarket_session() -> dict:
+    """Read the broker calendar only during the New York premarket window."""
+    now = datetime.now(ZoneInfo('America/New_York'))
+    regular_open = time(9, 30)
+    active = time(4, 0) <= now.time() < regular_open and is_trading_day(now.date())
+    return {'now': now, 'active': active, 'regular_open': regular_open}
+
 
 def main():
     parser = argparse.ArgumentParser(description="Run the entire stock-selection pipeline.")
@@ -44,7 +55,8 @@ def main():
 
     if args.load_watchlist:
         portfolio_value = get_portfolio_value()
-        watchlist = run_universe_filter(portfolio_value)
+        earnings_tickers = get_earnings_tickers(days_ahead=EARNINGS_WINDOW_DAYS)
+        watchlist = run_universe_filter(portfolio_value, earnings_tickers)
         # Node saves the Neon batch; Python only returns the fetched universe.
         print_log('__UNIVERSE_JSON__ ' + watchlist.to_json(orient='records'))
         print_log(f'[universe] complete: {len(watchlist)} stocks returned to Node')
@@ -202,7 +214,7 @@ def main():
             }
 
             intelligence = run_pipeline(
-                candidate, portfolio_value, daily_pnl, shared,
+                candidate, portfolio_value, daily_pnl, shared, get_premarket_session(),
                 on_log=print_log,
                 on_update=lambda delta: emit_candidate_update(ticker, delta),
             )

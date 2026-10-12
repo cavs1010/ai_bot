@@ -122,15 +122,16 @@ The scanner and the risk gate receive account figures as arguments. `cli.py` rea
 figures from the broker and passes them in. The scanner and the risk gate do not import the
 broker.
 
-Files the scanner writes (`universe.json`, the latest run) live in `scanner/data/`. They are
-outputs. They are not imported.
+The entry writes the latest telemetry to `scanner/data/latest_run.json`. The universe
+is persisted by Node in Neon. Generated telemetry is an output and is never imported.
 
 ### Layer 4: Entry (the composition root)
 
 `cli.py` is the composition root: the one place that wires the stages together.
 
-1. Load the dials.
-2. Build or load the universe.
+1. Load the dials supplied by Node.
+2. For Load Watchlist, fetch account and earnings facts and generate the universe.
+   For a pipeline run, read the latest Neon universe batch supplied by Node on stdin.
 3. Run the momentum scan.
 4. For each candidate, call `intelligence/run.py`.
 5. For a buy, call the risk gate with live account figures.
@@ -146,18 +147,30 @@ its neighbours to discover what comes next.
 An import is allowed when the arrow exists. Anything else waits for a change to this guide.
 
 ```
-cli.py ──► scanner, intelligence/run, risk, broker, config
+cli.py ──► scanner, intelligence/run, risk, data, broker, config
 scanner ──► config, and its own TradingView read
-intelligence/run ──► gates, data, config
+intelligence/run ──► gates, data, constants, config
 gates ──► rules, utils, llm, config
 risk ──► rules, config
 rules ──► constants, config
 utils ──► standard library only
-data, llm, broker ──► their third-party libraries only
+data, llm, broker ──► standard library and their third-party libraries only
 ```
 
 `data`, `llm`, and `broker` do not import a gate, a stage, or `cli.py`. A rule does not import
 `data`, `llm`, or `broker`.
+
+Clients receive strategy windows and lookup patterns as arguments; they do not import
+`config.py`, `constants.py` or another client. The runner selects sector ETF symbols,
+supplies the news source patterns, and combines the fetched market facts. The entry
+reads the broker trading-day calendar and passes the premarket session facts to the
+runner. For Load Watchlist, it also fetches the earnings symbols from `data/calendars.py`
+and supplies those symbols and the live portfolio value to the scanner.
+
+Node launches `cli.py --load-watchlist` to generate a universe, then saves the stdout
+payload in Neon. A pipeline run reads the latest Neon universe batch on stdin; it
+does not generate or load a universe file. The latest telemetry output is stored in
+`scanner/data/latest_run.json`.
 
 ---
 
@@ -225,7 +238,7 @@ backend/
 ├── scanner/
 │   ├── universe.py             # weekly liquid universe
 │   ├── momentum.py             # score the watchlist
-│   └── data/                   # universe.json and other scanner outputs
+│   └── data/                   # latest_run.json telemetry output
 ├── intelligence/
 │   ├── run.py                  # Gates 1–5, shared facts fetched once
 │   ├── constants.py            # lookup tables, not dials
@@ -262,7 +275,7 @@ backend/
 | Process entry | `backend/cli.py`. Node starts this file. |
 | Dials | `backend/config.py`. The only reader of `STRATEGY_CONFIG`. |
 | Lookup tables | `backend/intelligence/constants.py`. |
-| Universe and momentum | `backend/scanner/`. Outputs in `scanner/data/`. |
+| Universe and momentum | `backend/scanner/`. Universe persistence is in Neon through Node. |
 | Gate sequence | `backend/intelligence/run.py`. |
 | One verdict per gate | One module in `backend/intelligence/gates/`. |
 | Pure calculations | `backend/intelligence/rules/`. |

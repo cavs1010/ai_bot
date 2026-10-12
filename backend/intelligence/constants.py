@@ -8,7 +8,7 @@
 # ---------------------------------------------------------------------------
 # SECTOR_ETF_MAP: TradingView sector name → SPDR Select Sector ETF ticker
 # Keys are the exact strings returned by the TradingView screener (not GICS).
-# Used by: get_sector_etf_snapshot(), Gate 1, Gate 4
+# Used by: intelligence runner when selecting the explicit sector ETF symbol
 # ---------------------------------------------------------------------------
 SECTOR_ETF_MAP: dict[str, str] = {
     "Commercial Services":    "XLI",   # business services → Industrials

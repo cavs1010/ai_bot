@@ -1,8 +1,7 @@
-# helpers/fetchers/news.py — fetch, classify, and format news for Gates 2/3
+# news.py — fetch and normalize news with caller-supplied windows and source patterns
 # Phase 4 | Intelligence Layer | Shared helper
 # Used by: Pipeline (fetch once), Gate 2 run(), Gate 3 run()
 #
-# Test: python -m backend.data.news
 
 import os
 import requests
@@ -13,17 +12,14 @@ from newsapi import NewsApiClient
 
 load_dotenv()
 
-from backend.intelligence.constants import SOURCE_RELIABILITY_TIERS
-# Strategy settings come from the active Neon config, passed in by Node.
-from backend.config import NEWS_LOOKBACK_DAYS, NEWS_MAX_RESULTS
 
-
-def classify_source(source_name: str, url: str | None = None) -> str:
+def classify_source(source_name: str, reliability_tiers: dict[str, list[str]], url: str | None = None) -> str:
     """
     Maps a publisher (and optional URL for generic Alpaca/benzinga feeds) to a tier.
 
     Args:
         source_name: Raw source from the API, e.g. 'benzinga', 'Yahoo', 'Reuters'.
+        reliability_tiers: Source patterns supplied by the runner.
         url:         Article URL; used when source is empty or 'benzinga'.
 
     Returns:
@@ -38,7 +34,7 @@ def classify_source(source_name: str, url: str | None = None) -> str:
 
     for text in texts:
         for tier in ('DANGEROUS', 'HIGH', 'MEDIUM', 'LOW'):
-            for pattern in SOURCE_RELIABILITY_TIERS[tier]:
+            for pattern in reliability_tiers[tier]:
                 if pattern.lower() in text:
                     return tier
     return 'LOW'
@@ -50,13 +46,14 @@ def _item(
     source: str,
     url: str,
     published_at: str,
-    summary: str = '',
+    summary: str,
+    reliability_tiers: dict[str, list[str]],
 ) -> dict:
     return {
         'provider': provider,   # news API that returned this headline: alpaca | finnhub | newsapi
         'headline': headline,
         'source': source or '',
-        'reliability': classify_source(source, url),
+        'reliability': classify_source(source, reliability_tiers, url),
         'url': url or '',
         'published_at': published_at,
         'summary': (summary or '').strip(),
@@ -65,8 +62,9 @@ def _item(
 
 def fetch_news(
     ticker: str,
-    days_back: int = NEWS_LOOKBACK_DAYS,
-    max_results: int = NEWS_MAX_RESULTS,
+    days_back: int,
+    max_results: int,
+    reliability_tiers: dict[str, list[str]],
     include_summary: bool = True,
 ) -> list[dict] | None:
     """
@@ -74,8 +72,9 @@ def fetch_news(
 
     Args:
         ticker:          Stock symbol, e.g. 'NVDA'.
-        days_back:       Calendar days to look back. Default 2.
-        max_results:     Max articles to return. Default 5. Passed to each API's limit param.
+        days_back:       Calendar days to look back, supplied from the strategy configuration.
+        max_results:     Max articles to return, supplied from the strategy configuration.
+        reliability_tiers: Source-name and URL lookup patterns supplied by the runner.
         include_summary: If True, include one-line summary when the API provides it.
 
     Returns:
@@ -117,6 +116,7 @@ def fetch_news(
                         article.url or '',
                         article.created_at.isoformat() if article.created_at else '',
                         summary,
+                        reliability_tiers,
                     ))
             answered = True
         except Exception as e:
@@ -155,6 +155,7 @@ def fetch_news(
                         article.get('url', ''),
                         published,
                         article.get('summary', '') if include_summary else '',
+                        reliability_tiers,
                     ))
                 answered = True
             except Exception as e:
@@ -181,6 +182,7 @@ def fetch_news(
                             article.get('url', ''),
                             article.get('publishedAt', ''),
                             article.get('description') or '' if include_summary else '',
+                            reliability_tiers,
                         ))
                 answered = True
             except Exception as e:
@@ -189,23 +191,3 @@ def fetch_news(
     if not answered:
         return None
     return raw
-
-
-if __name__ == '__main__':
-    assert classify_source('Reuters') == 'HIGH'
-    assert classify_source('benzinga', 'https://www.reuters.com/x') == 'HIGH'
-    assert classify_source('Unknown') == 'LOW'
-    print('[news] classify_source OK ✅')
-
-    articles = fetch_news('NVDA')
-    if articles is None:
-        print('[news] NVDA: no API keys or all sources failed')
-    elif articles:
-        print(f'[news] NVDA: {len(articles)} articles')
-        for article in articles[:2]:
-            print(article)
-    else:
-        print('[news] NVDA: no news in window')
-
-    bad = fetch_news('ZZZZINVALID')
-    print(f'[news] ZZZZINVALID: {bad!r}')

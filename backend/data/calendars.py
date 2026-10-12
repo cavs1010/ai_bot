@@ -1,22 +1,22 @@
-# helpers/fetchers/calendars.py — macro events and per-ticker earnings windows
+# calendars.py — macro events and per-ticker earnings windows
 # Phase 4 | Intelligence Layer | Shared helper
-# Used by: Gate 1 run(), get_market_context() in market.py (via get_hours_to_next_macro_event)
+# Used by: intelligence runner and the universe entry
 #
 # Functions:
 #   get_upcoming_macro_events(hours_ahead=24)        → [{event, country, time, impact}] | None
 #   get_hours_to_next_macro_event()                  → float (hours) | None (no event); raises if fetch fails
-#   get_ticker_earnings_window(ticker, days_ahead=1) → {reports_today, reports_tomorrow, report_date, hour} | None
+#   get_ticker_earnings_window(ticker, days_ahead) → {reports_today, reports_tomorrow, report_date, hour} | None
 #
 # APIs:
 #   FairEconomy/ForexFactory economic calendar (free, no key) — impact High/Medium/Low
 #   Finnhub earnings calendar (free tier)  — date YYYY-MM-DD, hour 'amc'|'bmo'|'dmh'|''
-# No SDK — uses requests directly (consistent with universe_filter.py)
+# No SDK — uses requests directly
 #
 # Note: Finnhub's /calendar/economic endpoint moved to a paid plan (returns 403 on
 # the free tier), so macro events now come from the free FairEconomy JSON feed
 # (the public ForexFactory calendar). Earnings stays on Finnhub's free tier.
 #
-# Test: python -m backend.data.calendars
+# Test: python -m backend.data.calendars --earnings-days <configured window>
 
 import os
 import json
@@ -26,9 +26,6 @@ from datetime import date, datetime, timezone, timedelta
 from dotenv import load_dotenv
 
 load_dotenv()
-
-# Strategy settings come from the active Neon config, passed in by Node.
-from backend.config import EARNINGS_THREAT_DAYS
 
 # FairEconomy publishes the public ForexFactory calendar as free, key-less JSON.
 # Only the current-week feed exists; it covers the rest of the calendar week,
@@ -164,13 +161,35 @@ def get_hours_to_next_macro_event() -> float | None:
     return round(hours, 1)
 
 
-def get_ticker_earnings_window(ticker: str, days_ahead: int = EARNINGS_THREAT_DAYS) -> dict | None:
+def get_earnings_tickers(days_ahead: int) -> set[str]:
+    """
+    Fetches tickers with earnings announcements in the next N days from Finnhub.
+
+    Args:
+        days_ahead: Number of calendar days to look forward supplied by the entry.
+
+    Returns:
+        Set of ticker strings with upcoming earnings; empty if none are scheduled.
+        Raises if FINNHUB_API_KEY is missing or Finnhub fails: the filter is never skipped.
+    """
+    key = os.getenv('FINNHUB_API_KEY')
+    if not key:
+        raise RuntimeError('FINNHUB_API_KEY is not set; the earnings filter cannot run')
+    today = datetime.now().strftime('%Y-%m-%d')
+    future = (datetime.now() + timedelta(days=days_ahead)).strftime('%Y-%m-%d')
+    url = f'https://finnhub.io/api/v1/calendar/earnings?from={today}&to={future}&token={key}'
+    r = requests.get(url, timeout=10)
+    r.raise_for_status()
+    return {e['symbol'] for e in r.json()['earningsCalendar']}
+
+
+def get_ticker_earnings_window(ticker: str, days_ahead: int) -> dict | None:
     """
     Checks whether a ticker has an upcoming earnings report within days_ahead calendar days.
 
     Args:
         ticker:     Stock ticker symbol, e.g. 'AAPL', 'NVDA'.
-        days_ahead: How many calendar days ahead to look. Default 1 (today + tomorrow).
+        days_ahead: How many calendar days ahead to look, supplied by the caller.
 
     Returns:
         dict with keys:
@@ -226,6 +245,11 @@ def get_ticker_earnings_window(ticker: str, days_ahead: int = EARNINGS_THREAT_DA
 
 
 if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--earnings-days', type=int, required=True)
+    test_args = parser.parse_args()
+
     print('=== get_upcoming_macro_events(hours_ahead=24) ===')
     events_24h = get_upcoming_macro_events(hours_ahead=24)
     if events_24h is None:
@@ -266,7 +290,7 @@ if __name__ == '__main__':
 
     print()
     print('=== get_ticker_earnings_window("ZZZZINVALID") ===')
-    bad = get_ticker_earnings_window('ZZZZINVALID')
+    bad = get_ticker_earnings_window('ZZZZINVALID', days_ahead=test_args.earnings_days)
     assert bad is not None, 'Expected dict (not None) for unknown ticker'
     assert bad['reports_today'] is False
     assert bad['reports_tomorrow'] is False

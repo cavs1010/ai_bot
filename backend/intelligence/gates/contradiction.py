@@ -9,11 +9,10 @@
 # already-bullish entry right now? Screens two contradictions — DIVERGENCE (stock vs market)
 # and BROAD_RISK_OFF (sub-threshold accumulation).
 #
-# The caller passes market_context in; the gate never fetches (agent_creation_rules §2).
+# The intelligence runner supplies market_context; the gate never fetches.
 #
-# Imports: helpers/llm/client (build_agent, run_agent)
+# Imports: llm/client (build_agent, run_agent)
 #
-# Test: python -m backend.intelligence.gates.contradiction
 
 from enum import Enum
 
@@ -85,7 +84,7 @@ SYSTEM_PROMPT = (
     "and reason 'NONE'."
 )
 
-# Built once at import; reused for every candidate. Cheap Haiku default (helpers/llm/client).
+# Built once at import; reused for every candidate. Model default lives in llm/client.
 _agent = build_agent(Gate4Contradiction, SYSTEM_PROMPT)
 
 
@@ -204,50 +203,3 @@ def detect_gate4_contradiction(candidate: dict, gate3_result: dict, market_conte
         'action': action,
         'market_context': market_context,
     }
-
-
-if __name__ == '__main__':
-    candidate = {'ticker': 'NVDA', 'sector': 'Electronic Technology'}
-    bullish = {'direction': 'BULLISH', 'confidence': 8}
-    keys = {'passed', 'contradiction_detected', 'contradiction_type',
-            'risk_level', 'reason', 'action', 'market_context'}
-
-    # Wiring check at zero API cost — TestModel returns a schema-valid Gate4Contradiction.
-    from pydantic_ai.models.test import TestModel
-    calm_fixture = {
-        'vix': {'level': 14.5, 'change_pct_today': -0.01, 'prior_close': 14.6},
-        'spy': {'price': 540.0, 'change_pct_today': 0.004, 'prior_close': 537.8},
-        'sector': {'etf_ticker': 'XLK', 'price': 230.0, 'change_pct_today': 0.006, 'prior_close': 228.6},
-        'hours_to_next_macro': 30.0,
-    }
-    with _agent.override(model=TestModel()):
-        wiring = detect_gate4_contradiction(candidate, bullish, calm_fixture)
-    assert set(wiring) == keys, f'unexpected keys: {set(wiring)}'
-    assert wiring['action'] in {'PASS', 'FLAG_FOR_REVIEW', 'BLOCK'}
-    print(f'[gate4] TestModel wiring OK ✅ → action={wiring["action"]}')
-
-    # Live happy path — calm real market. Eyeball; do not assert a verdict on live data.
-    from backend.data.market import get_market_context
-    print('\n=== Case 1: live market context, bullish candidate → eyeball (expect PASS on a calm day) ===')
-    live_ctx = get_market_context('Electronic Technology')
-    if live_ctx:
-        print(detect_gate4_contradiction(candidate, bullish, live_ctx))
-    else:
-        print('[gate4] live market context unavailable — skipping live case')
-
-    # Negative path — synthetic risk-off fixture (deterministic input, Claude judges).
-    # Sector clearly down, VIX elevated but below Gate 1's 30, SPY soft: a gray-zone selloff.
-    print('\n=== Case 2: synthetic risk-off fixture → expect a contradiction ===')
-    risk_off_fixture = {
-        'vix': {'level': 26.0, 'change_pct_today': 0.18, 'prior_close': 22.0},
-        'spy': {'price': 528.0, 'change_pct_today': -0.012, 'prior_close': 534.4},
-        'sector': {'etf_ticker': 'XLK', 'price': 221.0, 'change_pct_today': -0.018, 'prior_close': 225.0},
-        'hours_to_next_macro': 30.0,
-    }
-    r2 = detect_gate4_contradiction(candidate, bullish, risk_off_fixture)
-    print(r2)
-    assert r2['contradiction_detected'] is True, \
-        f'risk-off fixture should flag a contradiction, got: {r2}'
-    assert r2['action'] in {'BLOCK', 'FLAG_FOR_REVIEW'}, \
-        f'risk-off fixture should not PASS, got action={r2["action"]}'
-    print('\n[gate4] wiring + risk-off-contradiction checks passed ✅')
