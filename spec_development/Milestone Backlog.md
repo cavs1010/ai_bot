@@ -10,6 +10,43 @@
 
 ## 💡 Candidates
 
+### Preserve Filled-Order Audits When Protective Stop Placement Fails
+
+**Why it appeared:**
+The backend review found that `broker/alpaca.py` raises after an entry fills if
+stop submission fails. `cli.py` then records `EXEC_FAILED` without the entry audit
+or an updated position count.
+
+**Potential Outcome:**
+Persist the filled entry and its broker identifiers even when stop placement fails,
+record the unprotected state, and account for the opened position in subsequent risk checks.
+
+**Why it might matter:**
+A real position should remain visible and auditable when its protective order fails.
+
+**Related to:**
+Python Backend Architecture Cleanup, Trade Lifecycle & Realized P&L
+
+---
+
+### Attach Protective Stops After Queued Orders Fill
+
+**Why it appeared:**
+The backend review found that orders accepted while the market is closed return
+before stop submission, with no later path that attaches protection after a fill.
+
+**Potential Outcome:**
+Reconcile queued entries with Alpaca after the market opens, attach a protective
+stop to confirmed fills, and persist the resulting order state.
+
+**Why it might matter:**
+Queued orders need protection when they become positions, beyond the original pipeline run.
+
+**Related to:**
+Autonomous Nightly Execution Engine & Daemon, Trade Lifecycle & Realized P&L
+
+---
+
 ### Relational Run History, Parameter Configuration & Audit Data Architecture (Portfolio, Configs, Scans, Gates & Executions)
 
 **Why it appeared:**  

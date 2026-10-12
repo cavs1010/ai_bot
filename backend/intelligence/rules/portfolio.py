@@ -1,9 +1,9 @@
-# helpers/logic/portfolio.py — daily loss limit check (pure calculation, no API)
+# portfolio.py — daily loss limit check (pure calculation, no API)
 # Phase 4 | Intelligence Layer | Shared helper
 # Used by: Gate 1 screen_gate1_hard_threats()
 #
 # Functions:
-#   check_daily_loss_limit(portfolio_value, daily_pnl, limit_pct=0.03)
+#   check_daily_loss_limit(portfolio_value, daily_pnl, limit_pct)
 #       → {breached: bool, loss_pct: float}
 #
 # Test: python -m backend.intelligence.rules.portfolio
@@ -12,7 +12,7 @@
 def check_daily_loss_limit(
     portfolio_value: float,
     daily_pnl: float,
-    limit_pct: float = 0.03,
+    limit_pct: float,
 ) -> dict:
     """
     Checks whether the portfolio has exceeded its daily loss limit.
@@ -22,7 +22,7 @@ def check_daily_loss_limit(
         daily_pnl:       Realized + unrealized P&L for the current session (dollars,
                          negative = loss, positive = gain).
         limit_pct:       Maximum tolerated daily loss as a fraction of portfolio value.
-                         Default 0.03 (3%).
+                         Required; production callers supply the active strategy setting.
 
     Returns:
         dict with keys:
@@ -38,24 +38,24 @@ def check_daily_loss_limit(
 
 if __name__ == '__main__':
     # Normal loss — well within 3% limit
-    r = check_daily_loss_limit(100_000, -2_000)
+    r = check_daily_loss_limit(100_000, -2_000, limit_pct=0.03)
     assert r['breached'] is False
     assert r['loss_pct'] == -0.02
     print(f'[portfolio] -2% loss:  breached={r["breached"]}, loss_pct={r["loss_pct"]:+.2%}')
 
     # Exactly at the limit — must be blocked (≤, not <)
-    r = check_daily_loss_limit(100_000, -3_000)
+    r = check_daily_loss_limit(100_000, -3_000, limit_pct=0.03)
     assert r['breached'] is True
     assert r['loss_pct'] == -0.03
     print(f'[portfolio] -3% loss:  breached={r["breached"]}, loss_pct={r["loss_pct"]:+.2%}')
 
     # Over the limit
-    r = check_daily_loss_limit(100_000, -4_500)
+    r = check_daily_loss_limit(100_000, -4_500, limit_pct=0.03)
     assert r['breached'] is True
     print(f'[portfolio] -4.5% loss: breached={r["breached"]}, loss_pct={r["loss_pct"]:+.2%}')
 
     # Gain — never blocked
-    r = check_daily_loss_limit(100_000, 1_500)
+    r = check_daily_loss_limit(100_000, 1_500, limit_pct=0.03)
     assert r['breached'] is False
     assert r['loss_pct'] > 0
     print(f'[portfolio] +1.5% gain: breached={r["breached"]}, loss_pct={r["loss_pct"]:+.2%}')

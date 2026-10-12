@@ -83,7 +83,7 @@ configRouter.get('/active', async (req: Request, res: Response) => {
  * DELETE /api/configs/:id
  * Delete a configuration by ID
  */
-configRouter.delete('/:id', async (req: Request, res: Response) => {
+configRouter.delete('/:id', async (req: Request<{ id: string }>, res: Response) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) {

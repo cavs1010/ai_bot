@@ -9,6 +9,8 @@ import { PATHS } from '../config/paths';
 
 export const pipelineRouter = Router();
 
+type RunRouteParams = { runId: string };
+
 interface ActiveRunSession {
   runId: string;
   isDryRun: boolean;
@@ -252,7 +254,7 @@ pipelineRouter.post('/runs', async (req: Request, res: Response) => {
  * GET /api/pipeline/runs/:runId/stream
  * Dedicated read-only SSE stream subscriber for an active or completed run session.
  */
-pipelineRouter.get('/runs/:runId/stream', (req: Request, res: Response) => {
+pipelineRouter.get('/runs/:runId/stream', (req: Request<RunRouteParams>, res: Response) => {
   const { runId } = req.params;
   const session = activeRuns.get(runId);
 
@@ -308,7 +310,7 @@ pipelineRouter.get('/runs/:runId/stream', (req: Request, res: Response) => {
  * GET /api/pipeline/runs/:runId/scanned-stocks
  * Strict Read-Only Endpoint: Returns all candidate stocks evaluated in a specific run.
  */
-pipelineRouter.get('/runs/:runId/scanned-stocks', async (req: Request, res: Response) => {
+pipelineRouter.get('/runs/:runId/scanned-stocks', async (req: Request<RunRouteParams>, res: Response) => {
   const { runId } = req.params;
   try {
     const stocks = await PipelineDbService.getScannedStocksForRun(runId);
@@ -330,7 +332,7 @@ pipelineRouter.get('/runs/:runId/scanned-stocks', async (req: Request, res: Resp
  * GET /api/pipeline/runs/:runId/gate-evaluations
  * Strict Read-Only Endpoint: Returns all gate evaluation records for a specific run session.
  */
-pipelineRouter.get('/runs/:runId/gate-evaluations', async (req: Request, res: Response) => {
+pipelineRouter.get('/runs/:runId/gate-evaluations', async (req: Request<RunRouteParams>, res: Response) => {
   const { runId } = req.params;
   try {
     const evaluations = await PipelineDbService.getGateEvaluationsForRun(runId);
@@ -352,7 +354,7 @@ pipelineRouter.get('/runs/:runId/gate-evaluations', async (req: Request, res: Re
  * GET /api/pipeline/runs/:runId/order-executions
  * Strict Read-Only Endpoint: Returns all generated order execution tickets for a specific run.
  */
-pipelineRouter.get('/runs/:runId/order-executions', async (req: Request, res: Response) => {
+pipelineRouter.get('/runs/:runId/order-executions', async (req: Request<RunRouteParams>, res: Response) => {
   const { runId } = req.params;
   try {
     const orders = await PipelineDbService.getOrderExecutionsForRun(runId);

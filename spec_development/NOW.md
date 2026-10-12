@@ -56,17 +56,15 @@ The milestone is completed when:
 
 ## 🔵 Active Feature
 
-**Feature 03 — Decision and Client Boundaries**
+**Feature 04 — Architecture and Contract Review**
 
-Move data gathering out of gates into the intelligence runner, and broker account
-reads out of the scanner into the entry. Keep calculations pure and external
-access in clients.
+Verify the final structure, dependency directions, configuration ownership and
+Node/Python contracts against the primer and agreed scope.
 
-**Active sub-task:** Enforce the approved strict client boundaries: pass settings,
-lookup values and premarket session facts from the entry and runner, move shared
-source coordination out of clients, and clean obsolete helpers and documentation.
-Present this as one reviewable change with verification, then wait for user tests,
-review and commit before continuing (Rule 31).
+**Active sub-task:** Correct the approved review findings as one batch: require an
+explicit daily-loss cutoff and make the Node TypeScript check pass with the existing
+tsx/esbuild toolchain. Wait for the user's review and commit before the final
+backend architecture documentation step (Rule 31).
 
 **Agreed boundaries:** Node owns the Neon universe and supplies it on stdin.
 Clients receive settings and lookup values as arguments and import no other
@@ -78,8 +76,7 @@ application modules; the entry and intelligence runner coordinate external sourc
 
 In the expected execution order:
 
-1. **Feature 04 — Architecture and Contract Review**
-   Verify the final structure, dependency directions, configuration ownership and Node/Python contracts against the primer and agreed scope.
+None; the architecture and contract review is active.
 
 **Final documentation step:** After implementation, verification and bug resolution,
 document the resulting backend architecture in `AGENTS.md`, using the same approach
@@ -96,6 +93,10 @@ and launch paths reviewed and committed; the user verified Load Watchlist.
 **Feature 02 — Single Entry and Intelligence Runner** — ✅ Completed. The user
 approved and committed the consolidated production gate sequence.
 
+**Feature 03 — Decision and Client Boundaries** — ✅ Completed. The user committed
+the strict boundaries and tested both simulated and broker order runs; Neon MCP
+confirmed persisted candidates, gates, filled entries and protective-stop identifiers.
+
 ---
 
 # 🐞 Bugs to Fix After the Features
@@ -104,7 +105,7 @@ approved and committed the consolidated production gate sequence.
 >
 > One line per bug: `- [ ] **Short name** — what goes wrong, and where (file or screen).` When fixed, tick the box; write nothing more.
 
-None yet.
+- [x] **Node TypeScript check failures** — NodeNext import resolution, route parameter types and resulting implicit types prevent `tsc --noEmit` from passing.
 
 ---
 
@@ -136,11 +137,12 @@ None yet.
 > 
 > AI can assist with the review, but **final approval remains human**.
 
-**Reviewing:** Feature 03 — 🟡 Under Review. Strict client input wiring and cleanup
-are ready for verification. The previous Load Watchlist change was tested by the
-user and its 90 saved stocks were independently confirmed through Neon MCP.
-This batch still needs Load Watchlist and an orders-off pipeline test. Feature 01's
-Node type-check errors remain outside this change.
+**Reviewing:** Feature 04 — 🟡 Under Review. Package and dependency boundaries match
+the primer. The loss-limit rule now requires an explicit cutoff, and the Node type
+checker passes with Bundler resolution and explicit route parameter contracts.
+The two execution failure-path issues are deferred to the Milestone Backlog with
+the user's approval. The premarket session remains untested; no additional
+pipeline or order run is authorized by this review.
 
 ## The Three Review Questions
 
@@ -172,8 +174,8 @@ None recorded yet.
 
 ## Required Actions
 
-Verify the strict client changes, then obtain user testing, review and commit
-before proceeding to Feature 04.
+Review and commit the daily-loss cutoff and TypeScript check fixes, then approve
+the final backend structure wording for `AGENTS.md` before milestone closure.
 
 ---
 
