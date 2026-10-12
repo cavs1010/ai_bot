@@ -16,13 +16,8 @@ backend_dir = pathlib.Path(__file__).resolve().parent
 scanner_dir = backend_dir / 'scanner'
 
 # Import our modular strategy elements
-from backend.config import TOP_N, MIN_SCORE, MIN_EDGE_PCT, MAX_OPEN_POSITIONS
+from backend.config import TOP_N, MIN_SCORE, MAX_OPEN_POSITIONS
 from backend.scanner.momentum import run_scan
-from backend.intelligence.gates.hard_threat import get_shared_market_data, screen_gate1_hard_threats
-from backend.intelligence.gates.news_threat import assess_gate2_news_threat
-from backend.intelligence.gates.sentiment import evaluate_gate3_sentiment
-from backend.intelligence.gates.contradiction import detect_gate4_contradiction
-from backend.intelligence.gates.signal import decide_gate5_signal
 from backend.risk.gate import validate_trade
 from backend.broker.alpaca import (
     get_portfolio_value,
@@ -33,8 +28,7 @@ from backend.broker.alpaca import (
     ENTRY_SIDE,
     ENTRY_ORDER_TYPE,
 )
-from backend.data.news import fetch_news
-from backend.data.market import get_market_context
+from backend.intelligence.run import get_shared_market_data, run_pipeline
 
 def print_log(msg: str):
     """Prints immediately to stdout with flushing so Express/Vite streams it in real-time."""
@@ -197,131 +191,19 @@ def main():
                 'atr': float(r['atr']),
             }
 
-            # Gate 1 — Hard Threat Screen
-            g1 = screen_gate1_hard_threats(candidate, shared, portfolio_value, daily_pnl)
-            if not g1['passed']:
-                reason = g1['block_reason']
-                decision = f"BLOCKED_G1:{reason}"
-                print_log(f"[gate1] {ticker}: BLOCKED — reason: {reason}")
-                emit_candidate_update(ticker, {
-                    "final_decision": decision,
-                    "notes": f"Gate 1: {reason}"
-                })
-                rows.append(_row(ticker, decision, scan, g1=g1))
-                continue
-            print_log(f"[gate1] {ticker}: Passed hard threat rules.")
-            emit_candidate_update(ticker, {
-                "final_decision": "PASSED_G1",
-                "notes": "Gate 1 passed"
-            })
-
-            # Gate 2 & 3 News Fetch and Evaluation
-            print_log(f"[gate2] Fetching recent news headlines for {ticker}...")
-            headlines = fetch_news(ticker)
-            if headlines is None:
-                # No news source answered: Gate 2 cannot assess the stock, so it is blocked (never "no news")
-                g2 = {'passed': False, 'reason': 'news_unavailable', 'news_provider': None}
-                print_log(f"[gate2] {ticker}: BLOCKED — news could not be fetched from any source.")
-                emit_candidate_update(ticker, {
-                    "final_decision": "BLOCKED_G2:news_unavailable",
-                    "notes": "Gate 2 blocked: news could not be fetched from any source"
-                })
-                rows.append(_row(ticker, "BLOCKED_G2:news_unavailable", scan, g1=g1, g2=g2))
-                continue
-            print_log(f"[gate2] Fetched {len(headlines)} headlines.")
-
-            g2 = assess_gate2_news_threat(candidate, headlines)
-            # Which news API supplied the headlines; a window with no news has no provider
-            g2['news_provider'] = headlines[0]['provider'] if headlines else None
-            if not g2['passed']:
-                print_log(f"[gate2] {ticker}: BLOCKED — catastrophic news event flagged by Claude.")
-                emit_candidate_update(ticker, {
-                    "final_decision": "BLOCKED_G2",
-                    "notes": "Gate 2 news block: catastrophic news event flagged"
-                })
-                rows.append(_row(ticker, "BLOCKED_G2", scan, g1=g1, g2=g2))
-                continue
-            print_log(f"[gate2] {ticker}: Passed news safety checks.")
-            emit_candidate_update(ticker, {
-                "final_decision": "PASSED_G2",
-                "notes": "Gate 2 passed"
-            })
-
-            # Gate 3 — Sentiment Analysis (Claude)
-            print_log(f"[gate3] Running AI sentiment analyzer on {ticker}...")
-            g3 = evaluate_gate3_sentiment(candidate, headlines)
-            if not g3['passed']:
-                print_log(f"[gate3] {ticker}: BLOCKED — Sentiment direction is NEUTRAL/BEARISH or confidence low ({g3.get('confidence')}/10).")
-                emit_candidate_update(ticker, {
-                    "final_decision": "BLOCKED_G3",
-                    "g3_direction": g3.get('direction'),
-                    "g3_confidence": g3.get('confidence'),
-                    "notes": f"Gate 3 AI sentiment block: {g3.get('direction')} ({g3.get('confidence')}/10)"
-                })
-                rows.append(_row(ticker, "BLOCKED_G3", scan, g1=g1, g2=g2, g3=g3))
-                continue
-            print_log(f"[gate3] {ticker}: Passed. AI Sentiment: {g3.get('direction')} (Confidence: {g3.get('confidence')}/10)")
-            emit_candidate_update(ticker, {
-                "final_decision": "PASSED_G3",
-                "g3_direction": g3.get('direction'),
-                "g3_confidence": g3.get('confidence'),
-                "notes": f"Gate 3 passed ({g3.get('direction')}, {g3.get('confidence')}/10)"
-            })
-
-            # Gate 4 — Contradiction Check (Claude)
-            print_log(f"[gate4] Loading market backdrop for contradiction analysis...")
-            market_context = get_market_context(sector)
-            if market_context is None:
-                # Gate 4 cannot assess without the backdrop; this block is its outcome
-                g4 = {'action': 'BLOCK', 'reason': 'unable to fetch market backdrop metrics', 'market_context': None}
-                print_log(f"[gate4] {ticker}: BLOCKED — unable to fetch market backdrop metrics.")
-                emit_candidate_update(ticker, {
-                    "final_decision": "BLOCKED_G4:no_market_context",
-                    "notes": "Gate 4 blocked: unable to fetch market context"
-                })
-                rows.append(_row(ticker, "BLOCKED_G4:no_market_context", scan, g1=g1, g2=g2, g3=g3, g4=g4))
+            intelligence = run_pipeline(
+                candidate, portfolio_value, daily_pnl, shared,
+                on_log=print_log,
+                on_update=lambda delta: emit_candidate_update(ticker, delta),
+            )
+            gates = intelligence['gates']
+            gate_results = {f"g{key.removeprefix('gate')}": value for key, value in gates.items()}
+            if intelligence['final_decision'] != 'BUY':
+                rows.append(_row(ticker, intelligence['final_decision'], scan, **gate_results))
                 continue
 
-            g4 = detect_gate4_contradiction(candidate, g3, market_context)
-            if g4['action'] == 'BLOCK':
-                print_log(f"[gate4] {ticker}: BLOCKED — direct market-vs-stock contradiction found: {g4.get('reason')}")
-                emit_candidate_update(ticker, {
-                    "final_decision": "BLOCKED_G4",
-                    "notes": f"Gate 4 blocked: {g4.get('reason')}"
-                })
-                rows.append(_row(ticker, "BLOCKED_G4", scan, g1=g1, g2=g2, g3=g3, g4=g4))
-                continue
-            elif g4['action'] == 'FLAG_FOR_REVIEW':
-                # Automated environment auto-approves flags but logs the warning
-                print_log(f"[gate4] {ticker}: FLAGGED FOR REVIEW (Auto-Approved) — {g4.get('reason')}")
-
-            print_log(f"[gate4] {ticker}: Passed divergence verification.")
-
-            # Gate 5 — Expected Value (EV) calculation
-            g5 = decide_gate5_signal(candidate, {'gate1': g1, 'gate2': g2, 'gate3': g3, 'gate4': g4})
+            g1, g2, g3, g4, g5 = (gates[f'gate{gate_id}'] for gate_id in range(1, 6))
             tl = g5.get('trade_levels')
-            if g5['decision'] != 'BUY':
-                print_log(f"[gate5] {ticker}: SKIP — calculated EV {g5.get('expected_value'):.1%} is below strategy hurdle ({MIN_EDGE_PCT:.1%}).")
-                emit_candidate_update(ticker, {
-                    "final_decision": g5['decision'],
-                    "ev": round(g5['expected_value'], 3) if g5.get('expected_value') is not None else None,
-                    "win_prob": round(g5['win_probability'], 3) if g5.get('win_probability') is not None else None,
-                    "position_confidence": g5.get('position_confidence'),
-                    "trade_levels": tl,
-                    "notes": f"Gate 5 SKIP: EV {g5.get('expected_value'):.1%} below threshold"
-                })
-                rows.append(_row(ticker, g5['decision'], scan, g1=g1, g2=g2, g3=g3, g4=g4, g5=g5))
-                continue
-            
-            print_log(f"[gate5] {ticker}: BUY SIGNAL generated! EV={g5.get('expected_value'):.1%}, Entry=${tl['entry']:.2f}, Stop=${tl['stop']:.2f}, Target=${tl['target']:.2f}, R:R={tl['reward_risk']:.1f}")
-            emit_candidate_update(ticker, {
-                "final_decision": "BUY",
-                "ev": round(g5['expected_value'], 3),
-                "win_prob": round(g5['win_probability'], 3),
-                "position_confidence": g5.get('position_confidence'),
-                "trade_levels": tl,
-                "notes": f"Gate 5 BUY Signal generated (EV {g5.get('expected_value'):.1%})"
-            })
 
             # Risk Gate Sizing
             risk = validate_trade(ticker, g5, portfolio_value, daily_pnl, open_positions_count, drawdown_pct)

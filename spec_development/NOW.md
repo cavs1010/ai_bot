@@ -56,15 +56,15 @@ The milestone is completed when:
 
 ## 🔵 Active Feature
 
-**Feature 01 — Python Package Structure**
+**Feature 02 — Single Entry and Intelligence Runner**
 
-Move existing modules into the primer's named package layout and update imports
-and affected launch paths while preserving behavior and input/output contracts.
+Separate entry orchestration and output formatting from the gate sequence. Preserve
+the production policy: Gate 4 `FLAG_FOR_REVIEW` continues with a warning.
 
-**Active sub-task:** Establish the backend package structure, updating imports and
-required launch paths while preserving existing behavior and contracts. Group
-related file moves, import updates and verification into one coherent reviewable
-change, then wait for the user's review and commit before continuing (Rule 31).
+**Active sub-task:** Consolidate the production Gates 1–5 sequence in
+`backend/intelligence/run.py`; keep batch orchestration, risk, execution and stdout
+formatting in `backend/cli.py`. Preserve decisions, failure behavior and telemetry
+as one reviewable change, then wait for the user's review and commit (Rule 31).
 
 **Questions to Resolve:**  
 - Reconcile the primer's scanner-file references with the agreed Neon-backed universe flow; retain Node persistence and stdin universe input.
@@ -76,11 +76,9 @@ change, then wait for the user's review and commit before continuing (Rule 31).
 
 In the expected execution order:
 
-1. **Feature 02 — Single Entry and Intelligence Runner**
-   Separate entry orchestration and output formatting from the gate sequence. Preserve the full runner's production policy: Gate 4 `FLAG_FOR_REVIEW` continues with a warning.
-2. **Feature 03 — Decision and Client Boundaries**
+1. **Feature 03 — Decision and Client Boundaries**
    Move data gathering out of gates into the intelligence runner, and broker account reads out of the scanner into the entry. Keep calculations pure and external access in clients.
-3. **Feature 04 — Architecture and Contract Review**
+2. **Feature 04 — Architecture and Contract Review**
    Verify the final structure, dependency directions, configuration ownership and Node/Python contracts against the primer and agreed scope.
 
 **Final documentation step:** After implementation, verification and bug resolution,
@@ -92,7 +90,8 @@ before editing that file. Do this only at the end of the milestone work, before 
 
 ## ✅ Completed Features
 
-None yet.
+**Feature 01 — Python Package Structure** — ✅ Completed. Package moves, imports
+and launch paths reviewed and committed; the user verified Load Watchlist.
 
 ---
 
@@ -134,10 +133,10 @@ None yet.
 > 
 > AI can assist with the review, but **final approval remains human**.
 
-**Reviewing:** Feature 01 — 🟡 Under Review. Package moves, imports and launch paths
-are ready for review. Static comparison preserves trading logic and output
-formatting; Python runtime verification is pending. The Node type checker produces
-the same errors as the committed baseline.
+**Reviewing:** Feature 02 — 🟡 Under Review. The production gate sequence now lives
+in the intelligence runner. Static review covers branch behavior, progress messages
+and output contracts; a live pipeline run still requires separate permission under
+Rule 5. Feature 01's Node type-check errors remain outside this change.
 
 ## The Three Review Questions
 
@@ -169,7 +168,7 @@ None recorded yet.
 
 ## Required Actions
 
-User review and commit of the coherent Feature 01 change before continuing.
+User review and commit of the coherent Feature 02 change before continuing.
 
 ---
 

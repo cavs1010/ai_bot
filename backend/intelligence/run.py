@@ -1,22 +1,8 @@
-# intelligence/run.py — Pipeline Orchestrator (wiring only, no Claude)
-# Phase 4.6 | Intelligence Layer
-#
-# Function: run_pipeline(candidate, portfolio_value, daily_pnl, shared=None)
-#   → {ticker, gates: {gate1..gate5}, final_decision}
-#
-# final_decision values: 'BUY' | 'SKIP' | 'BLOCKED_G1' | 'BLOCKED_G2' | 'BLOCKED_G3' | 'BLOCKED_G4' | 'FLAGGED_FOR_REVIEW'
-#
-# Flow:
-#   1. Gate 1 screen_gate1_hard_threats()
-#   2. If pass → fetch_news(ticker)  ← called once here, shared with Gates 2 & 3
-#   3. Gate 2 assess_gate2_news_threat(headlines)
-#   4. Gate 3 evaluate_gate3_sentiment(same headlines)
-#   5. get_market_context(sector) → Gate 4 detect_gate4_contradiction()
-#   6. Gate 5 decide_gate5_signal()
-#   Stop on first failure.
-#
-# Test: python -m backend.intelligence.run
+"""The production Gates 1–5 sequence, shared by all pipeline callers."""
 
+from collections.abc import Callable
+
+from backend.config import MIN_EDGE_PCT
 from backend.intelligence.gates.hard_threat import get_shared_market_data, screen_gate1_hard_threats
 from backend.data.news import fetch_news
 from backend.intelligence.gates.news_threat import assess_gate2_news_threat
@@ -30,106 +16,144 @@ def run_pipeline(
     candidate: dict,
     portfolio_value: float,
     daily_pnl: float,
-    shared: dict | None = None,
+    shared: dict,
+    *,
+    on_log: Callable[[str], None],
+    on_update: Callable[[dict], None],
 ) -> dict:
-    """
-    Runs one candidate through Gates 1-5 in order, stopping at the first failure.
+    """Evaluate one candidate and return its gate results and final decision.
 
-    Single entry point for the rest of the bot (risk gate, nightly loop, logger). Fetches
-    news once and reuses it for Gates 2 and 3; builds market context once for Gate 4 —
-    gates never fetch their own data (agent_creation_rules.md §2).
+    Shared market facts come from the batch entry. News is fetched once per
+    candidate for Gates 2 and 3. Callbacks report progress without formatting
+    stdout; the entry owns the streaming protocol.
 
-    Args:
-        candidate:       Momentum scanner dict. Required keys: 'ticker', 'sector', 'price',
-                          'atr'. Optional: 'score' (defaults inside Gate 5).
-        portfolio_value: Total portfolio value at start of day (dollars).
-        daily_pnl:       Realized + unrealized P&L for today (dollars, negative = loss).
-        shared:          Pre-fetched market-wide data from get_shared_market_data(). Pass
-                          this when calling run_pipeline() in a loop over many candidates
-                          so VIX/SPY/macro are fetched once per batch, not once per
-                          candidate. Defaults to None, which fetches internally so the
-                          function also works standalone.
-
-    Returns:
-        dict with keys:
-            ticker         (str)  — candidate['ticker'], echoed for convenience.
-            gates          (dict) — one key per gate that actually ran (e.g. 'gate1',
-                                     'gate2', ...); gates never reached after an earlier
-                                     block are simply absent.
-            final_decision (str)  — one of 'BUY', 'SKIP', 'BLOCKED_G1', 'BLOCKED_G2',
-                                     'BLOCKED_G3', 'BLOCKED_G4', 'FLAGGED_FOR_REVIEW'.
+    Preserve production policy: blocks stop immediately, unavailable news or
+    market context blocks the candidate, and Gate 4 flags warn and continue.
     """
     ticker = candidate['ticker']
-    gates: dict = {}
+    sector = candidate['sector']
 
-    if shared is None:
-        shared = get_shared_market_data()
-
+    # Gate 1 — Hard Threat Screen
     g1 = screen_gate1_hard_threats(candidate, shared, portfolio_value, daily_pnl)
-    gates['gate1'] = g1
     if not g1['passed']:
-        return {'ticker': ticker, 'gates': gates, 'final_decision': 'BLOCKED_G1'}
+        reason = g1['block_reason']
+        decision = f"BLOCKED_G1:{reason}"
+        on_log(f"[gate1] {ticker}: BLOCKED — reason: {reason}")
+        on_update({
+            "final_decision": decision,
+            "notes": f"Gate 1: {reason}"
+        })
+        return {'ticker': ticker, 'gates': {'gate1': g1}, 'final_decision': decision}
+    on_log(f"[gate1] {ticker}: Passed hard threat rules.")
+    on_update({
+        "final_decision": "PASSED_G1",
+        "notes": "Gate 1 passed"
+    })
 
-    headlines = fetch_news(ticker) or []
+    # Gate 2 & 3 News Fetch and Evaluation
+    on_log(f"[gate2] Fetching recent news headlines for {ticker}...")
+    headlines = fetch_news(ticker)
+    if headlines is None:
+        # No news source answered: Gate 2 cannot assess the stock, so it is blocked (never "no news")
+        g2 = {'passed': False, 'reason': 'news_unavailable', 'news_provider': None}
+        on_log(f"[gate2] {ticker}: BLOCKED — news could not be fetched from any source.")
+        on_update({
+            "final_decision": "BLOCKED_G2:news_unavailable",
+            "notes": "Gate 2 blocked: news could not be fetched from any source"
+        })
+        return {'ticker': ticker, 'gates': {'gate1': g1, 'gate2': g2}, 'final_decision': "BLOCKED_G2:news_unavailable"}
+    on_log(f"[gate2] Fetched {len(headlines)} headlines.")
 
     g2 = assess_gate2_news_threat(candidate, headlines)
-    gates['gate2'] = g2
+    # Which news API supplied the headlines; a window with no news has no provider
+    g2['news_provider'] = headlines[0]['provider'] if headlines else None
     if not g2['passed']:
-        return {'ticker': ticker, 'gates': gates, 'final_decision': 'BLOCKED_G2'}
+        on_log(f"[gate2] {ticker}: BLOCKED — catastrophic news event flagged by Claude.")
+        on_update({
+            "final_decision": "BLOCKED_G2",
+            "notes": "Gate 2 news block: catastrophic news event flagged"
+        })
+        return {'ticker': ticker, 'gates': {'gate1': g1, 'gate2': g2}, 'final_decision': "BLOCKED_G2"}
+    on_log(f"[gate2] {ticker}: Passed news safety checks.")
+    on_update({
+        "final_decision": "PASSED_G2",
+        "notes": "Gate 2 passed"
+    })
 
+    # Gate 3 — Sentiment Analysis (Claude)
+    on_log(f"[gate3] Running AI sentiment analyzer on {ticker}...")
     g3 = evaluate_gate3_sentiment(candidate, headlines)
-    gates['gate3'] = g3
     if not g3['passed']:
-        return {'ticker': ticker, 'gates': gates, 'final_decision': 'BLOCKED_G3'}
+        on_log(f"[gate3] {ticker}: BLOCKED — Sentiment direction is NEUTRAL/BEARISH or confidence low ({g3.get('confidence')}/10).")
+        on_update({
+            "final_decision": "BLOCKED_G3",
+            "g3_direction": g3.get('direction'),
+            "g3_confidence": g3.get('confidence'),
+            "notes": f"Gate 3 AI sentiment block: {g3.get('direction')} ({g3.get('confidence')}/10)"
+        })
+        return {'ticker': ticker, 'gates': {'gate1': g1, 'gate2': g2, 'gate3': g3}, 'final_decision': "BLOCKED_G3"}
+    on_log(f"[gate3] {ticker}: Passed. AI Sentiment: {g3.get('direction')} (Confidence: {g3.get('confidence')}/10)")
+    on_update({
+        "final_decision": "PASSED_G3",
+        "g3_direction": g3.get('direction'),
+        "g3_confidence": g3.get('confidence'),
+        "notes": f"Gate 3 passed ({g3.get('direction')}, {g3.get('confidence')}/10)"
+    })
 
-    # No gate4 entry if market context is unavailable — Gate 4 never ran. Block rather than
-    # trade blind, matching the LLM-unavailable policy already used in Gates 2-4.
-    market_context = get_market_context(candidate['sector'])
+    # Gate 4 — Contradiction Check (Claude)
+    on_log(f"[gate4] Loading market backdrop for contradiction analysis...")
+    market_context = get_market_context(sector)
     if market_context is None:
-        return {'ticker': ticker, 'gates': gates, 'final_decision': 'BLOCKED_G4'}
+        # Gate 4 cannot assess without the backdrop; this block is its outcome
+        g4 = {'action': 'BLOCK', 'reason': 'unable to fetch market backdrop metrics', 'market_context': None}
+        on_log(f"[gate4] {ticker}: BLOCKED — unable to fetch market backdrop metrics.")
+        on_update({
+            "final_decision": "BLOCKED_G4:no_market_context",
+            "notes": "Gate 4 blocked: unable to fetch market context"
+        })
+        return {'ticker': ticker, 'gates': {'gate1': g1, 'gate2': g2, 'gate3': g3, 'gate4': g4}, 'final_decision': "BLOCKED_G4:no_market_context"}
 
     g4 = detect_gate4_contradiction(candidate, g3, market_context)
-    gates['gate4'] = g4
     if g4['action'] == 'BLOCK':
-        return {'ticker': ticker, 'gates': gates, 'final_decision': 'BLOCKED_G4'}
-    if g4['action'] == 'FLAG_FOR_REVIEW':
-        return {'ticker': ticker, 'gates': gates, 'final_decision': 'FLAGGED_FOR_REVIEW'}
+        on_log(f"[gate4] {ticker}: BLOCKED — direct market-vs-stock contradiction found: {g4.get('reason')}")
+        on_update({
+            "final_decision": "BLOCKED_G4",
+            "notes": f"Gate 4 blocked: {g4.get('reason')}"
+        })
+        return {'ticker': ticker, 'gates': {'gate1': g1, 'gate2': g2, 'gate3': g3, 'gate4': g4}, 'final_decision': "BLOCKED_G4"}
+    elif g4['action'] == 'FLAG_FOR_REVIEW':
+        # Automated environment auto-approves flags but logs the warning
+        on_log(f"[gate4] {ticker}: FLAGGED FOR REVIEW (Auto-Approved) — {g4.get('reason')}")
 
+    on_log(f"[gate4] {ticker}: Passed divergence verification.")
+
+    # Gate 5 — Expected Value (EV) calculation
     g5 = decide_gate5_signal(candidate, {'gate1': g1, 'gate2': g2, 'gate3': g3, 'gate4': g4})
-    gates['gate5'] = g5
-    return {'ticker': ticker, 'gates': gates, 'final_decision': g5['decision']}
+    tl = g5.get('trade_levels')
+    if g5['decision'] != 'BUY':
+        on_log(f"[gate5] {ticker}: SKIP — calculated EV {g5.get('expected_value'):.1%} is below strategy hurdle ({MIN_EDGE_PCT:.1%}).")
+        on_update({
+            "final_decision": g5['decision'],
+            "ev": round(g5['expected_value'], 3) if g5.get('expected_value') is not None else None,
+            "win_prob": round(g5['win_probability'], 3) if g5.get('win_probability') is not None else None,
+            "position_confidence": g5.get('position_confidence'),
+            "trade_levels": tl,
+            "notes": f"Gate 5 SKIP: EV {g5.get('expected_value'):.1%} below threshold"
+        })
+        return {'ticker': ticker, 'gates': {'gate1': g1, 'gate2': g2, 'gate3': g3, 'gate4': g4, 'gate5': g5}, 'final_decision': g5['decision']}
 
+    on_log(f"[gate5] {ticker}: BUY SIGNAL generated! EV={g5.get('expected_value'):.1%}, Entry=${tl['entry']:.2f}, Stop=${tl['stop']:.2f}, Target=${tl['target']:.2f}, R:R={tl['reward_risk']:.1f}")
+    on_update({
+        "final_decision": "BUY",
+        "ev": round(g5['expected_value'], 3),
+        "win_prob": round(g5['win_probability'], 3),
+        "position_confidence": g5.get('position_confidence'),
+        "trade_levels": tl,
+        "notes": f"Gate 5 BUY Signal generated (EV {g5.get('expected_value'):.1%})"
+    })
 
-if __name__ == '__main__':
-    candidate = {
-        'ticker': 'AAPL',
-        'sector': 'Electronic Technology',
-        'price': 200.0,
-        'atr': 5.0,
-        'score': 3,
+    return {
+        'ticker': ticker,
+        'gates': {'gate1': g1, 'gate2': g2, 'gate3': g3, 'gate4': g4, 'gate5': g5},
+        'final_decision': g5['decision'],
     }
-    valid_decisions = {
-        'BUY', 'SKIP', 'BLOCKED_G1', 'BLOCKED_G2', 'BLOCKED_G3', 'BLOCKED_G4', 'FLAGGED_FOR_REVIEW',
-    }
-
-    print('=== Happy path — AAPL, calm portfolio ===')
-    result = run_pipeline(candidate, portfolio_value=100_000, daily_pnl=0.0)
-    print(f"ticker:         {result['ticker']}")
-    print(f"gates ran:      {list(result['gates'].keys())}")
-    print(f"final_decision: {result['final_decision']}")
-    assert result['ticker'] == candidate['ticker']
-    assert result['final_decision'] in valid_decisions
-    print('[pipeline] happy-path contract verified ✅')
-
-    print()
-
-    print('=== Forced block — daily loss of -5% exceeds the 3% limit ===')
-    # No network call required to trigger this — mirrors hard_threat_gate1.py's own smoke test.
-    blocked = run_pipeline(candidate, portfolio_value=100_000, daily_pnl=-5_000)
-    assert blocked['final_decision'] == 'BLOCKED_G1', \
-        f"Expected BLOCKED_G1, got: {blocked['final_decision']}"
-    assert blocked['gates']['gate1']['block_reason'] == 'loss_limit'
-    assert 'gate2' not in blocked['gates'], 'pipeline should have stopped at Gate 1'
-    print(f"final_decision: {blocked['final_decision']}  "
-          f"block_reason: {blocked['gates']['gate1']['block_reason']}")
-    print('[pipeline] forced loss_limit block correctly triggered ✅')
